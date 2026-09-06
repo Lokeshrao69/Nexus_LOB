@@ -3,7 +3,7 @@
 > **Purpose of this file:** persistent memory across Claude Code sessions. Read it
 > first every session. When you finish a chunk of work, update **§6 Status** and
 > **§7 Next steps** so the next session resumes without re-deriving everything.
-> Last updated: **2026-09-04**.
+> Last updated: **2026-09-06**.
 
 ---
 
@@ -186,6 +186,32 @@ excluded by design — engine records prints on matching).
   so the MSVC multi-config generator drops the module directly into `bindings/` (where pytest
   expects it) instead of `bindings/<Config>/`.
 
+**Phase 1d — Person A: Monte-Carlo VaR/CVaR risk engine, subsystem 3 (2026-09-06, branch `feature/risk-engine`).**
+
+| Component | File | State |
+|---|---|---|
+| Model + deterministic RNG (GBM / jump-diff, splitmix64) | `cuda_risk/risk_common.hpp` | ✅ same RNG on CPU/GPU/NumPy → exact parity |
+| CPU reference (serial VaR/CVaR) | `cuda_risk/risk_cpu.hpp` | ✅ header-only, plain C++, tested |
+| CUDA kernel (1 thread/path) + launcher | `cuda_risk/risk_cuda.{cu,h}` | ⚠️ authored; compiles only with a toolkit |
+| CPU-vs-GPU bench + bit-for-bit parity | `cuda_risk/risk_bench.cpp` | ✅ CPU path runs here; GPU path on a CUDA box |
+| pybind `compute_var_cvar` (CPU) | `bindings/pybind_wrapper.cpp` | ✅ |
+| NumPy oracle — **exact** parity (not MC-noise) | `python_quant/tests/test_risk_parity.py` | ✅ 3/3 bit-for-bit |
+| C++ statistical self-tests | `cpp_engine/tests/risk_test.cpp` | ✅ CTest 5/5 (mean vs 1−e^{μT}, VaR/CVaR monotonicity, jumps fatten tail, determinism) |
+| CMake wiring | `CMakeLists.txt` | ✅ `nexus_risk` + `risk_bench` under toolkit; `risk_test` always; `cuda_risk` on pybind include path |
+
+**Design:** the per-path randomness is a pure function of `(seed, path, step)`
+via counter-based splitmix64, so the CPU reference, the CUDA kernel, and the
+NumPy oracle all draw the **identical** paths — parity is bit-for-bit, not
+Monte-Carlo tolerance. The GPU kernel is one thread per path with no shared
+state / no atomics; the quantile is reduced on the host.
+
+**Verified here (no GPU):** pytest **49 passed** (incl. 3 exact-parity),
+CTest **5/5** (incl. `risk_test`). CPU reference: 200k paths × 252 steps in
+~1.0 s (50M path-steps/s) — the baseline the GPU speedup is measured against.
+**Blocked:** the CUDA kernel and the ~40× speedup cannot be compiled or
+measured on this machine (no `nvcc`/toolkit); needs WSL/Linux or a Windows
+CUDA toolkit.
+
 **Phase 1c — Person B: PPO execution agent (2026-09-05).**
 
 | Component | File | State |
@@ -239,8 +265,14 @@ post-at-touch objective). Knobs and harness are in place to run that.
    workloads; `lob_test` 86/86 and new `id_map_test` 4,676,294 checks pass; ABI lock
    (448 B) intact. Throughput/latency still to be re-measured on real hardware (the
    Windows sandbox throttles memory workloads — §8).
-9. **Later:** CUDA risk engine (subsystem 3); Python dashboard reading the shmem ring
-   (subsystem 4/5).
+9. **Subsystem 3 — CUDA risk engine: authored + CPU-validated (branch
+   `feature/risk-engine`, 2026-09-06).** The CPU reference, NumPy exact-parity
+   oracle, CTest `risk_test`, and pybind `compute_var_cvar` all pass **here**
+   (49 pytest, 5/5 CTest). The **GPU kernel** (`risk_cuda.cu`) and the ~40×
+   speedup remain **blocked**: no CUDA toolkit on this machine — compile
+   `nexus_risk` + `risk_bench` on WSL/Linux or a Windows CUDA toolkit and
+   capture the CPU-vs-GPU number.
+10. **Later:** Python dashboard reading the shmem ring (subsystem 4/5).
 
 ## 8. Environment reality (IMPORTANT — read before running anything)
 
