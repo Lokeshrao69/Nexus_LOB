@@ -1,8 +1,6 @@
 # Nexus-LOB — Progress Report
 
-**Status date:** 2026-09-04 · **Branch:** `main` · **Milestone:** Phase 1 — C++ matching
-engine implemented + pybind `Engine` wired to it, **and Phase 1b — Person B's ITCH replay
-+ Gymnasium execution env + baselines merged (PR #2)**. This file is a plain-language
+**Status date:** 2026-09-06 · **Branch:** `main` (+ `feature/risk-engine` for subsystem 3) · **Milestone:** C++ matching engine + pybind seam, Person B's ITCH/env/baselines/PPO agent, **and now Person A's Monte-Carlo VaR/CVaR risk engine (subsystem 3) — CPU-validated, CUDA kernel authored but blocked for GPU testing**. This file is a plain-language
 snapshot for anyone (Person A or Person B) picking the project up; the authoritative,
 constantly-updated handoff doc is `CLAUDE.md`.
 
@@ -136,12 +134,36 @@ needed); swaps to the real engine via `book_port.adapt(...)`.
 
 ---
 
+### 3g. Person A — Monte-Carlo VaR/CVaR risk engine (subsystem 3) ✅ (CPU; GPU blocked)
+Authored on `feature/risk-engine` (2026-09-06). Key idea: the per-path RNG is a
+**pure function of (seed, path, step)** via counter-based splitmix64, so CPU,
+CUDA, and a NumPy oracle all draw *identical* paths → **bit-for-bit** parity
+(not Monte-Carlo tolerance).
+
+| Piece | File | State |
+|---|---|---|
+| Model + RNG (GBM / Merton jump-diffusion) | `cuda_risk/risk_common.hpp` | ✅ |
+| CPU serial reference | `cuda_risk/risk_cpu.hpp` | ✅ (200k×252 ≈ 1.0 s here) |
+| CUDA kernel + launcher (1 thread/path) | `cuda_risk/risk_cuda.{cu,h}` | ⚠️ authored, needs toolkit |
+| CPU-vs-GPU bench + parity | `cuda_risk/risk_bench.cpp` | ✅ CPU; GPU on a CUDA box |
+| pybind `compute_var_cvar` (CPU) | `bindings/pybind_wrapper.cpp` | ✅ |
+| NumPy exact-parity oracle | `python_quant/tests/test_risk_parity.py` | ✅ 3/3 |
+| C++ statistical tests | `cpp_engine/tests/risk_test.cpp` | ✅ CTest 5/5 |
+| CMake wiring | `CMakeLists.txt` | ✅ `nexus_risk`/`risk_bench` under toolkit |
+
+**Verified here (no GPU): pytest 49 passed, CTest 5/5.** The CUDA kernel and
+~40× speedup cannot be compiled/measured on this machine — that's the blocker.
+
 ## 4. What is NOT done yet
 
 - ✅ ~~Pybind module built + parity tests green~~ — **DONE 2026-09-04** (Windows/MSVC).
 - ✅ ~~Run the authored Python (parser/replay/env/baselines/diff-test)~~ — **DONE 2026-09-04**.
-- ❌ RL execution agent (PPO/GRPO) vs the baselines (baselines themselves ✅ done).
-- ❌ CUDA VaR/CVaR risk engine.
+- ✅ ~~RL execution agent (PPO) vs the baselines~~ — **DONE 2026-09-05** (beats all baselines on the
+  env's reward; ≈ VWAP on shortfall — see `python_quant/nexus_quant/agents/README.md` for the
+  honest numbers and the high-vol path to the slippage headline).
+- ⚠️ **CUDA VaR/CVaR risk engine (subsystem 3)** — CPU reference + exact NumPy parity + CTest
+  **DONE & green** (2026-09-06, branch `feature/risk-engine`); the **GPU kernel + ~40× speedup
+  are BLOCKED** here (no CUDA toolkit) — compile `nexus_risk`/`risk_bench` on a CUDA machine.
 - ❌ Python dashboard on top of the shmem ring (the ring's C++ publisher/reader core
   ✅ is done — see §3e).
 
@@ -234,11 +256,12 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
 
 ## 8. Suggested next steps
 
-1. **Finish Tier 2 on Windows** (see §7): finish the MSVC Build Tools install, then
-   `python -m pip install pybind11 cmake` → `cmake -S . -B build -DNEXUS_BUILD_PYBIND=ON`
-   → `cmake --build build -j` → `python -m pytest bindings/tests/test_abi_parity.py
-   bindings/tests/test_diff_engine_stub.py -v`. Tier 1 (pure-Python) already **passed**.
-2. ~~**Person B: ITCH parser + `OrderBookEnv` + baselines**~~ — ✅ done (PR #2, merged).
-3. ~~**Diff-test harness**~~ — ✅ authored (`bindings/tests/test_diff_engine_stub.py`),
-   needs the Tier 2 build to run.
-4. Later: PPO/GRPO agent vs baselines · CUDA VaR · dashboard.
+1. ✅ ~~Tier 2 on Windows~~ — **PASSED 2026-09-04** (MSVC build + parity + diff-test).
+2. ✅ ~~**Person B: ITCH parser + `OrderBookEnv` + baselines**~~ — done (PR #2, merged).
+3. ✅ ~~**Diff-test harness**~~ — done + passing.
+4. ✅ ~~**PPO/GRPO agent vs baselines**~~ — done 2026-09-05 (reward beats all baselines;
+   shortfall ≈ VWAP; high-vol regime identified as the path to the ~14% headline).
+5. **Next: verify the GPU risk engine on a CUDA machine** — compile `nexus_risk` +
+   `risk_bench` (needs `nvcc`/toolkit: WSL/Linux or Windows CUDA), capture the ~40×
+   speedup and the bit-for-bit CPU-vs-GPU parity.
+6. Later: Python dashboard on the shmem ring (subsystem 4/5).
