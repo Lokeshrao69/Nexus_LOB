@@ -126,6 +126,17 @@ if(NEXUS_BUILD_TESTS)
         endif()
         add_test(NAME id_map_test COMMAND id_map_test)
     endif()
+
+    # Subsystem 3 — Monte-Carlo VaR/CVaR CPU-reference statistical tests
+    # (pure C++, no CUDA required; runs in CTest on every build machine).
+    if(EXISTS "${PROJECT_SOURCE_DIR}/cpp_engine/tests/risk_test.cpp")
+        add_executable(risk_test cpp_engine/tests/risk_test.cpp)
+        target_include_directories(risk_test PRIVATE "${PROJECT_SOURCE_DIR}/cuda_risk")
+        if(NOT MSVC)
+            target_compile_options(risk_test PRIVATE -Wall -Wextra)
+        endif()
+        add_test(NAME risk_test COMMAND risk_test)
+    endif()
 endif()
 
 # ============================================================================
@@ -163,6 +174,9 @@ if(NEXUS_BUILD_PYBIND)
     # MODULE_NAME must match PYBIND11_MODULE(nexus_engine, m) in the source.
     pybind11_add_module(nexus_engine bindings/pybind_wrapper.cpp)
     target_link_libraries(nexus_engine PRIVATE nexus::engine)
+    # CPU risk reference (subsystem 3) is exposed as `compute_var_cvar` — the
+    # header lives under cuda_risk/ even though it is pure C++ (no toolkit).
+    target_include_directories(nexus_engine PRIVATE "${PROJECT_SOURCE_DIR}/cuda_risk")
 
     # Drop the compiled module into bindings/ so `import nexus_engine` resolves
     # for bindings/tests/test_abi_parity.py (pyproject adds bindings/ to
@@ -226,14 +240,30 @@ if(CUDAToolkit_FOUND)
     # want reproducible, IEEE-accurate reductions over 100k+ paths.
     set(NEXUS_CUDA_FLAGS $<$<COMPILE_LANGUAGE:CUDA>:-O3>)
 
-    # --- Future GPU risk engine (uncomment when cuda_risk/*.cu exists) ----------
-    # file(GLOB NEXUS_RISK_SOURCES CONFIGURE_DEPENDS
-    #      "${PROJECT_SOURCE_DIR}/cuda_risk/*.cu")
-    # add_library(nexus_risk STATIC ${NEXUS_RISK_SOURCES})
-    # set_target_properties(nexus_risk PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-    # target_compile_options(nexus_risk PRIVATE ${NEXUS_CUDA_FLAGS})
-    # target_link_libraries(nexus_risk PUBLIC CUDA::cudart nexus::engine)
+    # --- GPU risk engine (subsystem 3) --------------------------------------
+    file(GLOB NEXUS_RISK_SOURCES CONFIGURE_DEPENDS
+         "${PROJECT_SOURCE_DIR}/cuda_risk/*.cu")
+    add_library(nexus_risk STATIC ${NEXUS_RISK_SOURCES})
+    set_target_properties(nexus_risk PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+    target_compile_options(nexus_risk PRIVATE ${NEXUS_CUDA_FLAGS})
+    target_link_libraries(nexus_risk PUBLIC CUDA::cudart)
     # ---------------------------------------------------------------------------
+endif()
+
+# ============================================================================
+#  4b. Risk engine benchmark — CPU always, GPU when a toolkit is present
+# ============================================================================
+# The CPU reference is header-only, so risk_bench compiles everywhere. When a
+# toolkit is found we define NEXUS_HAS_CUDA and link the nexus_risk kernel;
+# otherwise it reports the CPU numbers and says the GPU path wasn't built.
+add_executable(risk_bench cuda_risk/risk_bench.cpp)
+target_include_directories(risk_bench PRIVATE "${PROJECT_SOURCE_DIR}/cuda_risk")
+if(NOT MSVC)
+    target_compile_options(risk_bench PRIVATE -O3)
+endif()
+if(CUDAToolkit_FOUND)
+    target_compile_definitions(risk_bench PRIVATE NEXUS_HAS_CUDA=1)
+    target_link_libraries(risk_bench PRIVATE nexus_risk CUDA::cudart)
 endif()
 
 # ---- configuration summary -------------------------------------------------

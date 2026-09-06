@@ -17,6 +17,7 @@
 
 #include "nexus/types.hpp"
 #include "nexus/limit_order_book.hpp"
+#include "risk_cpu.hpp"  // subsystem 3: CPU Monte-Carlo VaR/CVaR reference
 
 namespace py = pybind11;
 using nexus::BookStateView;
@@ -240,4 +241,34 @@ PYBIND11_MODULE(nexus_engine, m) {
              },
              "Owning copy of the book state — safe to retain.")
         ;
+
+    // ------------------------------------------------------------------
+    // Subsystem 3 — Monte-Carlo VaR/CVaR (CPU reference, subsystem 3)
+    // Exposed so Python can diff it bit-for-bit against a NumPy oracle
+    // (tests/test_risk_parity.py). GPU path is separate (cuda_risk/*.cu).
+    // ------------------------------------------------------------------
+    m.def("compute_var_cvar",
+          [](double s0, double mu, double sigma, double T, int steps, int n_paths,
+             double alpha, std::uint64_t seed, double lambda_jump,
+             double jump_mu, double jump_sigma) {
+              nexus::risk::RiskParams p;
+              p.s0 = s0;  p.mu = mu;  p.sigma = sigma;  p.T = T;
+              p.steps = steps;  p.n_paths = n_paths;  p.alpha = alpha;
+              p.seed = seed;
+              p.lambda_jump = lambda_jump;  p.jump_mu = jump_mu;
+              p.jump_sigma = jump_sigma;
+              const auto r = nexus::risk::compute_var_cvar_cpu(p);
+              py::dict d;
+              d["var"] = r.var;  d["cvar"] = r.cvar;
+              d["mean_loss"] = r.mean_loss;  d["n"] = r.n;
+              return d;
+          },
+          py::arg("s0") = 100.0, py::arg("mu") = 0.05, py::arg("sigma") = 0.25,
+          py::arg("T") = 1.0, py::arg("steps") = 252, py::arg("n_paths") = 200000,
+          py::arg("alpha") = 0.95, py::arg("seed") = 0x51ED,
+          py::arg("lambda_jump") = 0.0, py::arg("jump_mu") = 0.0,
+          py::arg("jump_sigma") = 0.0,
+          "Monte-Carlo VaR/CVaR over a GBM (or jump-diffusion) process, as "
+          "fractions of the initial notional. CPU reference — the GPU kernel "
+          "shares its exact RNG, so results match bit-for-bit on a CUDA box.");
 }
