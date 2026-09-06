@@ -2091,21 +2091,7 @@ This repository is currently described as a **proprietary finance-placement port
 
 See the repository's project metadata and licensing files for the applicable terms.
 
----
 
-# Author
-
-**Lokesh Rao**
-
-GitHub:
-
-[github.com/Lokeshrao69](https://github.com/Lokeshrao69)
-
-Project:
-
-[github.com/Lokeshrao69/Nexus_LOB](https://github.com/Lokeshrao69/Nexus_LOB)
-
----
 
 # Final Note
 
