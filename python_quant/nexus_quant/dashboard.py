@@ -15,6 +15,7 @@ segment is absent the dashboard runs off the in-process hub or a file ring.
 from __future__ import annotations
 
 import json
+import struct
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -127,6 +128,31 @@ def latest_from_file_ring(path: Path) -> dict[str, Any] | None:
     # last complete slot
     off = (len(raw) // n - 1) * n
     return decode_slot(raw[off : off + n])
+
+
+# Person A ShmRing control block (shm_ring.hpp). Slot array starts immediately after.
+_SHM_CTRL = struct.Struct("<QQQQQII")
+_SHM_CTRL_N = 48
+
+
+def read_shm_ring_latest(name: str) -> dict[str, Any] | None:
+    """Newest published 448-byte slot from a live C++ ShmRing, or None."""
+    path = Path("/dev/shm") / name.lstrip("/")
+    if not path.is_file():
+        return None
+    data = path.read_bytes()
+    if len(data) < _SHM_CTRL_N + BOOK_STATE_DTYPE.itemsize:
+        return None
+    write_seq, _read, _drop, cap, slot_bytes, state, _pad = _SHM_CTRL.unpack_from(data, 0)
+    if state != 1 or cap == 0 or int(slot_bytes) != BOOK_STATE_DTYPE.itemsize:
+        return None
+    if write_seq == 0:
+        return None
+    idx = (int(write_seq) - 1) % int(cap)
+    off = _SHM_CTRL_N + idx * int(slot_bytes)
+    if off + int(slot_bytes) > len(data):
+        return None
+    return decode_slot(data[off : off + int(slot_bytes)])
 
 
 _PAGE = """<!doctype html>
