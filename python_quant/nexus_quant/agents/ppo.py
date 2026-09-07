@@ -356,7 +356,8 @@ def train_ppo(
     """
     cfg = cfg or PPOConfig()
     env = env_factory()  # single instance, reseeded per episode
-    policy = PPOPolicy(OBS_DIM, hidden=cfg.hidden, seed=cfg.seed, std0=cfg.std0)
+    obs_dim = env.observation_space.shape[0]  # 44 or 45
+    policy = PPOPolicy(obs_dim, hidden=cfg.hidden, seed=cfg.seed, std0=cfg.std0)
     actor_opt, critic_opt, std_opt = make_optimizers(policy, cfg)
     history: list[TrainHistory] = []
 
@@ -367,7 +368,10 @@ def train_ppo(
             it % cfg.eval_every == cfg.eval_every - 1 or it == cfg.iterations - 1
         )
         if should_eval:
-            rows = _quick_eval(policy, cfg.unit_seed + it * cfg.episodes, cfg.eval_episodes)
+            rows = _quick_eval(
+                policy, cfg.unit_seed + it * cfg.episodes, cfg.eval_episodes,
+                env_factory=env_factory,
+            )
             h = TrainHistory(
                 iteration=it + 1,
                 reward_mean=float(np.mean([r["reward"] for r in rows])),
@@ -384,9 +388,16 @@ def train_ppo(
     return policy, history
 
 
-def _quick_eval(policy: PPOPolicy, base_seed: int, episodes: int) -> list[dict]:
+def _quick_eval(
+    policy: PPOPolicy,
+    base_seed: int,
+    episodes: int,
+    env_factory: Callable[[], OrderBookEnv] = OrderBookEnv,
+) -> list[dict]:
     """Deterministic mid-training evaluation; returns light episode rows."""
     from .evaluate import evaluate_policy
 
-    rows, _ = evaluate_policy(policy, n_episodes=episodes, seed=base_seed)
+    rows, _ = evaluate_policy(
+        policy, n_episodes=episodes, seed=base_seed, env_factory=env_factory,
+    )
     return rows

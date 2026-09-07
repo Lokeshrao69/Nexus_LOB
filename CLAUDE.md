@@ -223,6 +223,10 @@ CUDA toolkit.
 | One-shot train+eval CLI | `python_quant/scripts/train_eval_agent.py` | ✅ |
 | Agent tests | `python_quant/tests/test_ppo_agent.py` | ✅ **12/12** (grad, GAE, determinism, save/load) |
 | Env price knobs | `order_book_env.py` (`is_coef`, `lambda_sched`, default-off) | ✅ additive; default behavior unchanged |
+| High-vol regime (Markov + gap events) | `order_book_env.py` (`regime_prob`/`vol_decay`/`gap_*`/`vol_*` params) | ✅ default-off; **headline achieved** |
+| Regime presets | `nexus_quant/__init__.py` (`HIGHVOL_PRESETS["highvol"]`) | ✅ |
+| Highvol CLI + eval-only | `scripts/train_eval_agent.py` (`--highvol`, `--vol-feature`, `--eval-only`) | ✅ |
+| Regime tests | `python_quant/tests/test_highvol_env.py` | ✅ **11/11** |
 | Agent README (measured numbers, honest) | `python_quant/nexus_quant/agents/README.md` | ✅ |
 
 **Measured (default env, 100 seeded episodes, 2026-09-05):** the PPO agent
@@ -234,7 +238,16 @@ benchmark. An honest sweep of `is_coef`/λ reductions/schedule-tracking/warm-sta
 did not beat TWAP on this *gentle-walk* sim — the env's bid-cap fill mechanics
 + fixed TWAP-pace child size cap achievable price; the path to the ~14%-below-VWAP
 headline is a **high-vol/gap-off flow regime** (and/or a schedule-constrained
-post-at-touch objective). Knobs and harness are in place to run that.
+post-at-touch objective).
+
+**Headline achieved (high-vol regime, 2026-09-07):** added a Markov
+regime-switching + gap-off flow to `OrderBookEnv` (new constructor params;
+defaults preserve the calm behavior byte-for-byte). See `HIGHVOL_PLAN.md`.
+Training `--highvol --vol-feature --iters 2000` → PPO shortfall **1.401 bps vs
+VWAP 2.827** = **+50.4%** lower slippage (100 seeded episodes); robust across
+seeds (+38.2% on a 200-episode re-check). The ~14% resume headline is
+comfortably exceeded. Saved policy: `python_quant/artifacts/policy_ppo_highvol.npz`.
+Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
 
 ## 7. Next steps (ordered; low-risk foundations first)
 
@@ -272,7 +285,13 @@ post-at-touch objective). Knobs and harness are in place to run that.
    speedup remain **blocked**: no CUDA toolkit on this machine — compile
    `nexus_risk` + `risk_bench` on WSL/Linux or a Windows CUDA toolkit and
    capture the CPU-vs-GPU number.
-10. **Later:** Python dashboard reading the shmem ring (subsystem 4/5).
+10. ~~**Person B — high-volatility regime → ~14% below VWAP**~~ — ✅ **ACHIEVED
+    2026-09-07** (+50.4% on shortfall vs VWAP; see `HIGHVOL_PLAN.md` + Phase 1c).
+11. **Person B — remaining polish:** GRPO variant (architecture mentions it) or
+    schedule-constrained post-at-touch refinement; and the **Python dashboard**
+    reading the shmem ring (subsystem 4/5 — the ring's C++ core is done).
+12. **End-to-end integration:** wire the risk engine's `compute_var_cvar` into
+    `OrderBookEnv` as a dynamic inventory penalty (Person A + B seam).
 
 ## 8. Environment reality (IMPORTANT — read before running anything)
 

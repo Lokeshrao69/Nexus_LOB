@@ -121,6 +121,23 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         lambda_sched: float = 0.0,
         child_max: int = 220,
         book: Any | None = None,
+        # --- high-volatility regime (defaults = no regime = current behavior) ---
+        regime_prob: float = 0.0,
+        vol_decay: float = 0.0,
+        gap_prob: float = 0.0,
+        gap_min: int = 800,
+        gap_max: int = 1800,
+        gap_down_prob: float = 0.75,
+        vol_take_prob: float = 0.55,
+        vol_take_min: int = 60,
+        vol_take_max: int = 220,
+        vol_add_min: int = 15,
+        vol_add_max: int = 70,
+        vol_add_offset_min: int = 2,
+        vol_add_offset_max: int = 12,
+        vol_events_min: int = 3,
+        vol_events_max: int = 8,
+        vol_feature: bool = False,
     ) -> None:
         self.inventory0 = int(inventory)
         self.horizon = int(horizon)
@@ -133,9 +150,28 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         self._seed0 = int(seed)
         self._rng = np.random.default_rng(self._seed0)
         self.book = adapt(book if book is not None else StubOrderBook())
+        # regime params
+        self.regime_prob = float(regime_prob)
+        self.vol_decay = float(vol_decay)
+        self.gap_prob = float(gap_prob)
+        self.gap_min = int(gap_min)
+        self.gap_max = int(gap_max)
+        self.gap_down_prob = float(gap_down_prob)
+        self.vol_take_prob = float(vol_take_prob)
+        self.vol_take_min = int(vol_take_min)
+        self.vol_take_max = int(vol_take_max)
+        self.vol_add_min = int(vol_add_min)
+        self.vol_add_max = int(vol_add_max)
+        self.vol_add_offset_min = int(vol_add_offset_min)
+        self.vol_add_offset_max = int(vol_add_offset_max)
+        self.vol_events_min = int(vol_events_min)
+        self.vol_events_max = int(vol_events_max)
+        self.vol_feature = bool(vol_feature)
+        self._volatile = False
+        obs_dim = 45 if self.vol_feature else OBS_DIM
         if gym is not None:
             self.observation_space = spaces.Box(
-                low=-10.0, high=10.0, shape=(OBS_DIM,), dtype=np.float32
+                low=-10.0, high=10.0, shape=(obs_dim,), dtype=np.float32
             )
             self.action_space = spaces.Box(
                 low=-1.0, high=1.0, shape=(1,), dtype=np.float32
@@ -167,6 +203,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         self.cash_ticks = 0
         self.fills = []
         self.agent_rest = None
+        self._volatile = False
         self.arrival_mid = self._mid() or 15_000
         obs = self._observe()
         return obs, {"arrival_mid": self.arrival_mid}
@@ -279,7 +316,8 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
     def _observe(self) -> np.ndarray:
         s = self.book.view()
         mid = self._mid(s) or self.arrival_mid
-        out = np.zeros(OBS_DIM, dtype=np.float32)
+        dim = 45 if self.vol_feature else OBS_DIM
+        out = np.zeros(dim, dtype=np.float32)
         for i in range(DEPTH):
             bp, ap = int(s["bid_px"][i]), int(s["ask_px"][i])
             out[i] = (mid - bp) / OFFSET_SCALE if bp else 1.0
@@ -292,6 +330,8 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         out[42] = float(np.clip(pnl / (self.inventory0 * 10.0), -3.0, 3.0))
         spr = spread_ticks(s)
         out[43] = (spr if spr is not None else OFFSET_SCALE) / OFFSET_SCALE
+        if self.vol_feature:
+            out[44] = 1.0 if self._volatile else 0.0
         return out
 
     def _mid(self, state=None) -> float | None:
@@ -320,16 +360,71 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             self.book.rest(Side.Ask, mid + 1 + i, asz)
 
     def _exogenous_flow(self) -> None:
-        n = int(3 + self._rng.integers(0, 5))
-        for _ in range(n):
-            s = self.book.view()
-            mid = self._mid(s) or 15_000
-            roll = float(self._rng.random())
-            if roll < 0.28:
-                side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
-                self.book.take(side, int(15 + self._rng.integers(0, 70)))
+        # --- Markov regime transition ---
+        if self.regime_prob > 0 or self.vol_decay > 0:
+            if self._volatile:
+                if self._rng.random() < self.vol_decay:
+                    self._volatile = False
             else:
-                side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
-                off = int(1 + self._rng.integers(0, 8))
-                px = int(round(mid)) - off if side == Side.Bid else int(round(mid)) + off
-                self.book.rest(side, px, int(30 + self._rng.integers(0, 160)))
+                if self._rng.random() < self.regime_prob:
+                    self._volatile = True
+
+        if not self._volatile:
+            # === calm regime: original code path (deterministic when params = 0) ===
+            n = int(3 + self._rng.integers(0, 5))
+            for _ in range(n):
+                s = self.book.view()
+                mid = self._mid(s) or 15_000
+                roll = float(self._rng.random())
+                if roll < 0.28:
+                    side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
+                    self.book.take(side, int(15 + self._rng.integers(0, 70)))
+                else:
+                    side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
+                    off = int(1 + self._rng.integers(0, 8))
+                    px = int(round(mid)) - off if side == Side.Bid else int(round(mid)) + off
+                    self.book.rest(side, px, int(30 + self._rng.integers(0, 160)))
+        else:
+            # === volatile regime: larger takes, thinner/wider adds, gap events ===
+            if self.gap_prob > 0 and self._rng.random() < self.gap_prob:
+                gap_sz = int(self._rng.integers(self.gap_min, self.gap_max + 1))
+                # take() walks the OPPOSITE book: an Ask taker hits bids
+                # (price falls = gap down); a Bid taker lifts asks (price up).
+                side = Side.Ask if self._rng.random() < self.gap_down_prob else Side.Bid
+                self.book.take(side, gap_sz)
+                self._ensure_bbo()
+
+            n = int(self._rng.integers(self.vol_events_min, self.vol_events_max + 1))
+            for _ in range(n):
+                s = self.book.view()
+                mid = self._mid(s) or 15_000
+                roll = float(self._rng.random())
+                if roll < self.vol_take_prob:
+                    side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
+                    self.book.take(
+                        side,
+                        int(self._rng.integers(self.vol_take_min, self.vol_take_max + 1)),
+                    )
+                else:
+                    side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
+                    off = int(self._rng.integers(self.vol_add_offset_min, self.vol_add_offset_max + 1))
+                    px = int(round(mid)) - off if side == Side.Bid else int(round(mid)) + off
+                    self.book.rest(
+                        side, px,
+                        int(self._rng.integers(self.vol_add_min, self.vol_add_max + 1)),
+                    )
+
+    def _ensure_bbo(self) -> None:
+        """Replenish book if a gap drained it (avoids _mid() returning None)."""
+        s = self.book.view()
+        bb, ba = int(s["bid_px"][0]), int(s["ask_px"][0])
+        if not bb:
+            mid = 15_000
+            for i in range(4):
+                self.book.rest(Side.Bid, mid - 1 - i, int(100 + self._rng.integers(0, 100)))
+            if not ba:
+                for i in range(4):
+                    self.book.rest(Side.Ask, mid + 1 + i, int(100 + self._rng.integers(0, 100)))
+        elif not ba:
+            for i in range(4):
+                self.book.rest(Side.Ask, bb + 1 + i, int(100 + self._rng.integers(0, 100)))
