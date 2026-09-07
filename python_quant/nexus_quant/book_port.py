@@ -196,8 +196,15 @@ class EngineAdapter:
 
     def __init__(self, engine: Any) -> None:
         self.engine = engine
+        self._engine_cls = type(engine)
         self._next_id = 1
         self._live: dict[int, Resting] = {}
+
+    def reset(self) -> None:
+        """New empty Engine so OrderBookEnv.reset keeps the C++ seam."""
+        self.engine = self._engine_cls()
+        self._live.clear()
+        self._next_id = 1
 
     def view(self) -> View:
         return self.engine.view()
@@ -211,8 +218,17 @@ class EngineAdapter:
         tif = _engine_tif(self.engine, "GTC")
         eng_side = _engine_side(self.engine, side)
         self.engine.submit_limit(oid, eng_side, int(price), int(qty), tif)
-        h = Resting(oid, side, int(price), int(qty))
-        self._live[oid] = h
+        # If the limit crossed, only the residual is live.
+        live_sz = int(qty)
+        try:
+            fills = self.engine.fills() if hasattr(self.engine, "fills") else []
+            live_sz = int(qty) - sum(int(f[3]) for f in fills)
+        except Exception:
+            pass
+        live_sz = max(0, live_sz)
+        h = Resting(oid, side, int(price), live_sz)
+        if live_sz > 0:
+            self._live[oid] = h
         return h
 
     def cancel_resting(self, handle: Resting) -> int:
@@ -270,6 +286,15 @@ class EngineAdapter:
         if filled and notional == 0:
             px = int(self.view().get("last_trade_px") or 0)
             notional = filled * px
+        for f in fills:
+            maker = int(f[0])
+            qty = int(f[3])
+            live = self._live.get(maker)
+            if live is None:
+                continue
+            live.size -= qty
+            if live.size <= 0:
+                self._live.pop(maker, None)
         return TakeResult(filled=filled, notional_ticks=notional)
 
 

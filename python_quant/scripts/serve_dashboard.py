@@ -21,9 +21,8 @@ from nexus_quant.book_state import Side, StubOrderBook  # noqa: E402
 from nexus_quant.dashboard import (  # noqa: E402
     SnapshotHub,
     latest_from_file_ring,
+    read_shm_ring_latest,
     serve,
-    try_attach_posix_shm,
-    decode_slot,
 )
 from nexus_quant.risk import compute_var_cvar  # noqa: E402
 
@@ -55,10 +54,9 @@ def main() -> None:
                 hub.push(v, source="file-ring")
                 return
         if args.shm:
-            mv = try_attach_posix_shm(args.shm)
-            if mv is not None and len(mv) >= 448:
-                # skip a possible control header; try last 448 bytes
-                hub.push(decode_slot(mv[-448:]), source="shm")
+            v = read_shm_ring_latest(args.shm)
+            if v:
+                hub.push(v, source="shm-ring")
                 return
         # synthetic walk
         tick["n"] += 1

@@ -11,6 +11,7 @@ from nexus_quant.dashboard import (
     SnapshotHub,
     decode_slot,
     latest_from_file_ring,
+    read_shm_ring_latest,
     record_from_view,
     view_from_record,
 )
@@ -52,3 +53,27 @@ def test_hub_json():
     assert js["ok"] is True
     assert js["spread"] == 2
     assert len(js["bid_px"]) == 10
+
+
+def test_shm_ring_decoder_roundtrip():
+    import struct
+
+    from nexus_quant.dashboard import _SHM_CTRL_N
+
+    book = StubOrderBook()
+    book.add(Side.Bid, 49990, 11)
+    book.add(Side.Ask, 50010, 9)
+    slot = record_from_view(book.view()).tobytes()
+    cap, slot_n, state = 4, BOOK_STATE_DTYPE.itemsize, 1
+    ctrl = struct.pack("<QQQQQII", 1, 0, 0, cap, slot_n, state, 0)
+    assert len(ctrl) == _SHM_CTRL_N
+    blob = ctrl + slot + b"\x00" * (slot_n * (cap - 1))
+    shm = Path("/dev/shm") / "nex_test_slot"
+    shm.write_bytes(blob)
+    try:
+        v = read_shm_ring_latest("nex_test_slot")
+        assert v is not None
+        assert int(v["bid_px"][0]) == 49990
+        assert int(v["ask_sz"][0]) == 9
+    finally:
+        shm.unlink(missing_ok=True)
