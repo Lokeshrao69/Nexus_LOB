@@ -92,10 +92,15 @@ def evaluate_policy(
     return rows, summary
 
 
-def _baseline_summary(name: BaselineId, n_episodes: int, seed: int) -> EvalSummary:
+def _baseline_summary(
+    name: BaselineId,
+    n_episodes: int,
+    seed: int,
+    env_factory: Callable[[], OrderBookEnv] = OrderBookEnv,
+) -> EvalSummary:
     from ..baselines import run_episode
 
-    env = OrderBookEnv()
+    env = env_factory()
     rewards: list[float] = []
     sfs: list[float] = []
     leftovers: list[int] = []
@@ -121,6 +126,7 @@ def strategy_table(
     n_episodes: int = 50,
     seed: int = 0,
     baselines: tuple[BaselineId, ...] = ("twap", "vwap", "pov", "passive"),
+    env_factory: Callable[[], OrderBookEnv] = OrderBookEnv,
 ) -> list[dict]:
     """Compare agent + baselines on the same seeded episodes.
 
@@ -132,11 +138,14 @@ def strategy_table(
     rows: list[dict] = []
     vwap_sf: float | None = None
     if agent is not None:
-        _, a_sum = evaluate_policy(agent, n_episodes=n_episodes, seed=seed, deterministic=True)
+        _, a_sum = evaluate_policy(
+            agent, n_episodes=n_episodes, seed=seed,
+            env_factory=env_factory, deterministic=True,
+        )
         a_sum.name = agent_name
         rows.append(a_sum)
     for name in baselines:
-        b = _baseline_summary(name, n_episodes, seed)
+        b = _baseline_summary(name, n_episodes, seed, env_factory=env_factory)
         if name == "vwap":
             vwap_sf = b.shortfall_bps_mean
         rows.append(b)

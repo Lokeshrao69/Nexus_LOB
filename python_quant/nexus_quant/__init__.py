@@ -28,11 +28,34 @@ from .agents import (
     train_ppo,
 )
 
+# High-volatility regime presets — pass as **HIGHVOL_PRESETS["highvol"] to OrderBookEnv
+HIGHVOL_PRESETS: dict[str, dict] = {
+    "highvol": dict(
+        regime_prob=0.08,
+        vol_decay=0.15,
+        gap_prob=0.20,
+        gap_min=800,
+        gap_max=1800,
+        gap_down_prob=0.75,
+        vol_take_prob=0.55,
+        vol_take_min=60,
+        vol_take_max=220,
+        vol_add_min=15,
+        vol_add_max=70,
+        vol_add_offset_min=2,
+        vol_add_offset_max=12,
+        vol_events_min=3,
+        vol_events_max=8,
+        vol_feature=True,
+    ),
+}
+
 __all__ = [
     "BOOK_STATE_DTYPE",
     "CONTRACT_VERSION",
     "CT_DTYPE",
     "DEPTH",
+    "HIGHVOL_PRESETS",
     "OBS_DIM",
     "PX_DTYPE",
     "SZ_DTYPE",

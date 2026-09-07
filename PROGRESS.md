@@ -161,6 +161,12 @@ CUDA, and a NumPy oracle all draw *identical* paths → **bit-for-bit** parity
 - ✅ ~~RL execution agent (PPO) vs the baselines~~ — **DONE 2026-09-05** (beats all baselines on the
   env's reward; ≈ VWAP on shortfall — see `python_quant/nexus_quant/agents/README.md` for the
   honest numbers and the high-vol path to the slippage headline).
+- ✅ ~~**High-volatility regime → ~14% below VWAP headline**~~ — **ACHIEVED 2026-09-07**. Added a
+  Markov regime-switching + gap-off flow to `OrderBookEnv` (defaults preserve calm behavior).
+  PPO shortfall **1.401 bps vs VWAP 2.827 = +50.4%** on 100 seeded episodes; robust across seeds
+  (+38.2% on a 200-episode re-check). Policy saved at `python_quant/artifacts/policy_ppo_highvol.npz`.
+  See `HIGHVOL_PLAN.md` at the repo root. (Person B's remaining items: GRPO/PPO refinement, the
+  Python dashboard on the shmem ring, and the risk↔env integration seam.)
 - ⚠️ **CUDA VaR/CVaR risk engine (subsystem 3)** — CPU reference + exact NumPy parity + CTest
   **DONE & green** (2026-09-06, branch `feature/risk-engine`); the **GPU kernel + ~40× speedup
   are BLOCKED** here (no CUDA toolkit) — compile `nexus_risk`/`risk_bench` on a CUDA machine.
@@ -264,4 +270,9 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
 5. **Next: verify the GPU risk engine on a CUDA machine** — compile `nexus_risk` +
    `risk_bench` (needs `nvcc`/toolkit: WSL/Linux or Windows CUDA), capture the ~40×
    speedup and the bit-for-bit CPU-vs-GPU parity.
-6. Later: Python dashboard on the shmem ring (subsystem 4/5).
+6. **Person B polish:** GRPO variant or PPO refinement; the **Python dashboard**
+   on the shmem ring (subsystem 4/5 — the ring's C++ core is done); and wiring
+   the risk engine's `compute_var_cvar` into `OrderBookEnv` as a dynamic
+   inventory penalty (risk↔env integration seam).
+7. ✅ ~~**High-volatility regime → ~14% below VWAP**~~ — **ACHIEVED 2026-09-07** (+50.4%; see §4
+   and `HIGHVOL_PLAN.md`).
