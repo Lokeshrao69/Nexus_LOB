@@ -12,13 +12,7 @@ execution regime that delivers the slippage headline).
 
 ---
 
-## Headline results
 
-| Metric | Target | Status |
-|---|---|---|
-| C++ matching engine | >500k ord/s, sub-µs, **0 allocs/op** | 0-alloc ✅ proven; throughput/latency on real hardware |
-| **PPO execution vs VWAP** | **~14% lower slippage** (high-vol) | **+50.4% lower shortfall** ✅ |
-| CUDA Monte-Carlo VaR/CVaR | ~40× speedup vs CPU | CPU ✅ exact parity; GPU kernel blocked (no toolkit) |
 
 ---
 
