@@ -57,6 +57,49 @@ def test_hub_json():
     assert len(js["bid_px"]) == 10
 
 
+def test_hub_history_tracks_and_dedupes():
+    book = StubOrderBook()
+    book.add(Side.Bid, 100, 10)
+    book.add(Side.Ask, 102, 8)
+    hub = SnapshotHub()
+    v1 = book.view()
+    hub.push(v1, source="test")
+    book.add(Side.Bid, 101, 5)  # seq bumps AND moves best bid to 101
+    hub.push(book.view(), source="test")
+    assert len(hub.history) == 2
+    assert hub.history[-1]["mid"] == (101 + 102) / 2
+    # re-polling an already-seen seq must not duplicate the history sample
+    hub.push(v1, source="test")
+    assert len(hub.history) == 2
+    js = hub.as_json()
+    assert len(js["history"]) == 2
+    assert js["mid"] == (100 + 102) / 2  # hub.view is back to v1
+    assert js["bid0"] == 100 and js["ask0"] == 102
+
+
+def test_hub_latency_histogram():
+    book = StubOrderBook()
+    book.add(Side.Bid, 10, 1)
+    book.add(Side.Ask, 12, 1)
+    hub = SnapshotHub()
+    hub.push(book.view(), source="test")
+    hub.record_latency(5_000)          # <10 µs
+    hub.record_latency(20_000)         # 10-25 µs
+    hub.record_latency(40_000_000)     # >10 ms
+    L = hub.as_json()["latency"]
+    assert L["n"] == 3
+    assert sum(L["counts"]) == 3
+    assert L["counts"][0] == 1
+    assert L["counts"][1] == 1
+    assert L["counts"][-1] == 1
+    assert L["p50_ns"] is not None and L["p95_ns"] is not None
+    assert L["p50_ns"] <= L["p95_ns"]
+    # push() accepts an explicit feed-latency sample (used by serve_dashboard)
+    book.add(Side.Bid, 9, 2)
+    hub.push(book.view(), source="test", feed_latency_ns=60_000)
+    assert hub.as_json()["latency"]["n"] == 4
+
+
 def test_shm_ring_decoder_roundtrip():
     # read_shm_ring_latest attaches POSIX /dev/shm, which does not exist on
     # Windows (Path("/dev/shm") resolves to a drive-relative \dev\shm). The

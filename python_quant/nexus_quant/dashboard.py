@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import struct
+from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -76,20 +77,120 @@ def decode_slot(buf: bytes | memoryview) -> dict[str, Any]:
     return view_from_record(rec)
 
 
+# Rolling history / latency window lengths.
+_HISTORY_MAX = 200
+_LATENCY_SAMPLES_MAX = 500
+
+# Log-spaced latency histogram bins, in nanoseconds. The last bin is open-ended.
+_LATENCY_BINS: tuple[tuple[int, int | None], ...] = (
+    (0, 10_000),          # <10 µs
+    (10_000, 25_000),     # 10–25 µs
+    (25_000, 50_000),     # 25–50 µs
+    (50_000, 100_000),    # 50–100 µs
+    (100_000, 250_000),   # 100–250 µs
+    (250_000, 500_000),   # 250–500 µs
+    (500_000, 1_000_000), # 0.5–1 ms
+    (1_000_000, 2_500_000),  # 1–2.5 ms
+    (2_500_000, 5_000_000),  # 2.5–5 ms
+    (5_000_000, 10_000_000), # 5–10 ms
+    (10_000_000, None),      # >10 ms
+)
+
+_LATENCY_LABELS = (
+    "<10µs", "10-25µs", "25-50µs", "50-100µs", "100-250µs",
+    "250-500µs", "0.5-1ms", "1-2.5ms", "2.5-5ms", "5-10ms", ">10ms",
+)
+
+
+def _percentile(sorted_vals: list[float], p: float) -> float | None:
+    if not sorted_vals:
+        return None
+    k = (len(sorted_vals) - 1) * p
+    lo, hi = int(k), min(int(k) + 1, len(sorted_vals) - 1)
+    return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (k - lo)
+
+
 class SnapshotHub:
-    """Latest book + optional risk numbers for the HTTP layer."""
+    """Latest book + optional risk numbers + rolling history for the HTTP layer.
+
+    ``push()`` records a dedup-by-seq rolling sample (for sparklines) and, when told,
+    a latency sample (measured feed/fill latency) into a log-spaced histogram.
+    """
 
     def __init__(self) -> None:
         self.view: dict[str, Any] | None = None
         self.risk: dict[str, float] = {}
         self.source = "none"
+        self.history: list[dict[str, Any]] = []
+        self.latency: list[int] = [0] * len(_LATENCY_BINS)
+        self.latency_n = 0
+        self.latency_kind = "feed"  # "feed" (transport) or "fill" (execution)
+        self._lat_samples: deque[float] = deque(maxlen=_LATENCY_SAMPLES_MAX)
+        self._last_seq = -1
 
-    def push(self, view: View, *, source: str = "live") -> None:
+    # -- latency ------------------------------------------------------------
+    def record_latency(self, ns: float | int, *, kind: str = "feed") -> None:
+        """Accumulate one latency sample into the histogram + percentile store."""
+        self.latency_kind = kind
+        ns = float(ns)
+        self.latency_n += 1
+        idx = len(_LATENCY_BINS) - 1
+        for i, (lo, hi) in enumerate(_LATENCY_BINS):
+            if hi is None or ns < hi:
+                idx = i
+                break
+        self.latency[idx] += 1
+        self._lat_samples.append(ns)
+
+    def _latency_json(self) -> dict[str, Any]:
+        ordered = sorted(self._lat_samples)
+        return {
+            "kind": self.latency_kind,
+            "labels": list(_LATENCY_LABELS),
+            "counts": self.latency,
+            "n": self.latency_n,
+            "p50_ns": _percentile(ordered, 0.5),
+            "p95_ns": _percentile(ordered, 0.95),
+        }
+
+    # -- snapshots ----------------------------------------------------------
+    def push(
+        self,
+        view: View,
+        *,
+        source: str = "live",
+        feed_latency_ns: float | int | None = None,
+    ) -> None:
         self.view = {
             k: (np.asarray(v).copy() if isinstance(v, np.ndarray) else v)
             for k, v in view.items()
         }
         self.source = source
+        if feed_latency_ns is not None:
+            self.record_latency(feed_latency_ns, kind="feed")
+        seq = int(self.view.get("seq", 0))
+        if seq <= self._last_seq:
+            return  # already-seen seq re-polled — don't duplicate the history sample
+        self._last_seq = seq
+        bid_px = np.asarray(self.view["bid_px"])
+        ask_px = np.asarray(self.view["ask_px"])
+        b0 = int(bid_px[0]) if len(bid_px) and bid_px[0] else 0
+        a0 = int(ask_px[0]) if len(ask_px) and ask_px[0] else 0
+        self.history.append(
+            {
+                "seq": seq,
+                "spread": (a0 - b0) if b0 and a0 else None,
+                "mid": (b0 + a0) / 2 if b0 and a0 else None,
+                "bid0": b0,
+                "ask0": a0,
+                "trade_px": int(self.view.get("last_trade_px", 0) or 0),
+                "trade_sz": int(self.view.get("last_trade_sz", 0) or 0),
+                "trade_side": int(self.view.get("last_trade_side", 2)),
+                "cum_volume": int(self.view.get("cum_volume", 0) or 0),
+            }
+        )
+        if len(self.history) > _HISTORY_MAX:
+            self.history = self.history[-_HISTORY_MAX:]
 
     def as_json(self) -> dict[str, Any]:
         v = self.view
@@ -97,19 +198,29 @@ class SnapshotHub:
             return {"ok": False, "source": self.source}
         spr = spread_ticks(v)
         issues = [i.code for i in check_integrity(v)]
+        bid_px = np.asarray(v["bid_px"])
+        ask_px = np.asarray(v["ask_px"])
+        b0 = int(bid_px[0]) if len(bid_px) and bid_px[0] else 0
+        a0 = int(ask_px[0]) if len(ask_px) and ask_px[0] else 0
         return {
             "ok": True,
             "source": self.source,
             "seq": int(v.get("seq", 0)),
             "ts_ns": int(v.get("ts_ns", 0)),
-            "bid_px": [int(x) for x in np.asarray(v["bid_px"])[:DEPTH]],
+            "bid_px": [int(x) for x in bid_px[:DEPTH]],
             "bid_sz": [int(x) for x in np.asarray(v["bid_sz"])[:DEPTH]],
-            "ask_px": [int(x) for x in np.asarray(v["ask_px"])[:DEPTH]],
+            "ask_px": [int(x) for x in ask_px[:DEPTH]],
             "ask_sz": [int(x) for x in np.asarray(v["ask_sz"])[:DEPTH]],
             "spread": spr,
+            "bid0": b0,
+            "ask0": a0,
+            "mid": (b0 + a0) / 2 if b0 and a0 else None,
             "cum_volume": int(v.get("cum_volume", 0)),
             "last_trade_px": int(v.get("last_trade_px", 0)),
             "last_trade_sz": int(v.get("last_trade_sz", 0)),
+            "last_trade_side": int(v.get("last_trade_side", 2)),
+            "history": self.history,
+            "latency": self._latency_json(),
             "issues": issues,
             "risk": self.risk,
         }
@@ -194,7 +305,24 @@ setInterval(tick, 400); tick();
 """
 
 
-def make_handler(hub: SnapshotHub, poll: Callable[[], None] | None = None):
+# Combined dashboard page: polished console + live desk, served at "/".
+_PAGE_PATH = Path(__file__).with_name("dashboard_page.html")
+
+
+def _load_page(page: bytes | None) -> bytes:
+    if page is not None:
+        return page
+    try:
+        return _PAGE_PATH.read_bytes()
+    except OSError:
+        return _PAGE.encode()  # tiny fallback ladder if the asset is missing
+
+
+def make_handler(
+    hub: SnapshotHub,
+    poll: Callable[[], None] | None = None,
+    page: bytes | None = None,
+):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt: str, *args: Any) -> None:  # noqa: ARG002
             return
@@ -210,7 +338,7 @@ def make_handler(hub: SnapshotHub, poll: Callable[[], None] | None = None):
                 self.end_headers()
                 self.wfile.write(body)
                 return
-            body = _PAGE.encode()
+            body = getattr(self.server, "page", _PAGE.encode())
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -220,7 +348,13 @@ def make_handler(hub: SnapshotHub, poll: Callable[[], None] | None = None):
     return Handler
 
 
-def serve(hub: SnapshotHub, host: str = "127.0.0.1", port: int = 8765,
-          poll: Callable[[], None] | None = None) -> ThreadingHTTPServer:
-    httpd = ThreadingHTTPServer((host, port), make_handler(hub, poll))
+def serve(
+    hub: SnapshotHub,
+    host: str = "127.0.0.1",
+    port: int = 8765,
+    poll: Callable[[], None] | None = None,
+    page: bytes | None = None,
+) -> ThreadingHTTPServer:
+    httpd = ThreadingHTTPServer((host, port), make_handler(hub, poll, page))
+    httpd.page = _load_page(page)
     return httpd
