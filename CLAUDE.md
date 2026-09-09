@@ -3,7 +3,7 @@
 > **Purpose of this file:** persistent memory across Claude Code sessions. Read it
 > first every session. When you finish a chunk of work, update **§6 Status** and
 > **§7 Next steps** so the next session resumes without re-deriving everything.
-> Last updated: **2026-09-06**.
+> Last updated: **2026-09-09**.
 
 ---
 
@@ -18,11 +18,13 @@ mechanics, RL for optimal execution, and GPU risk analytics.
 
 **Timeline:** ~2 months / 8 weeks, **2 people**.
 
-Headline resume metrics we intend to produce (targets, not yet achieved):
-- C++20 matching engine: **>500k orders/sec, sub-microsecond latency**, zero-alloc.
-- PPO/GRPO execution agent: **~14% lower slippage vs VWAP** under simulated
-  high-volatility queue dynamics.
-- CUDA Monte-Carlo VaR/CVaR: **~40× speedup** vs CPU.
+Headline resume metrics (status):
+- C++20 matching engine: **>500k orders/sec, sub-microsecond latency**, zero-alloc —
+  **0 allocs/op proven**; throughput/latency to re-measure on real hardware.
+- PPO/GRPO execution agent: **~14% lower slippage vs VWAP** —
+  **+50.4% achieved** (high-vol regime, 2026-09-07).
+- CUDA Monte-Carlo VaR/CVaR: **~40× speedup** vs CPU —
+  CPU ✅ exact parity; GPU kernel authored, **blocked** (no CUDA toolkit).
 
 ## 2. Architecture (5 subsystems)
 
@@ -45,35 +47,35 @@ the ITCH feed).
 
 ```
 Finance Project-1/            # repo root (branch: main)
-├── cpp_engine/               # Person A — C++ engine
-│   ├── include/nexus/book_state.hpp        # [DONE] frozen state contract (v1, 448 B)
-│   ├── include/nexus/types.hpp             # [DONE] OrderId/Price/Qty, Fill, Status, ExecResult
-│   ├── include/nexus/order_pool.hpp        # [DONE] zero-alloc intrusive order pool
-│   ├── include/nexus/limit_order_book.hpp  # [DONE] matching engine (Limit/Market/FOK/IOC/Cancel/Modify)
-│   ├── include/nexus/shm_ring.hpp          # [DONE] shared-memory SPSC ring (subsystem 5)
-│   ├── include/nexus/flow_gen.hpp          # [DONE] seeded synthetic order-flow generator
-│   ├── src/                                 # (empty — engine is header-only for now)
-│   ├── demos/
-│   │   ├── ring_producer.cpp               # [DONE] book -> shmem ring publisher
-│   │   └── ring_probe.cpp                  # [DONE] live shmem ring reader
-│   └── tests/
-│       ├── abi_check.cpp                  # [DONE] ABI lock (sizeof == 448)
-│       ├── lob_test.cpp                   # [DONE] engine correctness — 86/86 checks ✓
-│       └── ring_test.cpp                  # [DONE] ring order/drop semantics — 30k checks ✓
-├── python_quant/             # Person B — quant / RL
-│   └── nexus_quant/
-│       ├── __init__.py                    # [DONE] package exports
-│       └── book_state.py                  # [DONE] dtype mirror + StubOrderBook (oracle)
-│   └── tests/test_contract_smoke.py       # [DONE] pure-numpy smoke test
-├── bindings/                 # the C++↔Python merge point
-│   ├── pybind_wrapper.cpp                 # [DONE] real Engine bridge (order entry + views + fills)
-│   ├── CONTRACT.md                        # [DONE] full state-contract spec
-│   └── tests/test_abi_parity.py           # [DONE] needs compiled module (build in WSL)
-├── data/                     # tick data — gitignored, never pushed
-├── .gitignore                # [DONE]
-├── CMakeLists.txt            # [DONE] root build (engine lib + pybind + CTest + CUDA hooks)
-├── pyproject.toml            # [DONE] scikit-build-core packaging
-└── CLAUDE.md                 # this file
+├── cpp_engine/               # Person A — C++ engine (header-only)
+│   ├── include/nexus/         # book_state, types, order_pool, limit_order_book, shm_ring, flow_gen
+│   ├── tests/                 # lob_test(86), id_map_test(4.6M), ring_test(30k), abi_check, risk_test
+│   ├── demos/                 # ring_producer / ring_probe (live shmem demo)
+│   └── bench/                 # bench.cpp — 0 allocs/op
+├── cuda_risk/                 # Person A — Monte-Carlo VaR/CVaR (CPU ✅, CUDA blocked)
+├── python_quant/              # Person B — quant / RL
+│   ├── nexus_quant/
+│   │   ├── book_state.py      # dtype mirror + StubOrderBook (oracle)
+│   │   ├── itch_parser.py     # ITCH 5.0 streaming parser
+│   │   ├── replay.py          # ITCH→L2 replay engine
+│   │   ├── book_port.py       # injectable stub↔engine adapter
+│   │   ├── baselines.py       # TWAP / VWAP / POV / Passive
+│   │   ├── risk.py            # NumPy VaR/CVaR oracle (exact parity with C++)
+│   │   ├── dashboard.py       # SnapshotHub + slot codec (subsystem 4/5)
+│   │   ├── dashboard_page.html # combined interactive desk page
+│   │   ├── envs/order_book_env.py  # Gymnasium execution env (44-dim, high-vol regime)
+│   │   └── agents/            # mlp.py, ppo.py, grpo.py, evaluate.py
+│   ├── scripts/               # train_eval_agent.py, serve_dashboard.py
+│   ├── tests/                 # 68 tests, all green (+ 1 shm skip on Windows)
+│   └── artifacts/             # policy_ppo.npz, policy_ppo_highvol.npz
+├── bindings/                  # pybind_wrapper.cpp, CONTRACT.md, tests/ (+ compiled .pyd)
+├── dashboard/                 # static verification console (dashboard/index.html)
+├── CMakeLists.txt             # engine lib + pybind + CTest + CUDA hooks
+├── pyproject.toml             # scikit-build-core packaging
+├── CLAUDE.md                  # this file
+├── PROGRESS.md                # plain-language status
+├── HIGHVOL_PLAN.md            # high-vol regime design + results
+└── README.md                  # project overview
 ```
 
 ## 4. Two-person split
@@ -249,6 +251,29 @@ seeds (+38.2% on a 200-episode re-check). The ~14% resume headline is
 comfortably exceeded. Saved policy: `python_quant/artifacts/policy_ppo_highvol.npz`.
 Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
 
+**Phase 1e — Person B: combined interactive desk (subsystem 4/5, 2026-09-09).**
+
+| Component | File | State |
+|---|---|---|
+| Combined desk page (console styling + live L2 overlay) | `python_quant/nexus_quant/dashboard_page.html` | ✅ served at `/` by the dashboard server |
+| Slot codec + `SnapshotHub` (decode/dedup history/latency histogram) | `python_quant/nexus_quant/dashboard.py` | ✅ rolling 200-sample history, log-binned latency, p50/p95 |
+| Dashboard server (shm-ring / file-ring / seeded synthetic walk) | `python_quant/scripts/serve_dashboard.py` | ✅ synthetic emits real measured render latency + VaR every 8 ticks |
+| Dashboard tests | `python_quant/tests/test_dashboard.py` | ✅ **5 pass** (+1 shm skip on Windows); full suite **68 pass / 1 skip** |
+| GRPO trainer on PPO actor interface | `python_quant/nexus_quant/agents/grpo.py` | ✅ (merged via PR #7) |
+| Risk↔env inventory CVaR penalty | `python_quant/nexus_quant/risk.py` + `order_book_env.py` | ✅ `lambda_risk` param, default 0.0 (merged via PR #7) |
+| EngineAdapter keeps book across env reset | `python_quant/nexus_quant/book_port.py` | ✅ (merged via PR #8) |
+| Static verification console | `dashboard/index.html` | ✅ separate page on `feature/risk-engine` |
+
+**Verified (2026-09-09):** the combined page serves console sections *and* the live desk
+(depth ladder, mid+spread sparklines, latency histogram, VaR/CVaR tiles, trade ticker) in one page,
+polling `/api/state` at 400 ms; `seq`/mid/history/latency all tick live against the seeded synthetic
+walk. Feeds: POSIX `/dev/shm` ring, a file ring of 448-B slots, or synthetic (no C++ build needed).
+
+**Risk↔env seam (item 12, also done):** `OrderBookEnv` accepts `lambda_risk` (default 0.0);
+when > 0 it calls `inventory_risk_penalty()` from `risk.py` (NumPy oracle, exact parity with
+the C++ `compute_var_cvar`) to compute CVaR and applies it as a dynamic holding penalty.
+This is the Person A ↔ Person B integration seam.
+
 ## 7. Next steps (ordered; low-risk foundations first)
 
 1. ~~**`.gitignore`**~~ — ✅ done 2026-08-24.
@@ -287,16 +312,36 @@ Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
    capture the CPU-vs-GPU number.
 10. ~~**Person B — high-volatility regime → ~14% below VWAP**~~ — ✅ **ACHIEVED
     2026-09-07** (+50.4% on shortfall vs VWAP; see `HIGHVOL_PLAN.md` + Phase 1c).
-11. **Person B — remaining polish:** GRPO variant (architecture mentions it) or
-    schedule-constrained post-at-touch refinement; and the **Python dashboard**
-    reading the shmem ring (subsystem 4/5 — the ring's C++ core is done).
-12. **End-to-end integration:** wire the risk engine's `compute_var_cvar` into
-    `OrderBookEnv` as a dynamic inventory penalty (Person A + B seam).
+11. ~~**Person B — GRPO + Python dashboard on the shmem ring (subsystem 4/5)**~~ — ✅ **DONE
+    2026-09-09** as the combined desk: `dashboard_page.html` + `SnapshotHub` + `serve_dashboard.py`
+    (see Phase 1e). GRPO trainer also landed. Remaining polish: the static `dashboard/index.html`
+    console and the combined desk are on two branches — reconcile at merge; a real C++
+    `ring_producer` → browser demo on Windows.
+12. ~~**End-to-end integration:** wire the risk engine's `compute_var_cvar` into
+    `OrderBookEnv` as a dynamic inventory penalty~~ — ✅ **DONE 2026-09-09** (merged via PR #7):
+    `lambda_risk` param in `OrderBookEnv`, `risk.py` with NumPy oracle (exact parity with C++
+    `compute_var_cvar`).
+
+## What's actually left (post-plan)
+
+All 12 original plan items are complete. Remaining work is **polish & measurement**:
+
+| What | Who | Blocked? |
+|---|---|---|
+| CUDA kernel compile + ~40× speedup measurement | Person A | Yes — no `nvcc`/toolkit on this machine |
+| Throughput/latency on real hardware (>500k ord/s, sub-µs) | Person A | Yes — Windows sandbox throttles; needs Linux/real box |
+| Reconcile two dashboard pages (`dashboard_page.html` vs `dashboard/index.html`) | Both | No |
+| Execution timeline + inventory chart in dashboard | Person B | No |
+| Final README.md polish + write-up | Both | No |
 
 ## 8. Environment reality (IMPORTANT — read before running anything)
 
 This Claude session runs on **Windows 11 + Git Bash / MSYS2** (NOT WSL). The repo
 lives on a **OneDrive** path (`C:\Users\pekka\OneDrive\Documents\Finance Project-1`).
+
+**Branch state (2026-09-09):** `main` holds all merged work (PRs #1–#9). Feature branches
+have been cleaned up. Two worktrees exist under `.claude/worktrees/` (`dashboard-file-ring`,
+`itch-replay`) — these are stale and can be removed.
 
 | Tool | Status in this shell |
 |---|---|
@@ -307,16 +352,17 @@ lives on a **OneDrive** path (`C:\Users\pekka\OneDrive\Documents\Finance Project
 | `nvcc` / CUDA | ❌ not found |
 | `wsl` | ❌ binary present but **no distro installed** — not needed for Python on Windows |
 
-**Consequences (as of 2026-09-04):**
-- ✅ **Tier 1 (pure-Python) PASSED:** `python -m pytest python_quant/tests -v` → 34 green
-  (contract smoke, ITCH parser, replay, OrderBookEnv, baselines).
+**Consequences (as of 2026-09-09):**
+- ✅ **Tier 1 (pure-Python) PASSED:** `python -m pytest python_quant/tests -v` → **68 green, 1 skip**
+  (contract smoke, ITCH parser, replay, OrderBookEnv, baselines, PPO/GRPO agents, risk parity,
+  high-vol regime, dashboard codec/hub).
 - ✅ **Tier 2 (compile `nexus_engine` + parity + diff-test) PASSED ON WINDOWS.**
   Build with MSVC: `python -m pip install pybind11 cmake`, then
   `cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DNEXUS_BUILD_PYBIND=ON
   -DPython3_EXECUTABLE=<abs python.exe> -Dpybind11_DIR=<abs …/pybind11/share/cmake/pybind11>`,
   then `cmake --build build --config Release -j`. Then
-  `python -m pytest python_quant/tests bindings/tests -v` → **34 passed** including
-  `test_abi_parity.py` (6) and `test_diff_engine_stub.py` (2). CTest (C++) 4/4.
+  `python -m pytest python_quant/tests bindings/tests -v` → **34+ passed** including
+  `test_abi_parity.py` (6) and `test_diff_engine_stub.py` (2). CTest (C++) 5/5.
   The module now drops straight into `bindings/` (CMakeLists pins `_<CONFIG>` output dirs
   for multi-config generators — `bindings/` root is what pytest's `pythonpath` sees).
 - ⚠️ **Windows build notes:** `bindings/` is on OneDrive — the build works but is slow;
@@ -343,10 +389,9 @@ lives on a **OneDrive** path (`C:\Users\pekka\OneDrive\Documents\Finance Project
 g++ -std=c++20 -O2 -Wall -Wextra -I cpp_engine/include \
     cpp_engine/tests/abi_check.cpp -o abi_check.exe && ./abi_check.exe
 
-# Tier 1 — pure-Python (real Python 3.12 on Windows; PASSED 2026-09-04):
+# Tier 1 — pure-Python (68 tests; PASSED 2026-09-09):
 python -m pip install numpy gymnasium pytest
 python -m pytest python_quant/tests -v
-python python_quant/tests/test_contract_smoke.py
 
 # Tier 2 — build + parity + diff-test (PASSED 2026-09-04 on Windows/MSVC). This exact
 #       invocation builds `nexus_engine` and drops it into bindings/:
@@ -356,4 +401,16 @@ cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DNEXUS_BUILD_PYBIND=ON \
       -Dpybind11_DIR=C:/Users/pekka/AppData/Local/Programs/Python/Python312/Lib/site-packages/pybind11/share/cmake/pybind11
 cmake --build build --config Release -j
 python -m pytest python_quant/tests bindings/tests/test_abi_parity.py bindings/tests/test_diff_engine_stub.py -v
+
+# Dashboard (subsystem 4/5 — no C++ build needed):
+python python_quant/scripts/serve_dashboard.py --synthetic   # → http://127.0.0.1:8765
+
+# C++ engine checks (any box with g++/MSVC):
+g++ -std=c++20 -O2 -Wall -Wextra -I cpp_engine/include \
+    cpp_engine/tests/lob_test.cpp -o lob_test.exe && ./lob_test.exe   # 86 checks, ALL PASS
+
+# High-vol PPO training + eval:
+PYTHONPATH=python_quant python python_quant/scripts/train_eval_agent.py \
+    --highvol --vol-feature --iters 2000 --eval-every 400 --eval-episodes 40 \
+    --out python_quant/artifacts/policy_ppo_highvol.npz --table-episodes 100
 ```
