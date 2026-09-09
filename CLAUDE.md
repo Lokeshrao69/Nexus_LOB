@@ -252,6 +252,7 @@ comfortably exceeded. Saved policy: `python_quant/artifacts/policy_ppo_highvol.n
 Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
 
 **Phase 1e — Person B: combined interactive desk (subsystem 4/5, 2026-09-09).**
+**Phase 1e — Person B: combined interactive desk (subsystem 4/5, 2026-09-09, branch `feature/dashboard-file-ring`).**
 
 | Component | File | State |
 |---|---|---|
@@ -259,20 +260,12 @@ Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
 | Slot codec + `SnapshotHub` (decode/dedup history/latency histogram) | `python_quant/nexus_quant/dashboard.py` | ✅ rolling 200-sample history, log-binned latency, p50/p95 |
 | Dashboard server (shm-ring / file-ring / seeded synthetic walk) | `python_quant/scripts/serve_dashboard.py` | ✅ synthetic emits real measured render latency + VaR every 8 ticks |
 | Dashboard tests | `python_quant/tests/test_dashboard.py` | ✅ **5 pass** (+1 shm skip on Windows); full suite **68 pass / 1 skip** |
-| GRPO trainer on PPO actor interface | `python_quant/nexus_quant/agents/grpo.py` | ✅ (merged via PR #7) |
-| Risk↔env inventory CVaR penalty | `python_quant/nexus_quant/risk.py` + `order_book_env.py` | ✅ `lambda_risk` param, default 0.0 (merged via PR #7) |
-| EngineAdapter keeps book across env reset | `python_quant/nexus_quant/book_port.py` | ✅ (merged via PR #8) |
-| Static verification console | `dashboard/index.html` | ✅ separate page on `feature/risk-engine` |
 
-**Verified (2026-09-09):** the combined page serves console sections *and* the live desk
+**Verified here (2026-09-09):** the combined page serves the console sections *and* the live desk
 (depth ladder, mid+spread sparklines, latency histogram, VaR/CVaR tiles, trade ticker) in one page,
 polling `/api/state` at 400 ms; `seq`/mid/history/latency all tick live against the seeded synthetic
 walk. Feeds: POSIX `/dev/shm` ring, a file ring of 448-B slots, or synthetic (no C++ build needed).
-
-**Risk↔env seam (item 12, also done):** `OrderBookEnv` accepts `lambda_risk` (default 0.0);
-when > 0 it calls `inventory_risk_penalty()` from `risk.py` (NumPy oracle, exact parity with
-the C++ `compute_var_cvar`) to compute CVaR and applies it as a dynamic holding penalty.
-This is the Person A ↔ Person B integration seam.
+The static verification console lives separately at `dashboard/index.html` (branch `feature/risk-engine`).
 
 ## 7. Next steps (ordered; low-risk foundations first)
 
@@ -312,27 +305,12 @@ This is the Person A ↔ Person B integration seam.
    capture the CPU-vs-GPU number.
 10. ~~**Person B — high-volatility regime → ~14% below VWAP**~~ — ✅ **ACHIEVED
     2026-09-07** (+50.4% on shortfall vs VWAP; see `HIGHVOL_PLAN.md` + Phase 1c).
-11. ~~**Person B — GRPO + Python dashboard on the shmem ring (subsystem 4/5)**~~ — ✅ **DONE
+11. ~~**Person B — Python dashboard on the shmem ring (subsystem 4/5)**~~ — ✅ **DONE
     2026-09-09** as the combined desk: `dashboard_page.html` + `SnapshotHub` + `serve_dashboard.py`
-    (see Phase 1e). GRPO trainer also landed. Remaining polish: the static `dashboard/index.html`
-    console and the combined desk are on two branches — reconcile at merge; a real C++
-    `ring_producer` → browser demo on Windows.
-12. ~~**End-to-end integration:** wire the risk engine's `compute_var_cvar` into
-    `OrderBookEnv` as a dynamic inventory penalty~~ — ✅ **DONE 2026-09-09** (merged via PR #7):
-    `lambda_risk` param in `OrderBookEnv`, `risk.py` with NumPy oracle (exact parity with C++
-    `compute_var_cvar`).
-
-## What's actually left (post-plan)
-
-All 12 original plan items are complete. Remaining work is **polish & measurement**:
-
-| What | Who | Blocked? |
-|---|---|---|
-| CUDA kernel compile + ~40× speedup measurement | Person A | Yes — no `nvcc`/toolkit on this machine |
-| Throughput/latency on real hardware (>500k ord/s, sub-µs) | Person A | Yes — Windows sandbox throttles; needs Linux/real box |
-| Reconcile two dashboard pages (`dashboard_page.html` vs `dashboard/index.html`) | Both | No |
-| Execution timeline + inventory chart in dashboard | Person B | No |
-| Final README.md polish + write-up | Both | No |
+    (see Phase 1e). Remaining polish: the static `dashboard/index.html` console and this desk are on
+    two branches and should be reconciled at merge; a real C++ `ring_producer` → browser demo on Windows.
+12. **End-to-end integration:** wire the risk engine's `compute_var_cvar` into
+    `OrderBookEnv` as a dynamic inventory penalty (Person A + B seam).
 
 ## 8. Environment reality (IMPORTANT — read before running anything)
 
