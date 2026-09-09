@@ -249,6 +249,21 @@ seeds (+38.2% on a 200-episode re-check). The ~14% resume headline is
 comfortably exceeded. Saved policy: `python_quant/artifacts/policy_ppo_highvol.npz`.
 Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
 
+**Phase 1e — Person B: combined interactive desk (subsystem 4/5, 2026-09-09, branch `feature/dashboard-file-ring`).**
+
+| Component | File | State |
+|---|---|---|
+| Combined desk page (console styling + live L2 overlay) | `python_quant/nexus_quant/dashboard_page.html` | ✅ served at `/` by the dashboard server |
+| Slot codec + `SnapshotHub` (decode/dedup history/latency histogram) | `python_quant/nexus_quant/dashboard.py` | ✅ rolling 200-sample history, log-binned latency, p50/p95 |
+| Dashboard server (shm-ring / file-ring / seeded synthetic walk) | `python_quant/scripts/serve_dashboard.py` | ✅ synthetic emits real measured render latency + VaR every 8 ticks |
+| Dashboard tests | `python_quant/tests/test_dashboard.py` | ✅ **5 pass** (+1 shm skip on Windows); full suite **68 pass / 1 skip** |
+
+**Verified here (2026-09-09):** the combined page serves the console sections *and* the live desk
+(depth ladder, mid+spread sparklines, latency histogram, VaR/CVaR tiles, trade ticker) in one page,
+polling `/api/state` at 400 ms; `seq`/mid/history/latency all tick live against the seeded synthetic
+walk. Feeds: POSIX `/dev/shm` ring, a file ring of 448-B slots, or synthetic (no C++ build needed).
+The static verification console lives separately at `dashboard/index.html` (branch `feature/risk-engine`).
+
 ## 7. Next steps (ordered; low-risk foundations first)
 
 1. ~~**`.gitignore`**~~ — ✅ done 2026-08-24.
@@ -287,9 +302,10 @@ Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
    capture the CPU-vs-GPU number.
 10. ~~**Person B — high-volatility regime → ~14% below VWAP**~~ — ✅ **ACHIEVED
     2026-09-07** (+50.4% on shortfall vs VWAP; see `HIGHVOL_PLAN.md` + Phase 1c).
-11. **Person B — remaining polish:** GRPO variant (architecture mentions it) or
-    schedule-constrained post-at-touch refinement; and the **Python dashboard**
-    reading the shmem ring (subsystem 4/5 — the ring's C++ core is done).
+11. ~~**Person B — Python dashboard on the shmem ring (subsystem 4/5)**~~ — ✅ **DONE
+    2026-09-09** as the combined desk: `dashboard_page.html` + `SnapshotHub` + `serve_dashboard.py`
+    (see Phase 1e). Remaining polish: the static `dashboard/index.html` console and this desk are on
+    two branches and should be reconciled at merge; a real C++ `ring_producer` → browser demo on Windows.
 12. **End-to-end integration:** wire the risk engine's `compute_var_cvar` into
     `OrderBookEnv` as a dynamic inventory penalty (Person A + B seam).
 
