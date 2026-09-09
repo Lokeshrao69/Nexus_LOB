@@ -33,10 +33,12 @@ _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "python_quant"))
 
 from nexus_quant import (  # noqa: E402
+    GRPOConfig,
     OrderBookEnv,
     PPOConfig,
     format_table,
     strategy_table,
+    train_grpo,
     train_ppo,
 )
 
@@ -66,6 +68,7 @@ def main() -> None:
     # eval-only mode
     ap.add_argument("--eval-only", type=str, default=None, metavar="POLICY_NPZ",
                     help="Skip training; load policy and run strategy_table")
+    ap.add_argument("--grpo", action="store_true", help="Train with GRPO instead of PPO")
     args = ap.parse_args()
 
     # --- build env factory ---
@@ -109,18 +112,32 @@ def main() -> None:
         return
 
     # --- train mode ---
-    cfg = PPOConfig(
-        iterations=args.iters,
-        episodes=args.episodes,
-        epochs=args.epochs,
-        eval_every=args.eval_every,
-        eval_episodes=args.eval_episodes,
-        seed=args.seed,
-        unit_seed=args.unit_seed,
-    )
     t0 = time.time()
-    policy, history = train_ppo(env_factory, cfg)
-    print(f"trained {args.iters} iterations in {time.time() - t0:.1f}s")
+    if args.grpo:
+        gcfg = GRPOConfig(
+            iterations=args.iters,
+            episodes=args.episodes if args.episodes % 4 == 0 else max(4, args.episodes // 4 * 4),
+            group=4,
+            epochs=args.epochs,
+            eval_every=args.eval_every,
+            eval_episodes=args.eval_episodes,
+            seed=args.seed,
+            unit_seed=args.unit_seed,
+        )
+        policy, history = train_grpo(env_factory, gcfg)
+        print(f"trained GRPO {args.iters} iterations in {time.time() - t0:.1f}s")
+    else:
+        cfg = PPOConfig(
+            iterations=args.iters,
+            episodes=args.episodes,
+            epochs=args.epochs,
+            eval_every=args.eval_every,
+            eval_episodes=args.eval_episodes,
+            seed=args.seed,
+            unit_seed=args.unit_seed,
+        )
+        policy, history = train_ppo(env_factory, cfg)
+        print(f"trained {args.iters} iterations in {time.time() - t0:.1f}s")
 
     print(f"{'it':>4} {'reward':>9} {'shortfall_bps':>13} {'pg_loss':>8} {'v_loss':>7} {'entropy':>8}")
     for h in history:

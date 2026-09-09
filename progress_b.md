@@ -146,3 +146,42 @@ pytest in WSL/venv.
 ## Files Changed This Turn
 
 - `progress_b.md` (this handoff only)
+
+---
+
+## Update 2026-09-07 — C++ integration on Linux
+
+**Branch:** `feature/person-b-polish` (PR #7)
+**Engine build:** `cmake -S . -B /tmp/nexus_build -DCMAKE_BUILD_TYPE=Release -DNEXUS_BUILD_PYBIND=ON -DNEXUS_ENABLE_CUDA=OFF` then `cmake --build`. Module: `bindings/nexus_engine.cpython-310-x86_64-linux-gnu.so` (gitignored).
+
+### Completed this session
+- Built `nexus_engine` on Linux (g++ 12, CMake 4.4, pybind11, Python 3.10). No C++ / pybind / contract edits.
+- CTest 5/5: abi_check, lob_test, ring_test, id_map_test, risk_test.
+- `abi_check`: sizeof 448, alignof 8, contract v1.
+- Python+bindings pytest: **75 passed, 0 skipped** (was 59 passed / 3 skipped before the .so existed).
+- Risk parity `test_risk_parity.py`: **3/3**. Project check is `pytest.approx(..., abs=1e-12)`, not raw `==`. Example GBM 60k×120: engine var `0.3253218005627372` vs NumPy `0.3253218005627373`.
+- Engine-vs-Stub `test_diff_engine_stub.py`: **2/2**.
+- ABI `test_abi_parity.py`: **6/6**.
+- `EngineAdapter.reset()` added so `OrderBookEnv.reset()` no longer silently swaps in `StubBookAdapter`. Limit / market / cancel / fills / env inventory identity verified on the real engine.
+- Dashboard `read_shm_ring_latest()` decodes Person A's control block (48 B) + latest 448 B slot. Live check against `ring_producer /nex_lob_b`: seq/BBO/spread decoded; producer unlinks the segment on exit (unchanged C++ behavior).
+
+### GPU
+Blocked. No `nvcc` / `nvidia-smi` on this machine. `risk_bench` CPU path: 200k×252 in 1603.1 ms, `var=0.324574 cvar=0.389231`. GPU line: "not compiled (no CUDA toolkit)".
+
+### Tests run
+```
+ctest --test-dir /tmp/nexus_build --output-on-failure     # 5/5
+PYTHONPATH=python_quant:bindings python -m pytest python_quant/tests bindings/tests -q
+# 75 passed
+PYTHONPATH=python_quant:bindings python -m pytest \
+  python_quant/tests/test_risk_parity.py \
+  bindings/tests/test_diff_engine_stub.py \
+  bindings/tests/test_abi_parity.py -v
+# 11 passed
+/tmp/nexus_build/risk_bench   # CPU only
+```
+
+### Remaining
+- GPU `risk_bench` + ~40× claim on a CUDA box.
+- Keep a producer alive if the dashboard should follow a live ring (C++ demo calls `ShmRing::destroy` on exit).
+- Push/merge PR #7 on `Lokeshrao69/Nexus_LOB` after Person A review.
