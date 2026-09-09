@@ -138,6 +138,11 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         vol_events_min: int = 3,
         vol_events_max: int = 8,
         vol_feature: bool = False,
+        # --- risk↔env seam (default off: existing tests / RNG path unchanged) ---
+        lambda_risk: float = 0.0,
+        risk_paths: int = 256,
+        risk_steps: int = 16,
+        risk_sigma: float = 0.25,
     ) -> None:
         self.inventory0 = int(inventory)
         self.horizon = int(horizon)
@@ -167,6 +172,11 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         self.vol_events_min = int(vol_events_min)
         self.vol_events_max = int(vol_events_max)
         self.vol_feature = bool(vol_feature)
+        self.lambda_risk = float(lambda_risk)
+        self.risk_paths = int(risk_paths)
+        self.risk_steps = int(risk_steps)
+        self.risk_sigma = float(risk_sigma)
+        self.last_cvar = 0.0
         self._volatile = False
         obs_dim = 45 if self.vol_feature else OBS_DIM
         if gym is not None:
@@ -274,6 +284,20 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             - self.lambda_adv * adv
             - self.lambda_sched * sched_dev
         )
+        if self.lambda_risk > 0.0:
+            from ..risk import inventory_risk_penalty
+
+            pen, res = inventory_risk_penalty(
+                inv_frac,
+                sigma=self.risk_sigma,
+                seed=self._seed0 + self.t,
+                n_paths=self.risk_paths,
+                steps=self.risk_steps,
+                lambda_risk=self.lambda_risk,
+                horizon_frac=max(1.0 / 252.0, 1.0 - t_frac),
+            )
+            reward -= pen
+            self.last_cvar = res.cvar
 
         terminated = self.inventory <= 0
         truncated = (not terminated) and self.t >= self.horizon
@@ -300,6 +324,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             "action_ticks": action_ticks,
             "mode": mode,
             "vwap": vwap,
+            "cvar": self.last_cvar,
         }
         return self._observe(), float(reward), bool(terminated), bool(truncated), info
 

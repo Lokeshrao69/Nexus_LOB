@@ -20,11 +20,13 @@ from .envs import OBS_DIM, OrderBookEnv
 # the top-level convenience re-exports below (kept additive, no import order
 # coupling with .envs).
 from .agents import (
+    GRPOConfig,
     PPOConfig,
     PPOPolicy,
     evaluate_policy,
     format_table,
     strategy_table,
+    train_grpo,
     train_ppo,
 )
 
@@ -55,6 +57,7 @@ __all__ = [
     "CONTRACT_VERSION",
     "CT_DTYPE",
     "DEPTH",
+    "GRPOConfig",
     "HIGHVOL_PRESETS",
     "OBS_DIM",
     "PX_DTYPE",
@@ -74,5 +77,6 @@ __all__ = [
     "format_table",
     "iter_itch_events",
     "strategy_table",
+    "train_grpo",
     "train_ppo",
 ]

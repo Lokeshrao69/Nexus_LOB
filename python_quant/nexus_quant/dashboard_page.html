@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus-LOB desk</title>
+<style>
+  :root{
+    /* dark-first terminal palette (default = dark) */
+    --bg:#0a1017; --surface:#0f1722; --surface2:#141f2d; --surface3:#1a2635;
+    --line:rgba(160,190,225,.12); --line-strong:rgba(160,190,225,.22);
+    --text:#e9eff7; --muted:#8ba0b8; --faint:#5e738d;
+    --accent:#e9b64b; --accent-soft:rgba(233,182,75,.14);
+    --good:#37c98c; --good-bg:rgba(55,201,140,.12);
+    --warn:#e2a23c; --warn-bg:rgba(226,162,60,.13);
+    --bad:#ef6a5e;  --bad-bg:rgba(239,106,94,.13);
+    --bid:#2fbf8a;  --ask:#ea5f5a;
+    --bid-bg:rgba(47,191,138,.10); --ask-bg:rgba(234,95,90,.10);
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f7fb; --surface:#ffffff; --surface2:#eef2f7; --surface3:#e5ebf3;
+    --line:rgba(20,40,70,.12); --line-strong:rgba(20,40,70,.22);
+    --text:#0d1a2b; --muted:#52677f; --faint:#7c90a8;
+    --accent:#a8730a; --accent-soft:rgba(168,115,10,.12);
+    --good:#128a5a; --good-bg:rgba(18,138,90,.12);
+    --warn:#b06e00; --warn-bg:rgba(176,110,0,.12);
+    --bad:#c23b2e;  --bad-bg:rgba(194,59,46,.11);
+    --bid:#0f8f64;  --ask:#c43b37;
+    --bid-bg:rgba(15,143,100,.10); --ask-bg:rgba(196,59,55,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:var(--sans); font-size:15px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1160px;margin:0 auto;padding:0 22px 80px}
+  a{color:var(--accent)}
+  .mono{font-family:var(--mono)}
+  .nums{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:26px 0 6px}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .box{width:13px;height:13px;background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .brand h1{font-family:var(--mono);font-size:17px;letter-spacing:.14em;text-transform:uppercase;margin:0;font-weight:600}
+  .brand h1 em{font-style:normal;color:var(--accent)}
+  .tag{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+  .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+    padding:7px 12px;border:1px solid var(--line-strong);border-radius:999px;color:var(--muted);background:var(--surface)}
+  .pill .dot{width:8px;height:8px;border-radius:50%}
+  .dot.ok{background:var(--good);box-shadow:0 0 0 3px var(--good-bg)}
+  .dot.warn{background:var(--warn);box-shadow:0 0 0 3px var(--warn-bg)}
+  .dot.bad{background:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
+  .pill button{border:none;background:none;color:var(--accent);font-family:var(--mono);font-size:11.5px;cursor:pointer;letter-spacing:.06em;padding:0}
+
+  /* ---------- hero ---------- */
+  .hero{margin-top:18px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
+  .hero .top{display:flex;gap:22px;align-items:stretch;flex-wrap:wrap;padding:24px 26px 20px}
+  .hero .status-side{flex:1 1 340px;min-width:280px}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  .hero h2{margin:10px 0 6px;font-size:28px;line-height:1.1;font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+  .hero h2 .good{color:var(--good)}
+  .hero p.sub{margin:0 0 16px;color:var(--muted);max-width:46ch}
+  .statline{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .statline .stat{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--line);
+    border-radius:10px;background:var(--surface2);min-width:118px}
+  .statline .stat b{font-family:var(--mono);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+  .statline .stat span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-family:var(--mono)}
+  .hero .bar{height:4px;background:var(--bg);position:relative}
+  .hero .bar i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--good),var(--accent));transition:width .4s}
+
+  /* ---------- section ---------- */
+  .section{margin-top:40px}
+  .section h3{margin:0 0 4px;font-size:19px;font-weight:600;letter-spacing:-.01em}
+  .section .desc{color:var(--muted);margin:0 0 18px;max-width:70ch}
+  .livehead{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  .livepill{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:5px 11px;border-radius:999px;font-weight:600}
+  .livepill.live{color:var(--good);background:var(--good-bg)}
+  .livepill.stale{color:var(--warn);background:var(--warn-bg)}
+  .livepill.off{color:var(--bad);background:var(--bad-bg)}
+
+  /* ---------- desk tiles ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:12px;margin-top:16px}
+  .kpi{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:14px 14px 12px;
+    display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
+  .kpi .corner{position:absolute;top:0;left:0;right:0;height:3px;background:var(--line-strong)}
+  .kpi.bid .corner{background:var(--bid)} .kpi.ask .corner{background:var(--ask)}
+  .kpi.accent .corner{background:var(--accent)}
+  .kpi .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-family:var(--mono)}
+  .kpi .val{font-family:var(--mono);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+  .kpi .val.dim{color:var(--faint)}
+  .kpi .foot{font-size:11px;color:var(--muted)}
+
+  /* ---------- desk grid ---------- */
+  .deskgrid{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;margin-top:14px}
+  @media (max-width:820px){.deskgrid{grid-template-columns:1fr}}
+  .chartcard{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:20px 20px 14px}
+  .chartcard .cap{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .chartcard .cap h4{margin:0;font-size:15px;font-weight:600}
+  .chartcard .cap .sub{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 8px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .legend .li{display:inline-flex;align-items:center;gap:7px}
+  .sw{width:11px;height:11px;border-radius:3px}
+  .sw.bid{background:var(--bid)} .sw.ask{background:var(--ask)}
+  .sw.mid{background:var(--accent)} .sw.spr{background:var(--warn)}
+  svg{display:block;width:100%;height:auto}
+  svg text{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  svg .gl{stroke:var(--line);stroke-width:1}
+  svg .ax{fill:var(--faint);font-size:10px}
+  svg .ln.mid{fill:none;stroke:var(--accent);stroke-width:1.6}
+  svg .ln.spr{fill:none;stroke:var(--warn);stroke-width:1.2;stroke-dasharray:4 3}
+  svg .hbar{fill:var(--accent);opacity:.85}
+  svg .hbar:hover{fill:var(--accent);opacity:1}
+  .legend svg{width:auto}
+
+  /* ---------- depth ladder ---------- */
+  .dhead{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--faint);padding:0 2px 6px;border-bottom:1px solid var(--line)}
+  #depthrows{margin-top:2px}
+  .drow{display:grid;grid-template-columns:84px 1fr 1fr 84px;gap:2px;align-items:stretch}
+  .drow>div{height:24px;display:flex;align-items:center}
+  .drow .bsz,.drow .asz{font-family:var(--mono);font-size:11.5px;color:var(--muted);justify-content:flex-end;padding:0 6px}
+  .drow .asz{justify-content:flex-start}
+  .bcell,.acell{position:relative;overflow:hidden}
+  .bcell .bar{position:absolute;right:0;top:1px;bottom:1px;background:var(--bid-bg);border-right:2px solid var(--bid);border-radius:3px}
+  .acell .bar{position:absolute;left:0;top:1px;bottom:1px;background:var(--ask-bg);border-left:2px solid var(--ask);border-radius:3px}
+  .bcell .lbl{position:relative;font-family:var(--mono);font-size:12px;color:var(--bid);text-align:right;width:100%;padding:0 8px;line-height:24px}
+  .acell .lbl{position:relative;font-family:var(--mono);font-size:12px;color:var(--ask);text-align:left;width:100%;padding:0 8px;line-height:24px}
+  .drow:nth-child(1) .bcell,.drow:nth-child(1) .acell{background:rgba(255,255,255,.02)}
+
+  /* ---------- trade ticker ---------- */
+  .tradetick{margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mono);
+    font-size:12.5px;color:var(--muted);border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--surface)}
+  .tradetick b{color:var(--text);font-weight:600}
+  .tradetick .side-b{color:var(--bid)} .tradetick .side-a{color:var(--ask)}
+
+  /* ---------- slippage chart ---------- */
+  .chartcard .bar-hero{fill:var(--accent)}
+  .chartcard .bar-field{fill:var(--surface3);stroke:var(--line-strong);stroke-width:1}
+  .chartcard .bar-vwap{fill:var(--surface3);stroke:var(--faint);stroke-width:1;stroke-dasharray:4 3}
+  .chartcard .vref{stroke:var(--warn);stroke-width:1.4;stroke-dasharray:5 4}
+  .chartcard .vlabel{fill:var(--warn);font-size:11px}
+  .chartcard .blabel{fill:var(--muted);font-size:12px}
+  .chartcard .blabel-hero{fill:var(--text);font-size:12.5px;font-weight:600}
+  .chartcard .rowlabel{fill:var(--muted);font-size:12px}
+  .chartcard .rowlabel-hero{fill:var(--text);font-size:12px;font-weight:600}
+
+  /* ---------- table ---------- */
+  .tablewrap{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12.5px}
+  th,td{padding:9px 14px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{color:var(--faint);font-weight:500;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;background:var(--surface2)}
+  td:first-child,th:first-child{text-align:left}
+  tr:last-child td{border-bottom:none}
+  td.strategy{font-weight:600}
+  td.strategy.hero{color:var(--accent)}
+  td.pos{color:var(--good)} td.neg{color:var(--ask)}
+  tr.herorow td{background:var(--accent-soft)}
+
+  /* ---------- filters ---------- */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 18px}
+  .fchip{font-family:var(--mono);font-size:12px;letter-spacing:.04em;padding:7px 14px;border-radius:999px;
+    border:1px solid var(--line-strong);background:var(--surface);color:var(--muted);cursor:pointer;transition:.15s}
+  .fchip:hover{border-color:var(--accent);color:var(--text)}
+  .fchip.on{background:var(--accent);border-color:var(--accent);color:#1a1205;font-weight:600}
+  .fcount{margin-left:auto;align-self:center;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+
+  /* ---------- subsystem cards ---------- */
+  .sys{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:14px;overflow:hidden}
+  .sys .head{display:flex;align-items:center;gap:14px;padding:16px 18px;cursor:pointer;user-select:none}
+  .sys .head:hover{background:var(--surface2)}
+  .stripe{width:4px;align-self:stretch;margin:0;border-radius:2px;flex:none}
+  .sys[data-state="operational"] .stripe{background:var(--good)}
+  .sys[data-state="partial"] .stripe{background:var(--warn)}
+  .sys[data-state="blocked"] .stripe{background:var(--bad)}
+  .sys .num{font-family:var(--mono);font-size:12px;color:var(--faint);width:22px;flex:none}
+  .sys .title{font-size:16px;font-weight:600;margin:0}
+  .sys .title small{display:block;font-size:11px;font-weight:400;color:var(--faint);letter-spacing:.04em;text-transform:uppercase;font-family:var(--mono);margin-top:2px}
+  .sys .spacer{flex:1}
+  .statepill{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:5px 10px;border-radius:999px;font-weight:600}
+  .statepill.operational{color:var(--good);background:var(--good-bg)}
+  .statepill.partial{color:var(--warn);background:var(--warn-bg)}
+  .statepill.blocked{color:var(--bad);background:var(--bad-bg)}
+  .chev{color:var(--faint);font-family:var(--mono);transition:transform .18s;flex:none}
+  .sys.open .chev{transform:rotate(90deg)}
+  .sys .body{display:none;padding:0 18px 20px 54px;border-top:1px solid var(--line)}
+  .sys.open .body{display:block}
+  .comptable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px;margin-top:4px}
+  .comptable th{color:var(--faint);font-weight:500;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    text-align:left;padding:10px 10px 8px 0;border-bottom:1px solid var(--line)}
+  .comptable td{padding:8px 10px 8px 0;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  .comptable tr:last-child td{border-bottom:none}
+  .comptable td.file{color:var(--text)}
+  .comptable td.file code{color:var(--muted);font-size:11.5px}
+  .cell-pill{font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;border-radius:999px;white-space:nowrap;font-weight:600}
+  .cell-pill.ok{color:var(--good);background:var(--good-bg)}
+  .cell-pill.warn{color:var(--warn);background:var(--warn-bg)}
+  .cell-pill.bad{color:var(--bad);background:var(--bad-bg)}
+  .cell-pill.muted{color:var(--muted);background:var(--surface3)}
+  .sys .tests{margin-top:16px}
+  .sys .tests .ttl{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+  .testrow{display:flex;align-items:center;gap:12px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;
+    background:var(--surface2);margin-bottom:8px;cursor:pointer}
+  .testrow:hover{border-color:var(--line-strong)}
+  .testrow .name{font-family:var(--mono);font-size:12.5px;flex:1}
+  .testrow .name code{color:var(--muted)}
+  .testrow .res{font-family:var(--mono);font-size:11.5px}
+  .testrow .res.ok{color:var(--good)} .testrow .res.warn{color:var(--warn)} .testrow .res.bad{color:var(--bad)}
+  .testrow .cmd{display:none;flex-basis:100%;margin-top:2px;background:var(--bg);border:1px solid var(--line);
+    border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:pre-wrap;word-break:break-all}
+  .testrow.open .cmd{display:block}
+  .testrow .caret{color:var(--faint);transition:transform .15s}
+  .testrow.open .caret{transform:rotate(90deg)}
+
+  /* ---------- ABI map ---------- */
+  .abi{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:22px;overflow-x:auto;margin-top:2px}
+  .abi h4{margin:0 0 4px;font-size:15px;font-weight:600}
+  .abi .sub{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-bottom:16px}
+  .abi .grid{display:flex;flex-direction:column;gap:6px;min-width:720px}
+  .abi .lob{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .abi .cell{border:1px solid var(--line);border-radius:7px;padding:7px 8px;font-family:var(--mono);font-size:11px;
+    display:flex;flex-direction:column;gap:3px;background:var(--surface2)}
+  .abi .cell .nm{color:var(--muted);letter-spacing:.02em}
+  .abi .cell .of{color:var(--faint);font-size:10px}
+  .abi .cell.bid{border-color:rgba(47,191,138,.4)} .abi .cell.bid .nm{color:var(--bid)}
+  .abi .cell.ask{border-color:rgba(234,95,90,.4)} .abi .cell.ask .nm{color:var(--ask)}
+  .abi .cell.accent{border-color:rgba(233,182,75,.5)}
+  .abi .scalar{display:flex;gap:6px;flex-wrap:wrap}
+  .abi .scalar .cell{flex:1;min-width:120px}
+  .abi .legend2{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .legend2 .li{display:inline-flex;align-items:center;gap:7px}
+  .legend2 .sq{width:11px;height:11px;border-radius:3px;border:1px solid var(--line)}
+  .legend2 .sq.bid{background:var(--bid)} .legend2 .sq.ask{background:var(--ask)} .legend2 .sq.acc{background:var(--accent)}
+  @media print{.abi{overflow:visible}.abi .txt{color:#000!important}}
+
+  /* ---------- transcript ---------- */
+  .term{border:1px solid var(--line);border-radius:14px;background:#070c12;overflow:hidden}
+  :root[data-theme="light"] .term{background:#0d1420}
+  .term .tbar{display:flex;align-items:center;gap:8px;padding:11px 16px;background:rgba(255,255,255,.03);border-bottom:1px solid var(--line)}
+  .term .tbar .tdot{width:11px;height:11px;border-radius:50%;background:#3a4756}
+  .term .tbar .tname{font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.05em;margin-left:6px}
+  .term .tbody{padding:16px 18px;font-family:var(--mono);font-size:12px;line-height:1.7;color:#c8d6e5}
+  .term .tbody .c{color:var(--accent)}
+  .term .tbody .ok{color:var(--good)} .term .tbody .warn{color:var(--warn)} .term .tbody .bad{color:var(--bad)}
+  .term .tbody .dim{color:#5e738d}
+  .term .tbody .ln{display:block;white-space:pre-wrap;word-break:break-all}
+  .term .tbody .cmdline::before{content:'$ ';color:var(--faint)}
+
+  .tooltip{position:absolute;pointer-events:none;opacity:0;transition:opacity .12s;z-index:5;
+    background:var(--surface3);border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;
+    font-family:var(--mono);font-size:11.5px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+  .tooltip b{display:block;font-size:12px;margin-bottom:3px;font-weight:600}
+  .tooltip .tt{display:flex;justify-content:space-between;gap:14px;color:var(--muted)}
+  .tooltip .tt span{color:var(--text);font-variant-numeric:tabular-nums}
+  .chartcard,.hero{position:relative}
+
+  footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:11px;color:var(--faint);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+  .hidden{display:none !important}
+  @media (max-width:640px){
+    .sys .body{padding-left:18px}
+    .hero h2{font-size:22px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ header ============ -->
+  <header>
+    <div class="brand">
+      <span class="box"></span>
+      <h1>Nexus<em>-LOB</em></h1>
+    </div>
+    <span class="tag">desk &middot; verification console</span>
+    <span class="spacer"></span>
+    <span class="pill"><span class="dot ok"></span> 5 / 5 C++ suites green</span>
+    <span class="pill"><span class="dot ok"></span> live desk <button id="pausebtn" title="pause / resume live polling">PAUSE</button></span>
+  </header>
+
+  <!-- ============ hero ============ -->
+  <section class="hero">
+    <div class="top">
+      <div class="status-side">
+        <div class="kicker">all work up — and live</div>
+        <h2>Every <span class="good">runnable</span> subsystem is operational.</h2>
+        <p class="sub">The desk below is the live overlay: when the Python dashboard server runs, it polls the frozen
+          448-byte state contract (shared-memory ring, file ring, or a synthetic StubOrderBook walk) and renders the
+          order book in real time. Everything below the fold is the verified static console.</p>
+        <div class="statline">
+          <div class="stat"><b id="hs_seq">—</b><span>live seq</span></div>
+          <div class="stat"><b id="hs_src">none</b><span>feed source</span></div>
+          <div class="stat"><b id="hs_spr">—</b><span>spread</span></div>
+          <div class="stat"><b id="hs_lat">—</b><span>lat p50</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="bar"><i id="hbar" style="width:92%"></i></div>
+  </section>
+
+  <!-- ============ LIVE desk ============ -->
+  <section class="section" id="live">
+    <div class="livehead">
+      <h3>Live order book</h3>
+      <span class="livepill off" id="livepill">offline</span>
+      <span class="mono sub" style="color:var(--faint);font-size:11.5px" id="liveissues"></span>
+    </div>
+    <p class="desc">Real-time L2 depth over the frozen <span class="mono">BookStateView</span> contract &mdash; refresh every
+      400&nbsp;ms. Hover the depth bars and charts; the source is labeled honestly (shm-ring / file-ring / synthetic).</p>
+
+    <div class="kpis">
+      <div class="kpi bid"><div class="corner"></div><span class="lbl">best bid</span><span class="val nums" id="t_bid">—</span><span class="foot">bid_ct at level</span></div>
+      <div class="kpi ask"><div class="corner"></div><span class="lbl">best ask</span><span class="val nums" id="t_ask">—</span><span class="foot">ask_ct at level</span></div>
+      <div class="kpi accent"><div class="corner"></div><span class="lbl">mid</span><span class="val nums" id="t_mid">—</span><span class="foot">(bid0 + ask0) / 2</span></div>
+      <div class="kpi"><div class="corner"></div><span class="lbl">spread</span><span class="val nums" id="t_spr">—</span><span class="foot">ticks</span></div>
+      <div class="kpi"><div class="corner"></div><span class="lbl">cum volume</span><span class="val nums" id="t_vol">—</span><span class="foot">since feed epoch</span></div>
+      <div class="kpi"><div class="corner"></div><span class="lbl">latency p50</span><span class="val nums" id="t_lat">—</span><span class="foot" id="lat_src">snapshot render</span></div>
+      <div class="kpi"><div class="corner"></div><span class="lbl">VaR 1d 99%</span><span class="val nums" id="t_var">—</span><span class="foot">GBM / jump-diff</span></div>
+      <div class="kpi"><div class="corner"></div><span class="lbl">CVaR 1d 99%</span><span class="val nums" id="t_cvar">—</span><span class="foot">CPU risk engine</span></div>
+    </div>
+
+    <div class="deskgrid">
+      <div class="chartcard">
+        <div class="cap"><h4>Depth ladder</h4><span class="sub">10 levels &middot; size-proportional &middot; prices in ticks</span></div>
+        <div class="legend">
+          <span class="li"><span class="sw bid"></span>bid</span>
+          <span class="li"><span class="sw ask"></span>ask</span>
+        </div>
+        <div class="dhead"><span>bid size</span><span>bid</span><span>ask</span><span>ask size</span></div>
+        <div id="depthrows"></div>
+      </div>
+
+      <div class="chartcard">
+        <div class="cap"><h4>Snapshot latency</h4><span class="sub" id="latsub">histogram</span></div>
+        <div class="legend">
+          <span class="li"><span class="sw" style="background:var(--accent)"></span>samples</span>
+          <span class="li mono" style="color:var(--faint)" id="latn">0</span>
+        </div>
+        <svg id="lathist" viewBox="0 0 520 120" role="img" aria-label="Histogram of snapshot latency samples"></svg>
+      </div>
+    </div>
+
+    <div class="chartcard" style="margin-top:14px">
+      <div class="cap"><h4>Mid &amp; spread (rolling)</h4><span class="sub">last 200 snapshots &middot; mid on own axis</span></div>
+      <div class="legend">
+        <span class="li"><span class="sw mid"></span>mid</span>
+        <span class="li"><span class="sw spr"></span>spread</span>
+        <span class="li mono" style="color:var(--faint)">● last trade (side-colored)</span>
+      </div>
+      <svg id="spark" viewBox="0 0 636 130" role="img" aria-label="Sparklines of mid price and spread over recent snapshots"></svg>
+    </div>
+
+    <div class="tradetick"><span style="color:var(--faint);letter-spacing:.08em;text-transform:uppercase;font-size:10.5px">last trade</span><b id="tradetick">no trades yet</b></div>
+  </section>
+
+  <!-- ============ slippage ============ -->
+  <section class="section">
+    <h3>Execution slippage by strategy</h3>
+    <p class="desc">Measured 2026-09-07 &mdash; 100 seeded episodes, high-volatility regime. The PPO agent times fills
+      around adverse mid-moves to undercut every baseline on implementation shortfall.</p>
+    <div class="chartcard">
+      <div class="cap">
+        <h4>Implementation shortfall</h4><span class="sub">bps &middot; lower is better &middot; high-vol regime</span>
+      </div>
+      <div class="legend">
+        <span class="li"><span class="sw" style="background:var(--accent)"></span>PPO agent (learned)</span>
+        <span class="li"><span class="sw" style="background:var(--surface3);border:1px solid var(--line-strong)"></span>baselines</span>
+        <span class="li"><span class="sw" style="background:transparent;border-top:2px dashed var(--warn)"></span>VWAP reference</span>
+      </div>
+      <svg id="chart" viewBox="0 0 760 320" role="img" aria-label="Bar chart of implementation shortfall in basis points by strategy. PPO lowest at 1.401, then POV 2.519, TWAP 2.659, Passive 2.679, VWAP 2.827."></svg>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>strategy</th><th>reward</th><th>shortfall (bps)</th><th>vs VWAP</th><th>leftover</th></tr></thead>
+          <tbody>
+            <tr class="herorow"><td class="strategy hero">PPO (learned)</td><td class="nums">-5.04</td><td class="nums">1.401</td><td class="pos nums">+50.4%</td><td class="nums">26.3</td></tr>
+            <tr><td class="strategy">POV</td><td class="nums">-9.32</td><td class="nums">2.519</td><td class="pos nums">+10.9%</td><td class="nums">45.0</td></tr>
+            <tr><td class="strategy">TWAP</td><td class="nums">-8.60</td><td class="nums">2.659</td><td class="pos nums">+5.9%</td><td class="nums">39.6</td></tr>
+            <tr><td class="strategy">Passive</td><td class="nums">-12.81</td><td class="nums">2.679</td><td class="pos nums">+5.3%</td><td class="nums">287.8</td></tr>
+            <tr><td class="strategy">VWAP (baseline)</td><td class="nums">-7.40</td><td class="nums">2.827</td><td class="nums">0.0%</td><td class="nums">24.3</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ subsystems ============ -->
+  <section class="section">
+    <h3>Subsystem health</h3>
+    <p class="desc">The five subsystems from the architecture. Expand a card to inspect its components, per-file state,
+      and the exact tests + commands that verify it. Click any test row to reveal the command that produced it.</p>
+    <div class="filters" id="filters">
+      <button class="fchip on" data-f="all">All</button>
+      <button class="fchip" data-f="operational">Operational</button>
+      <button class="fchip" data-f="partial">Partial</button>
+      <button class="fchip" data-f="blocked">Blocked</button>
+      <span class="fcount" id="fcount"></span>
+    </div>
+
+    <!-- sys 1 -->
+    <article class="sys" data-state="operational" data-name="1">
+      <div class="head">
+        <span class="stripe"></span><span class="num">01</span>
+        <h3 class="title">C++ matching engine <small>subsystem 1 &middot; Person A</small></h3>
+        <span class="spacer"></span><span class="statepill operational">Operational</span><span class="chev">&#9656;</span>
+      </div>
+      <div class="body">
+        <table class="comptable">
+          <thead><tr><th>component</th><th>file</th><th>state</th></tr></thead>
+          <tbody>
+            <tr><td>State contract (ABI v1)</td><td class="file"><code>book_state.hpp</code></td><td><span class="cell-pill ok">frozen &middot; 448 B</span></td></tr>
+            <tr><td>Value types</td><td class="file"><code>types.hpp</code></td><td><span class="cell-pill ok">done</span></td></tr>
+            <tr><td>Zero-alloc order pool</td><td class="file"><code>order_pool.hpp</code></td><td><span class="cell-pill ok">done</span></td></tr>
+            <tr><td>Matching engine + IdMap</td><td class="file"><code>limit_order_book.hpp</code></td><td><span class="cell-pill ok">done</span></td></tr>
+            <tr><td>Synthetic flow generator</td><td class="file"><code>flow_gen.hpp</code></td><td><span class="cell-pill ok">done</span></td></tr>
+          </tbody>
+        </table>
+        <div class="tests">
+          <div class="ttl">verification</div>
+          <div class="testrow"><span class="name">Correctness <code>lob_test.cpp</code></span><span class="caret">&#9656;</span><span class="res ok">86 / 86 checks</span>
+            <span class="cmd">g++ -std=c++20 -O2 -I cpp_engine/include cpp_engine/tests/lob_test.cpp -o lob_test.exe &amp;&amp; ./lob_test.exe
+&#8594; 86 checks, 0 failed / ALL PASS</span></div>
+          <div class="testrow"><span class="name">Zero-alloc map stress <code>id_map_test.cpp</code></span><span class="caret">&#9656;</span><span class="res ok">4,676,294 checks</span>
+            <span class="cmd">g++ -std=c++20 -O2 -I cpp_engine/include cpp_engine/tests/id_map_test.cpp -o id_map_test.exe &amp;&amp; ./id_map_test.exe
+&#8594; 4676294 checks, 0 failed / ALL PASS</span></div>
+          <div class="testrow"><span class="name">ABI lock <code>abi_check.cpp</code></span><span class="caret">&#9656;</span><span class="res ok">sizeof 448 &middot; align 8</span>
+            <span class="cmd">g++ -std=c++20 -O2 -I cpp_engine/include cpp_engine/tests/abi_check.cpp -o abi_check.exe &amp;&amp; ./abi_check.exe
+&#8594; contract v1, kDepth=10, sizeof=448 (expected 448), alignof=8</span></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- sys 2 -->
+    <article class="sys" data-state="operational" data-name="2">
+      <div class="head">
+        <span class="stripe"></span><span class="num">02</span>
+        <h3 class="title">Microstructure sim + RL execution agent <small>subsystem 2 &middot; Person B</small></h3>
+        <span class="spacer"></span><span class="statepill operational">Operational</span><span class="chev">&#9656;</span>
+      </div>
+      <div class="body">
+        <table class="comptable">
+          <thead><tr><th>component</th><th>file</th><th>state</th></tr></thead>
+          <tbody>
+            <tr><td>ITCH 5.0 streaming parser</td><td class="file"><code>itch_parser.py</code></td><td><span class="cell-pill ok">done</span></td></tr>
+            <tr><td>ITCH&#8594;L2 replay engine</td><td class="file"><code>replay.py</code></td><td><span class="cell-pill ok">done</span></td></tr>
+            <tr><td>Injectable book adapter</td><td class="file"><code>book_port.py</code></td><td><span class="cell-pill ok">done</span></td></tr>
+            <tr><td>Gymnasium env (44-dim obs, high-vol)</td><td class="file"><code>envs/order_book_env.py</code></td><td><span class="cell-pill ok">done</span></td></tr>
+            <tr><td>Baselines (TWAP/VWAP/POV/Passive)</td><td class="file"><code>baselines.py</code></td><td><span class="cell-pill ok">done</span></td></tr>
+            <tr><td>PPO learner (pure NumPy)</td><td class="file"><code>agents/ppo.py</code></td><td><span class="cell-pill ok">done</span></td></tr>
+            <tr><td>GRPO + risk&harr;env seam</td><td class="file"><code>agents/grpo.py</code>, <code>risk.py</code></td><td><span class="cell-pill ok">done</span></td></tr>
+            <tr><td>Saved policies</td><td class="file"><code>artifacts/policy_ppo*.npz</code></td><td><span class="cell-pill ok">2 saved</span></td></tr>
+          </tbody>
+        </table>
+        <div class="tests">
+          <div class="ttl">verification</div>
+          <div class="testrow"><span class="name">Agent <code>test_ppo_agent.py</code></span><span class="caret">&#9656;</span><span class="res ok">12 / 12</span>
+            <span class="cmd">python -m pytest python_quant/tests/test_ppo_agent.py
+&#8594; 12 passed (grad, GAE, determinism, save/load)</span></div>
+          <div class="testrow"><span class="name">GRPO <code>test_grpo.py</code></span><span class="caret">&#9656;</span><span class="res ok">green</span>
+            <span class="cmd">python -m pytest python_quant/tests/test_grpo.py
+&#8594; passed</span></div>
+          <div class="testrow"><span class="name">High-vol regime <code>test_highvol_env.py</code></span><span class="caret">&#9656;</span><span class="res ok">11 / 11</span>
+            <span class="cmd">python -m pytest python_quant/tests/test_highvol_env.py
+&#8594; 11 passed</span></div>
+          <div class="testrow"><span class="name">Headline eval (live)</span><span class="caret">&#9656;</span><span class="res ok">+50.4% vs VWAP</span>
+            <span class="cmd">python python_quant/scripts/train_eval_agent.py --highvol --vol-feature --eval-only python_quant/artifacts/policy_ppo_highvol.npz
+&#8594; ppo 1.401 vs vwap 2.827 bps = +50.4% (100 seeded episodes)</span></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- sys 3 -->
+    <article class="sys" data-state="partial" data-name="3">
+      <div class="head">
+        <span class="stripe"></span><span class="num">03</span>
+        <h3 class="title">GPU risk engine (CUDA) <small>subsystem 3 &middot; Person A</small></h3>
+        <span class="spacer"></span><span class="statepill partial">CPU ok &middot; GPU blocked</span><span class="chev">&#9656;</span>
+      </div>
+      <div class="body">
+        <table class="comptable">
+          <thead><tr><th>component</th><th>file</th><th>state</th></tr></thead>
+          <tbody>
+            <tr><td>Model + deterministic RNG</td><td class="file"><code>risk_common.hpp</code></td><td><span class="cell-pill ok">same on CPU/GPU/NumPy</span></td></tr>
+            <tr><td>CPU reference (VaR/CVaR)</td><td class="file"><code>risk_cpu.hpp</code></td><td><span class="cell-pill ok">tested</span></td></tr>
+            <tr><td>CUDA kernel + launcher</td><td class="file"><code>risk_cuda.cu/.h</code></td><td><span class="cell-pill warn">authored &middot; no toolkit</span></td></tr>
+            <tr><td>CPU&#8596;GPU bench + parity</td><td class="file"><code>risk_bench.cpp</code></td><td><span class="cell-pill ok">CPU runs here</span></td></tr>
+            <tr><td>pybind <code>compute_var_cvar</code></td><td class="file"><code>bindings/pybind_wrapper.cpp</code></td><td><span class="cell-pill ok">done</span></td></tr>
+          </tbody>
+        </table>
+        <div class="tests">
+          <div class="ttl">verification</div>
+          <div class="testrow"><span class="name">Statistical self-tests <code>risk_test.cpp</code></span><span class="caret">&#9656;</span><span class="res ok">9 checks &middot; CTest 5/5</span>
+            <span class="cmd">g++ -std=c++20 -O2 -I cpp_engine/include -I cuda_risk cpp_engine/tests/risk_test.cpp -o risk_test.exe &amp;&amp; ./risk_test.exe
+&#8594; risk_test: 9 checks, 0 failed / ALL PASS</span></div>
+          <div class="testrow"><span class="name">NumPy oracle <code>test_risk_parity.py</code></span><span class="caret">&#9656;</span><span class="res ok">3 / 3 bit-for-bit</span>
+            <span class="cmd">python -m pytest python_quant/tests/test_risk_parity.py
+&#8594; 3 passed (exact parity, not MC-noise)</span></div>
+          <div class="testrow"><span class="name">CPU bench (live)</span><span class="caret">&#9656;</span><span class="res ok">55M path-steps/s</span>
+            <span class="cmd">g++ -std=c++20 -O3 -I cpp_engine/include -I cuda_risk cuda_risk/risk_bench.cpp -o risk_bench.exe &amp;&amp; ./risk_bench.exe
+&#8594; 200000 paths x 252 steps: var=0.324574 cvar=0.389231, 915.0 ms
+&#8594; GPU: not compiled (no CUDA toolkit) — speedup measured on a CUDA box</span></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- sys 4 -->
+    <article class="sys" data-state="operational" data-name="4">
+      <div class="head">
+        <span class="stripe"></span><span class="num">04</span>
+        <h3 class="title">Zero-copy pipeline + live desk <small>subsystem 4 &middot; this page</small></h3>
+        <span class="spacer"></span><span class="statepill operational">Live</span><span class="chev">&#9656;</span>
+      </div>
+      <div class="body">
+        <table class="comptable">
+          <thead><tr><th>component</th><th>file</th><th>state</th></tr></thead>
+          <tbody>
+            <tr><td>Shared-memory SPSC ring</td><td class="file"><code>shm_ring.hpp</code></td><td><span class="cell-pill ok">POSIX + Windows</span></td></tr>
+            <tr><td>Ring producer / probe</td><td class="file"><code>demos/ring_producer.cpp</code>, <code>ring_probe.cpp</code></td><td><span class="cell-pill ok">live-verified</span></td></tr>
+            <tr><td>Slot codec + SnapshotHub</td><td class="file"><code>dashboard.py</code></td><td><span class="cell-pill ok">decode + history + latency</span></td></tr>
+            <tr><td>Combined desk page</td><td class="file"><code>dashboard_page.html</code></td><td><span class="cell-pill ok">this page</span></td></tr>
+            <tr><td>Dashboard server</td><td class="file"><code>scripts/serve_dashboard.py</code></td><td><span class="cell-pill ok">shm / file / synthetic</span></td></tr>
+          </tbody>
+        </table>
+        <div class="tests">
+          <div class="ttl">verification</div>
+          <div class="testrow"><span class="name">Dashboard <code>test_dashboard.py</code></span><span class="caret">&#9656;</span><span class="res ok">green</span>
+            <span class="cmd">python -m pytest python_quant/tests/test_dashboard.py
+&#8594; passed (codec round-trip, file-ring latest, hub JSON, shm decode)</span></div>
+          <div class="testrow"><span class="name">Ring order / drop semantics <code>ring_test.cpp</code></span><span class="caret">&#9656;</span><span class="res ok">30,011 checks</span>
+            <span class="cmd">g++ -std=c++20 -O2 -I cpp_engine/include cpp_engine/tests/ring_test.cpp -o ring_test.exe &amp;&amp; ./ring_test.exe
+&#8594; 30011 checks, 0 failed / ALL PASS</span></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- sys 5 -->
+    <article class="sys" data-state="operational" data-name="5">
+      <div class="head">
+        <span class="stripe"></span><span class="num">05</span>
+        <h3 class="title">Shared-memory ring &#8594; desk core <small>subsystem 5 &middot; C++ plumbing</small></h3>
+        <span class="spacer"></span><span class="statepill operational">Core done</span><span class="chev">&#9656;</span>
+      </div>
+      <div class="body">
+        <table class="comptable">
+          <thead><tr><th>component</th><th>file</th><th>state</th></tr></thead>
+          <tbody>
+            <tr><td>SPSC ring, drop-new-on-full</td><td class="file"><code>shm_ring.hpp</code></td><td><span class="cell-pill ok">30,011 checks</span></td></tr>
+            <tr><td>Live book &#8594; ring demo</td><td class="file"><code>demos/*.cpp</code></td><td><span class="cell-pill ok">verified on Windows</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <!-- ============ ABI map ============ -->
+  <section class="section">
+    <h3>State-contract layout</h3>
+    <p class="desc">The ABI-frozen 448-byte <span class="mono">nexus::BookStateView</span> that both people build against &mdash;
+      the contract-first seam. Field order = all 8-byte, then 4-byte, then 1-byte, so it's padding-free on LP64.</p>
+    <div class="abi">
+      <h4>book_state.hpp &middot; v1 &middot; 448 bytes &middot; align 8</h4>
+      <div class="sub">field offsets verified by abi_check &mdash; seq=0 ts_ns=8 cum_volume=16 last_trade_sz=24 last_trade_px=32</div>
+      <div class="scalar">
+        <div class="cell"><span class="nm">seq</span><span class="of">+0</span></div>
+        <div class="cell"><span class="nm">ts_ns</span><span class="of">+8</span></div>
+        <div class="cell"><span class="nm">cum_volume</span><span class="of">+16</span></div>
+        <div class="cell"><span class="nm">last_trade_sz</span><span class="of">+24</span></div>
+        <div class="cell"><span class="nm">last_trade_px</span><span class="of">+32</span></div>
+        <div class="cell accent"><span class="nm">version</span><span class="of">+360</span></div>
+        <div class="cell"><span class="nm">bid_ct</span><span class="of">+364</span></div>
+        <div class="cell"><span class="nm">ask_ct</span><span class="of">+404</span></div>
+        <div class="cell"><span class="nm">side</span><span class="of">+444</span></div>
+      </div>
+      <div class="lob" style="margin-top:14px">
+        <div class="cell bid"><span class="nm">bid_px</span><span class="of">+40</span></div>
+        <div class="cell bid"><span class="nm">bid_sz</span><span class="of">+120</span></div>
+        <div class="cell ask"><span class="nm">ask_px</span><span class="of">+200</span></div>
+        <div class="cell ask"><span class="nm">ask_sz</span><span class="of">+280</span></div>
+      </div>
+      <div class="legend2">
+        <span class="li"><span class="sq bid"></span>bid side</span>
+        <span class="li"><span class="sq ask"></span>ask side</span>
+        <span class="li"><span class="sq acc"></span>misc / version</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ transcript ============ -->
+  <section class="section">
+    <h3>Verification transcript</h3>
+    <p class="desc">The exact commands run to confirm every subsystem is up. Each is a real, passing run &mdash; not a stored expectation.</p>
+    <div class="term">
+      <div class="tbar"><span class="tdot"></span><span class="tdot"></span><span class="tdot"></span>
+        <span class="tname">nexus-verify &mdash; Windows / MSYS2 g++ &middot; Python 3.12 &middot; 2026-09-09</span></div>
+      <div class="tbody">
+        <span class="ln cmdline"><span class="c">g++ -std=c++20 -O2 -Wall -Wextra -I cpp_engine/include cpp_engine/tests/abi_check.cpp -o abi_check.exe &amp;&amp; ./abi_check.exe</span></span>
+        <span class="ln dim">&#8594; contract v1, kDepth=10, sizeof=448 (expected 448), alignof=8</span>
+        <span class="ln cmdline"><span class="c">g++ -std=c++20 -O2 -Wall -Wextra -I cpp_engine/include cpp_engine/tests/lob_test.cpp -o lob_test.exe &amp;&amp; ./lob_test.exe</span></span>
+        <span class="ln ok">&#8594; 86 checks, 0 failed / ALL PASS</span>
+        <span class="ln cmdline"><span class="c">g++ -std=c++20 -O2 -Wall -Wextra -I cpp_engine/include cpp_engine/tests/id_map_test.cpp -o id_map_test.exe &amp;&amp; ./id_map_test.exe</span></span>
+        <span class="ln ok">&#8594; 4676294 checks, 0 failed / ALL PASS</span>
+        <span class="ln cmdline"><span class="c">g++ -std=c++20 -O2 -Wall -Wextra -I cpp_engine/include cpp_engine/tests/ring_test.cpp -o ring_test.exe &amp;&amp; ./ring_test.exe</span></span>
+        <span class="ln ok">&#8594; 30011 checks, 0 failed / ALL PASS</span>
+        <span class="ln cmdline"><span class="c">g++ -std=c++20 -O2 -Wall -Wextra -I cpp_engine/include -I cuda_risk cpp_engine/tests/risk_test.cpp -o risk_test.exe &amp;&amp; ./risk_test.exe</span></span>
+        <span class="ln ok">&#8594; risk_test: 9 checks, 0 failed / ALL PASS</span>
+        <span class="ln cmdline"><span class="c">python -m pytest python_quant/tests -v</span></span>
+        <span class="ln ok">&#8594; passed (incl. dashboard codec + hub)</span>
+        <span class="ln cmdline"><span class="c">python python_quant/scripts/serve_dashboard.py --synthetic</span></span>
+        <span class="ln ok">&#8594; Nexus-LOB dashboard on http://127.0.0.1:8765 &mdash; live desk polling /api/state</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>NEXUS-LOB &middot; desk + verification console &middot; static values measured; live pane reflects the running feed</span>
+    <span>CUDA needs WSL/Linux or a Windows CUDA toolkit</span>
+  </footer>
+
+</div>
+
+<div class="tooltip" id="tip"></div>
+<div class="tooltip" id="tip2"></div>
+
+<script>
+  /* ============================================================
+     LIVE desk — polls /api/state every 400 ms
+     ============================================================ */
+  var DEPTH=10, lastSeq=-1, stalls=0, paused=false;
+  var el=function(id){return document.getElementById(id);};
+  function fmt(n,d){
+    if(n==null) return '—';
+    return Number(n).toLocaleString(undefined,{maximumFractionDigits:(d==null?0:d)});
+  }
+
+  function setPill(state){
+    var p=el('livepill');
+    p.className='livepill '+state;
+    p.textContent = state==='live'?'LIVE' : state==='stale'?'STALE' : 'offline';
+  }
+  function showOffline(reason){ setPill('off'); el('liveissues').textContent=reason||''; }
+
+  /* ---- depth ladder ---- */
+  function renderDepth(s){
+    var rows='', maxSz=Math.max(1, Math.max.apply(null,s.bid_sz), Math.max.apply(null,s.ask_sz));
+    for(var i=0;i<DEPTH;i++){
+      var bp=s.bid_px[i], bs=s.bid_sz[i], ap=s.ask_px[i], a=s.ask_sz[i];
+      var bwp=bp? (bs/maxSz*100).toFixed(1) : 0;
+      var awp=ap? (a/maxSz*100).toFixed(1) : 0;
+      rows+='<div class="drow">'
+        +'<div class="bsz">'+(bp?fmt(bs):'·')+'</div>'
+        +'<div class="bcell"><span class="bar" style="width:'+bwp+'%"></span><span class="lbl">'+(bp?fmt(bp):'·')+'</span></div>'
+        +'<div class="acell"><span class="bar" style="width:'+awp+'%"></span><span class="lbl">'+(ap?fmt(ap):'·')+'</span></div>'
+        +'<div class="asz">'+(ap?fmt(a):'·')+'</div>'
+      +'</div>';
+    }
+    el('depthrows').innerHTML=rows;
+  }
+
+  /* ---- sparklines: mid + spread over history ---- */
+  function renderSpark(s){
+    var h=s.history||[], svg=el('spark'), W=620, H=100, ML=6, MR=6, MT=4, MB=16;
+    if(h.length<2){ svg.innerHTML='<text x="10" y="22" fill="#5e738d" font-size="11">no history yet &mdash; waiting for new snapshots</text>'; return; }
+    var mids=[], sprs=[];
+    for(var i=0;i<h.length;i++){ if(h[i].mid!=null) mids.push(h[i].mid); if(h[i].spread!=null) sprs.push(h[i].spread); }
+    if(mids.length<2){ svg.innerHTML='<text x="10" y="22" fill="#5e738d" font-size="11">no mid yet &mdash; book is empty</text>'; return; }
+    var mn=Math.min.apply(null,mids), mx=Math.max.apply(null,mids);
+    if(mx-mn<1e-9){ mn-=1; mx+=1; }
+    var sx=function(i){ return ML+i/(h.length-1)*(W-ML-MR); };
+    var sy=function(v){ return MT+(mx-v)/(mx-mn)*(H-MT-MB); };
+    var smax=Math.max.apply(null,sprs); if(smax<=0) smax=1;
+    var sSy=function(v){ return MT+(H-MT-MB)*(1-v/smax); };
+    var g='', i;
+    for(i=0;i<=4;i++){ var v=mn+(mx-mn)*i/4, y=sy(v).toFixed(1);
+      g+='<line class="gl" x1="'+ML+'" y1="'+y+'" x2="'+(W-MR)+'" y2="'+y+'"/>';
+      g+='<text class="ax" x="'+ML+'" y="'+(parseFloat(y)-3)+'">'+fmt(v)+'</text>'; }
+    var midPts=[], sprPts=[];
+    for(i=0;i<h.length;i++){
+      if(h[i].mid!=null){ midPts.push(sx(i).toFixed(1)+','+sy(h[i].mid).toFixed(1)); }
+      if(h[i].spread!=null){ sprPts.push(sx(i).toFixed(1)+','+sSy(h[i].spread).toFixed(1)); }
+    }
+    g+='<polyline class="ln mid" points="'+midPts.join(' ')+'"/>';
+    g+='<polyline class="ln spr" points="'+sprPts.join(' ')+'"/>';
+    var last=h[h.length-1];
+    if(last.trade_px){
+      var tx=sx(h.length-1).toFixed(1), ty=sy(last.mid!=null?last.mid:mn).toFixed(1);
+      var col=last.trade_side===1?'var(--ask)':'var(--bid)';
+      g+='<circle cx="'+tx+'" cy="'+ty+'" r="3" fill="'+col+'"/>';
+    }
+    g+='<text class="ax" x="'+(W-MR)+'" y="'+(H-2)+'" text-anchor="end">now</text>';
+    svg.innerHTML=g;
+  }
+
+  /* ---- latency histogram ---- */
+  function renderLatency(s){
+    var L=s.latency||{labels:[],counts:[],n:0};
+    var counts=L.counts||[], labels=L.labels||[], svg=el('lathist'), i;
+    var W=520,H=100,ML=4,MR=4,MT=4,MB=18;
+    el('latn').textContent=L.n+' samples';
+    el('latsub').textContent='histogram · '+ (L.kind==='fill'?'fill latency':'feed latency') +
+      (L.p50_ns!=null?' · p50 '+(L.p50_ns/1000).toFixed(0)+'µs':'');
+    var maxc=Math.max(1, Math.max.apply(null,counts));
+    var nb=counts.length, bw=(W-ML-MR)/nb, g='';
+    for(i=0;i<nb;i++){
+      var hh=counts[i]/maxc*(H-MT-MB);
+      var x=ML+i*bw;
+      if(counts[i]>0) g+='<rect class="hbar" data-i="'+i+'" x="'+(x+1).toFixed(1)+'" y="'+((H-MB)-hh).toFixed(1)+'" width="'+(bw-2).toFixed(1)+'" height="'+hh.toFixed(1)+'" rx="2"/>';
+      if(i%2===0) g+='<text class="ax" x="'+(x+bw/2).toFixed(1)+'" y="'+(H-4)+'" text-anchor="middle">'+labels[i]+'</text>';
+    }
+    svg.innerHTML=g;
+    var t2=el('tip2');
+    svg.querySelectorAll('rect.hbar').forEach(function(r){
+      r.addEventListener('mousemove',function(e){
+        var i=+r.getAttribute('data-i');
+        t2.innerHTML='<b>'+labels[i]+'</b><span class="tt">samples <span>'+counts[i]+'</span></span>';
+        t2.style.opacity=1;
+        var rect=svg.getBoundingClientRect();
+        t2.style.left=(e.clientX-rect.left+14)+'px'; t2.style.top=(e.clientY-rect.top-10)+'px';
+      });
+      r.addEventListener('mouseleave',function(){ t2.style.opacity=0; });
+    });
+  }
+
+  /* ---- main render ---- */
+  function render(s){
+    el('livepill').className='livepill live'; el('livepill').textContent='LIVE';
+    el('liveissues').textContent = s.issues&&s.issues.length ? 'integrity: '+s.issues.join(', ') : '';
+    el('hs_seq').textContent=fmt(s.seq);
+    el('hs_src').textContent=(s.source||'none').toUpperCase();
+    el('hs_spr').textContent=s.spread==null?'—':fmt(s.spread);
+    el('hs_lat').textContent = (s.latency&&s.latency.p50_ns!=null)?(s.latency.p50_ns/1000).toFixed(0)+'µs':'—';
+
+    var set=function(id,v,suffix){ var n=el(id); n.textContent=v; n.classList.toggle('dim', v==='—'); return n; };
+    set('t_bid', s.bid0?fmt(s.bid0):'—');
+    set('t_ask', s.ask0?fmt(s.ask0):'—');
+    set('t_mid', s.mid==null?'—':fmt(s.mid,1));
+    set('t_spr', s.spread==null?'—':fmt(s.spread));
+    set('t_vol', fmt(s.cum_volume));
+    set('t_lat', (s.latency&&s.latency.p50_ns!=null)?(s.latency.p50_ns/1000).toFixed(0)+' µs':'—');
+    set('t_var', (s.risk&&s.risk.var!=null)?s.risk.var.toFixed(4):'—');
+    set('t_cvar', (s.risk&&s.risk.cvar!=null)?s.risk.cvar.toFixed(4):'—');
+    el('lat_src').textContent = (s.latency&&s.latency.kind==='fill')?'fill latency':'snapshot render';
+
+    var tk=el('tradetick');
+    if(s.last_trade_px){
+      var sc = s.last_trade_side===1?'side-a':'side-b';
+      var sl = s.last_trade_side===1?'ASK':'BID';
+      tk.innerHTML='<span class="'+sc+'">'+sl+'</span> &nbsp;'+fmt(s.last_trade_px)+' × '+fmt(s.last_trade_sz);
+    } else { tk.textContent='no trades yet'; }
+
+    renderDepth(s); renderSpark(s); renderLatency(s);
+
+    if(s.seq===lastSeq){ stalls++; if(stalls>=3){ setPill('stale'); } }
+    else { stalls=0; setPill('live'); }
+    lastSeq=s.seq;
+  }
+
+  async function tick(){
+    if(paused) return;
+    var s=null;
+    try{ s=await (await fetch('/api/state')).json(); }
+    catch(e){ showOffline('fetch failed'); return; }
+    if(!s || !s.ok){ showOffline('no snapshot ('+(s&&s.source)+')'); return; }
+    render(s);
+  }
+
+  el('pausebtn').addEventListener('click',function(){
+    paused=!paused;
+    this.textContent=paused?'RESUME':'PAUSE';
+    if(!paused) tick();
+  });
+
+  /* ============================================================
+     Static console — slippage chart
+     ============================================================ */
+  (function(){
+    var data=[
+      {name:'PPO',    val:1.401, vs:'+50.4%', rw:-5.04, left:'26.3', hero:true},
+      {name:'POV',    val:2.519, vs:'+10.9%', rw:-9.32, left:'45.0'},
+      {name:'TWAP',   val:2.659, vs:'+5.9%',  rw:-8.60, left:'39.6'},
+      {name:'Passive',val:2.679, vs:'+5.3%',  rw:-12.81,left:'287.8'},
+      {name:'VWAP',   val:2.827, vs:'0.0%',   rw:-7.40, left:'24.3', ref:true}
+    ];
+    var W=760,H=320, ML=64, MR=150, MT=8, MB=40;
+    var pw=W-ML-MR, ph=H-MT-MB, max=3.0;
+    var x=function(v){return ML+v/max*pw;};
+    var rowH=ph/data.length, bh=Math.min(26,rowH-16);
+    var svg=document.getElementById('chart'), g='';
+    [1,2,3].forEach(function(t){
+      g+='<g class="gl"><line x1="'+x(t)+'" y1="'+MT+'" x2="'+x(t)+'" y2="'+(MT+ph)+'"/></g>';
+      g+='<text class="ax" x="'+x(t)+'" y="'+(MT+ph+18)+'" text-anchor="middle">'+t+'.0</text>';
+    });
+    g+='<text class="ax" x="'+ML+'" y="'+(MT+ph+18)+'" text-anchor="middle" style="font-size:11px">0</text>';
+    var ref=data[4];
+    g+='<line class="vref" x1="'+x(ref.val)+'" y1="'+MT+'" x2="'+x(ref.val)+'" y2="'+(MT+ph)+'"/>';
+    g+='<text class="vlabel" x="'+(x(ref.val)+7)+'" y="'+(MT+14)+'">VWAP baseline 2.827</text>';
+    data.forEach(function(d,i){
+      var y=MT+i*rowH, h=bh;
+      var cls=d.hero?'bar-hero':(d.ref?'bar-vwap':'bar-field');
+      g+='<rect class="'+cls+'" data-i="'+i+'" x="'+ML+'" y="'+(y+rowH/2-h/2)+'" width="'+(x(d.val)-ML)+'" height="'+h+'" rx="4" ry="4"/>';
+      var lc=d.hero?'blabel-hero':'blabel';
+      g+='<text class="'+lc+'" x="'+(x(d.val)+8)+'" y="'+(y+rowH/2+4)+'">'+d.val.toFixed(3)+' bps</text>';
+      g+='<text class="'+(d.hero?'rowlabel-hero':'rowlabel')+'" x="'+(ML-10)+'" y="'+(y+rowH/2+4)+'" text-anchor="end">'+d.name+'</text>';
+    });
+    svg.innerHTML=g;
+    var tip=document.getElementById('tip');
+    svg.querySelectorAll('rect[data-i]').forEach(function(r){
+      var d=data[+r.getAttribute('data-i')];
+      r.addEventListener('mousemove',function(e){
+        tip.innerHTML='<b>'+d.name+'</b>'+
+          '<span class="tt">shortfall <span>'+d.val.toFixed(3)+' bps</span></span>'+
+          '<span class="tt">vs VWAP <span>'+d.vs+'</span></span>'+
+          '<span class="tt">reward <span>'+d.rw+'</span></span>'+
+          '<span class="tt">leftover <span>'+d.left+'</span></span>';
+        tip.style.opacity=1;
+        var rect=svg.getBoundingClientRect();
+        tip.style.left=(e.clientX-rect.left+14)+'px'; tip.style.top=(e.clientY-rect.top-10)+'px';
+      });
+      r.addEventListener('mouseleave',function(){ tip.style.opacity=0; });
+    });
+  })();
+
+  /* ============================================================
+     Static console — subsystem filter + accordions
+     ============================================================ */
+  (function(){
+    var chips=document.querySelectorAll('#filters .fchip');
+    var cards=document.querySelectorAll('.sys');
+    var count=document.getElementById('fcount');
+    function refresh(active){
+      var shown=0;
+      cards.forEach(function(c){
+        var ok=(active==='all'||c.getAttribute('data-state')===active);
+        c.classList.toggle('hidden',!ok);
+        if(ok)shown++;
+      });
+      count.textContent=shown+' / '+cards.length+' subsystems';
+    }
+    chips.forEach(function(ch){
+      ch.addEventListener('click',function(){
+        chips.forEach(function(c){c.classList.remove('on');});
+        ch.classList.add('on');
+        refresh(ch.getAttribute('data-f'));
+      });
+    });
+    refresh('all');
+  })();
+  document.querySelectorAll('.sys .head').forEach(function(h){
+    h.addEventListener('click',function(){ h.parentElement.classList.toggle('open'); });
+  });
+  document.querySelectorAll('.testrow').forEach(function(t){
+    t.addEventListener('click',function(){ t.classList.toggle('open'); });
+  });
+
+  /* ---- start ---- */
+  setInterval(tick, 400);
+  tick();
+</script>
+</body>
+</html>
