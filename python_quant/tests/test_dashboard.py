@@ -4,6 +4,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from nexus_quant.book_state import BOOK_STATE_DTYPE, Side, StubOrderBook
@@ -56,6 +58,12 @@ def test_hub_json():
 
 
 def test_shm_ring_decoder_roundtrip():
+    # read_shm_ring_latest attaches POSIX /dev/shm, which does not exist on
+    # Windows (Path("/dev/shm") resolves to a drive-relative \dev\shm). The
+    # decode logic it exercises is the same layout-checked on every platform,
+    # so skip rather than fail where the POSIX segment can't exist.
+    if not Path("/dev/shm").is_dir():
+        pytest.skip("POSIX /dev/shm unavailable (live ring attach is POSIX-only)")
     import struct
 
     from nexus_quant.dashboard import _SHM_CTRL_N

@@ -11,6 +11,11 @@ It does not replace Person A's ring producer. Attach a raw dump of slots
 
 OS shared-memory attach is best-effort (POSIX ``/dev/shm/<name>``); if the
 segment is absent the dashboard runs off the in-process hub or a file ring.
+
+POSIX-only: ``read_shm_ring_latest``/``try_attach_posix_shm`` attach the
+Linux ``/dev/shm`` segment by path. They do not attach the C++ ``ShmRing``'s
+Windows shared-memory mapping — on Windows use the file-ring path
+(``latest_from_file_ring``) or an in-process ``view()`` hub instead.
 """
 from __future__ import annotations
 
