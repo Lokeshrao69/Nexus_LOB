@@ -6,10 +6,6 @@ platform — a finance-placement portfolio project targeting quant-desks
 It reads as *institutional-grade*: low-latency systems design, order-book
 mechanics, RL for optimal execution, and GPU risk analytics.
 
-**Two people, ~8 weeks.** See `CLAUDE.md` (session handoff, always current),
-`PROGRESS.md` (plain-language status), and `HIGHVOL_PLAN.md` (the high-vol
-execution regime that delivers the slippage headline).
-
 ---
 ## Headline results
 
