@@ -2353,27 +2353,7 @@ Nexus-LOB is intended to demonstrate the complete engineering path from **market
 
 The central design principle is:
 
-```text
-                REALISTIC MARKET STATE
-                         │
-                         ▼
-              DETERMINISTIC MATCHING
-                         │
-                         ▼
-                EXECUTION SIMULATION
-                         │
-                         ▼
-              BASELINE STRATEGIES
-                         │
-                         ▼
-               REINFORCEMENT LEARNING
-                         │
-                         ▼
-              EXECUTION OPTIMIZATION
-                         │
-                         ▼
-                RISK + MONITORING
-```
+
 
 Rather than treating algorithmic trading as a single machine-learning problem, Nexus-LOB approaches it as a **systems + market-microstructure + quantitative-research problem**.
 
