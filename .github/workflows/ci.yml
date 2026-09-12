@@ -61,7 +61,16 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -j
       - name: CTest
-        run: ctest --test-dir build --output-on-failure
+        # windows-latest defaults to the multi-config Visual Studio generator, so
+        # test configs live under build/Release/ and ctest needs -C. Ubuntu's
+        # single-config generator ignores the flag.
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            ctest --test-dir build -C Release --output-on-failure
+          else
+            ctest --test-dir build --output-on-failure
+          fi
       - name: Parity + diff tests (needs compiled module in bindings/)
         run: python -m pytest python_quant/tests bindings/tests -v
 
