@@ -126,7 +126,7 @@ class MLP:
         grads: list[tuple[np.ndarray, np.ndarray]] = [None] * len(self.params)  # type: ignore[list-item]
         d = d_out
         for i in range(len(self.params) - 1, -1, -1):
-            W, b = self.params[i]  # noqa: F841  (b held for shape only)
+            W, _ = self.params[i]
             x_before, z, _a = self._cache[i]
             act_deriv = _GRAD[self.out_act] if i == len(self.params) - 1 else _GRAD[self.hidden_act]
             dz = d * act_deriv(z)

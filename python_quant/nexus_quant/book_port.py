@@ -12,13 +12,13 @@ Swap the adapter, not the env.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 
 from .book_state import Side, StubOrderBook
-
 
 View = Mapping[str, Any]
 
@@ -223,7 +223,7 @@ class EngineAdapter:
         try:
             fills = self.engine.fills() if hasattr(self.engine, "fills") else []
             live_sz = int(qty) - sum(int(f[3]) for f in fills)
-        except Exception:
+        except Exception:  # noqa: S110, BLE001  # best-effort: falls back to full residual qty
             pass
         live_sz = max(0, live_sz)
         h = Resting(oid, side, int(price), live_sz)
@@ -321,7 +321,7 @@ def _engine_tif(engine: Any, name: str) -> Any:
 
 def adapt(book: Any) -> StubBookAdapter | EngineAdapter:
     """Wrap a stub or a compiled Engine without the caller branching."""
-    if isinstance(book, StubBookAdapter) or isinstance(book, EngineAdapter):
+    if isinstance(book, (StubBookAdapter, EngineAdapter)):
         return book
     if isinstance(book, StubOrderBook):
         return StubBookAdapter(book)

@@ -13,8 +13,9 @@ difference in results is the policy, not the tape.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Literal, Optional, Protocol
+from typing import Literal, Protocol
 
 import numpy as np
 
@@ -120,7 +121,7 @@ def _baseline_summary(
 
 
 def strategy_table(
-    agent: Optional[Policy] = None,
+    agent: Policy | None = None,
     *,
     agent_name: str = "ppo",
     n_episodes: int = 50,

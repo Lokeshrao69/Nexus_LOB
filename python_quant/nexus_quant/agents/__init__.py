@@ -13,7 +13,6 @@ Public API
 ``strategy_table``   agent vs TWAP/VWAP/POV/Passive on the same tape.
 """
 
-from .grpo import GRPOConfig, train_grpo
 from .evaluate import (
     BaselineId,
     EvalSummary,
@@ -22,6 +21,7 @@ from .evaluate import (
     format_table,
     strategy_table,
 )
+from .grpo import GRPOConfig, train_grpo
 from .mlp import MLP, Adam, clip_grad_norm
 from .ppo import (
     PPOConfig,
@@ -33,11 +33,11 @@ from .ppo import (
 )
 
 __all__ = [
+    "MLP",
     "Adam",
     "BaselineId",
-    "GRPOConfig",
     "EvalSummary",
-    "MLP",
+    "GRPOConfig",
     "PPOConfig",
     "PPOPolicy",
     "Policy",

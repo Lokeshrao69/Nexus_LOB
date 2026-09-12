@@ -21,13 +21,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "python_quant"))
 
-import numpy as np  # noqa: E402
-import pytest  # noqa: E402
-
-from nexus_quant.book_port import EngineAdapter  # noqa: E402
-from nexus_quant.book_state import Side  # noqa: E402
-from nexus_quant.itch_parser import EventType, NormalizedEvent  # noqa: E402
-from nexus_quant.replay import ReplayEngine  # noqa: E402
+import numpy as np
+import pytest
+from nexus_quant.book_port import EngineAdapter
+from nexus_quant.book_state import Side
+from nexus_quant.itch_parser import EventType, NormalizedEvent
+from nexus_quant.replay import ReplayEngine
 
 nexus_engine = pytest.importorskip(
     "nexus_engine",

@@ -22,9 +22,10 @@ from __future__ import annotations
 import json
 import struct
 from collections import deque
+from collections.abc import Callable, Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any
 
 import numpy as np
 
@@ -129,7 +130,7 @@ class SnapshotHub:
         self._last_seq = -1
 
     # -- latency ------------------------------------------------------------
-    def record_latency(self, ns: float | int, *, kind: str = "feed") -> None:
+    def record_latency(self, ns: float, *, kind: str = "feed") -> None:
         """Accumulate one latency sample into the histogram + percentile store."""
         self.latency_kind = kind
         ns = float(ns)
@@ -159,7 +160,7 @@ class SnapshotHub:
         view: View,
         *,
         source: str = "live",
-        feed_latency_ns: float | int | None = None,
+        feed_latency_ns: float | None = None,
     ) -> None:
         self.view = {
             k: (np.asarray(v).copy() if isinstance(v, np.ndarray) else v)
@@ -324,10 +325,10 @@ def make_handler(
     page: bytes | None = None,
 ):
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, fmt: str, *args: Any) -> None:  # noqa: ARG002
+        def log_message(self, fmt: str, *args: Any) -> None:
             return
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             if poll is not None:
                 poll()
             if self.path.startswith("/api/state"):

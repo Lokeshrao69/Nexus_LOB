@@ -9,8 +9,8 @@ durable ladder use ``snapshot()``.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
-from typing import Iterable, Iterator
 
 from .book_port import StubBookAdapter, View, adapt
 from .book_state import DEPTH, Side, StubOrderBook
@@ -91,7 +91,7 @@ class ReplayEngine:
     @classmethod
     def from_stub(
         cls, events: Iterable[NormalizedEvent], stub: StubOrderBook | None = None
-    ) -> "ReplayEngine":
+    ) -> ReplayEngine:
         return cls(events, StubBookAdapter(stub or StubOrderBook()))
 
     def step(self) -> ReplayFrame | None:
