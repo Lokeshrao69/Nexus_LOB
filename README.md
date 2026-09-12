@@ -55,13 +55,14 @@ Pure-NumPy stack (no torch), byte-reproducible:
 | Gymnasium execution env | `nexus_quant/envs/order_book_env.py` | 44-dim obs, IS reward + inv/time/adv penalties, **high-vol regime** |
 | Execution baselines | `nexus_quant/baselines.py` | TWAP / VWAP / POV / Passive |
 | PPO agent (pure NumPy) | `nexus_quant/agents/ppo.py`, `mlp.py` | MLP, Adam, GAE, clipped surrogate |
+| GRPO agent (pure NumPy) | `nexus_quant/agents/grpo.py` | GRPO on the PPO actor interface |
 | Eval harness | `nexus_quant/agents/evaluate.py` | `strategy_table` / `format_table` |
 | Train+eval CLI | `scripts/train_eval_agent.py` | `--highvol`, `--eval-only`, regime flags |
 | **Regime design doc** | `HIGHVOL_PLAN.md` | the high-vol regime + how it hits the headline |
 
-**Tests (all green):** **52 passed** — contract smoke, ITCH, replay, env,
-baselines, PPO agent, risk parity (3× bit-for-bit), and the high-vol regime
-(11 tests).
+**Tests (all green):** **68 passed** — contract smoke, ITCH, replay, env,
+baselines, PPO + GRPO agents, risk parity (3× bit-for-bit), the high-vol regime
+(11 tests), dashboard codec/hub, and the risk↔env penalty.
 
 ### 3. GPU risk engine (`cuda_risk/`) — Person A
 Monte-Carlo VaR/CVaR where the per-path RNG is a **pure function of
@@ -79,6 +80,47 @@ oracle draw *identical* paths → **bit-for-bit parity** (not MC tolerance).
 **Verified here (no GPU):** the risk parity oracle is **3/3 bit-for-bit** within
 the 52-test Python suite; CTest **5/5**. **Blocked:** the CUDA kernel and ~40×
 speedup need `nvcc`/toolkit (WSL/Linux or Windows CUDA).
+
+---
+
+## Live desk — interactive dashboard (subsystem 4/5)
+
+One self-contained page that **combines the live order-book overlay with the
+verification console** — so a single URL shows the real-time market state *and*
+every subsystem's tested health side by side.
+
+| Piece | File | What it does |
+|---|---|---|
+| Combined desk page | `python_quant/nexus_quant/dashboard_page.html` | console styling + live L2 overlay in one HTML file |
+| Snapshot hub / slot codec | `python_quant/nexus_quant/dashboard.py` | decodes the frozen 448-B `BookStateView`, dedup-by-seq rolling 200-sample history, latency histogram + p50/p95 |
+| Dashboard server | `python_quant/scripts/serve_dashboard.py` | stdlib HTTP server that feeds the page live state |
+| Dashboard tests | `python_quant/tests/test_dashboard.py` | slot round-trip, file-ring latest, hub JSON, latency |
+
+**The live pane** (refreshes every 400 ms): L2 depth ladder with size-proportional
+bid/ask bars · best bid / ask / mid / spread / volume tiles · mid & spread
+sparklines over the last 200 snapshots · snapshot-latency histogram (p50/p95) ·
+live VaR / CVaR tiles · side-colored trade ticker · integrity flags · pause/resume.
+
+**How it fetches data** — pull-polling, not a WebSocket. The page requests
+`/api/state`; the server builds one fresh snapshot per request, from whichever
+feed is attached:
+
+* `--synthetic` (default) — a seeded mid random-walk emitting views in the exact
+  frozen-contract shape. No C++ build needed; visibly live. Works everywhere,
+  including Windows.
+* `--shm <name>` — reads the newest slot from a live C++ `ShmRing` in `/dev/shm`
+  (POSIX-only → WSL/Linux).
+* `--ring <file>` — reads the last complete 448-B slot from a raw file ring.
+
+**Run it** (from anywhere the repo is checked out):
+
+```bash
+python python_quant/scripts/serve_dashboard.py --synthetic   # → http://127.0.0.1:8765
+```
+
+Tests: `python -m pytest python_quant/tests/test_dashboard.py -v` (all green).
+The related shared-memory transport is `cpp_engine/include/nexus/shm_ring.hpp` +
+`demos/ring_producer.cpp` / `ring_probe.cpp` (cross-process, 30,011 checks).
 
 ---
 
@@ -152,9 +194,9 @@ Finance Project-1/
 │   └── bench/             # bench.cpp — 0 allocs/op
 ├── cuda_risk/             # Person A — Monte-Carlo VaR/CVaR (CPU ✅, CUDA blocked)
 ├── python_quant/          # Person B — quant / RL
-│   ├── nexus_quant/       # book_state, itch_parser, replay, book_port, envs/, baselines, agents/
-│   ├── scripts/           # train_eval_agent.py
-│   ├── tests/             # 52 tests, all green
+│   ├── nexus_quant/       # book_state, itch_parser, replay, book_port, envs/, baselines, agents/, dashboard.py, dashboard_page.html
+│   ├── scripts/           # train_eval_agent.py, serve_dashboard.py
+│   ├── tests/             # 68 tests, all green
 │   └── artifacts/         # policy_ppo.npz, policy_ppo_highvol.npz
 ├── bindings/              # pybind_wrapper.cpp, CONTRACT.md, tests/ (+ compiled .pyd)
 ├── CMakeLists.txt         # engine lib + pybind + CTest + CUDA hooks
@@ -189,6 +231,9 @@ g++ -std=c++20 -O2 -I cpp_engine/include cpp_engine/demos/ring_producer.cpp -o r
 g++ -std=c++20 -O2 -I cpp_engine/include cpp_engine/demos/ring_probe.cpp -o ring_probe
 ./ring_producer nex_aapl 4000 16384 0xC0FFEE 1 &   # terminal 1
 ./ring_probe nex_aapl 4000 5                        # terminal 2
+
+# Live desk (subsystem 4) — no C++ build needed
+python python_quant/scripts/serve_dashboard.py --synthetic   # → http://127.0.0.1:8765
 ```
 
 **Environment note:** the repo lives on a OneDrive path — keep `build/`,
