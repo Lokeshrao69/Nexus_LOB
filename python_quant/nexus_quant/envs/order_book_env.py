@@ -143,6 +143,12 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         risk_paths: int = 256,
         risk_steps: int = 16,
         risk_sigma: float = 0.25,
+        # --- execution realism (Phase 2; defaults off = byte-identical to today) ---
+        fee_bps: float = 0.0,
+        rebate_bps: float = 0.0,
+        impact_coef: float = 0.0,
+        impact_participation: float = 0.1,
+        queue_model: str = "",  # "" = off; "uniform" = placeholder queue-depth model
     ) -> None:
         self.inventory0 = int(inventory)
         self.horizon = int(horizon)
@@ -176,6 +182,15 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         self.risk_paths = int(risk_paths)
         self.risk_steps = int(risk_steps)
         self.risk_sigma = float(risk_sigma)
+        self.fee_bps = float(fee_bps)
+        self.rebate_bps = float(rebate_bps)
+        self.impact_coef = float(impact_coef)
+        self.impact_participation = float(impact_participation)
+        self.queue_model = str(queue_model)
+        if self.queue_model not in ("", "uniform"):
+            raise ValueError(
+                f"queue_model must be '' or 'uniform', got {self.queue_model!r}"
+            )
         self.last_cvar = 0.0
         self._volatile = False
         obs_dim = 45 if self.vol_feature else OBS_DIM
@@ -192,6 +207,8 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         self.arrival_mid = 0
         self.agent_rest: Resting | None = None
         self.fills: list[tuple[int, int, int]] = []  # (t, px, sz)
+        self._mkt_qty = 0
+        self._mkt_notional = 0
 
     def reset(
         self,
@@ -214,6 +231,8 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         self.fills = []
         self.agent_rest = None
         self._volatile = False
+        self._mkt_qty = 0
+        self._mkt_notional = 0
         self.arrival_mid = self._mid() or 15_000
         obs = self._observe()
         return obs, {"arrival_mid": self.arrival_mid}
@@ -256,6 +275,12 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                 live = self.book.lookup(self.agent_rest.order_id)
             residual = live.size if live is not None else 0
             got = want - residual
+            if self.queue_model and got > 0:
+                # Queue-position degradation: only a fraction of the *displayed*
+                # depth ahead of the child is actually reachable this step.
+                # Default "" = today's optimistic fill (queue ignored) = byte-identical.
+                reachable = max(0, got - int(want * self._queue_ahead_frac()))
+                got = min(got, reachable)
             if got > 0:
                 px = live.price if live is not None else self.agent_rest.price
                 filled += got
@@ -273,6 +298,21 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         inv_frac = self.inventory / self.inventory0
         t_frac = self.t / self.horizon
         is_ticks = filled * mid0 - notional if filled else 0
+        if filled and (self.fee_bps or self.rebate_bps or self.impact_coef):
+            from ..execution.cost_model import impact
+
+            # Maker/taker split: a resting limit filled by flow is passive (gets
+            # the maker rebate, pays no fee); a market / capped-market child is
+            # active (pays the taker fee, no rebate). is_ticks is a COST
+            # (positive = worse), so a fee ADDS to it and a rebate subtracts.
+            maker = mode == "limit"
+            fee = self.fee_bps if not maker else 0.0
+            reb = self.rebate_bps if maker else 0.0
+            part = self.impact_participation
+            is_ticks = is_ticks + filled * mid0 * (fee - reb) / 1e4
+            if self.impact_coef:
+                sig = self.risk_sigma or 0.25
+                is_ticks = is_ticks + filled * mid0 * impact(part, sigma=sig, coef=self.impact_coef) / 1e4
         is_norm = is_ticks / (self.inventory0 * max(1, mid0) * 1e-4)
         adv = max(0, mid0 - mid1) / OFFSET_SCALE if filled else 0.0
         sched_frac = max(0.0, self.horizon - self.t) / self.horizon
@@ -324,6 +364,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             "action_ticks": action_ticks,
             "mode": mode,
             "vwap": vwap,
+            "market_vwap": self.market_vwap(),
             "cvar": self.last_cvar,
         }
         return self._observe(), float(reward), bool(terminated), bool(truncated), info
@@ -376,6 +417,35 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             self.book.cancel_resting(self.agent_rest)
             self.agent_rest = None
 
+    def _queue_ahead_frac(self) -> float:
+        """Fraction of the queue deemed ahead of the child this step (0..1).
+
+        Placeholder until the order-level tracker lands (Phase 3
+        ``queue_dynamics.py``): a uniform draw per step, deterministic under a
+        fixed seed. Only called when ``queue_model`` is non-empty, so the
+        default RNG stream (used for book flow / fills) is unaffected.
+        """
+        return float(self._rng.random())
+
+    def _record_market_trade(self, result: Any) -> None:
+        """Accumulate the tape's own prints (exogenous flow) into market VWAP.
+
+        The agent's own fills/executions are deliberately EXCLUDED — market VWAP
+        is the benchmark the strategy is measured against, so it must be
+        independent of the strategy's own participation (plan_2.md §5 leak 3).
+        """
+        filled = int(getattr(result, "filled", 0))
+        notional = int(getattr(result, "notional_ticks", 0))
+        if filled > 0:
+            self._mkt_qty += filled
+            self._mkt_notional += notional
+
+    def market_vwap(self) -> float:
+        """Volume-weighted average price of the tape's exogenous prints (ticks)."""
+        if self._mkt_qty <= 0:
+            return 0.0
+        return self._mkt_notional / self._mkt_qty
+
     def _seed_book(self) -> None:
         mid = 15_000
         for i in range(12):
@@ -403,7 +473,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                 roll = float(self._rng.random())
                 if roll < 0.28:
                     side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
-                    self.book.take(side, int(15 + self._rng.integers(0, 70)))
+                    self._record_market_trade(self.book.take(side, int(15 + self._rng.integers(0, 70))))
                 else:
                     side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
                     off = int(1 + self._rng.integers(0, 8))
@@ -416,7 +486,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                 # take() walks the OPPOSITE book: an Ask taker hits bids
                 # (price falls = gap down); a Bid taker lifts asks (price up).
                 side = Side.Ask if self._rng.random() < self.gap_down_prob else Side.Bid
-                self.book.take(side, gap_sz)
+                self._record_market_trade(self.book.take(side, gap_sz))
                 self._ensure_bbo()
 
             n = int(self._rng.integers(self.vol_events_min, self.vol_events_max + 1))
@@ -426,9 +496,11 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                 roll = float(self._rng.random())
                 if roll < self.vol_take_prob:
                     side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
-                    self.book.take(
-                        side,
-                        int(self._rng.integers(self.vol_take_min, self.vol_take_max + 1)),
+                    self._record_market_trade(
+                        self.book.take(
+                            side,
+                            int(self._rng.integers(self.vol_take_min, self.vol_take_max + 1)),
+                        )
                     )
                 else:
                     side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
