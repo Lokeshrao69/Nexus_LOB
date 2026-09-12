@@ -1,6 +1,6 @@
 # Nexus-LOB — Part 2: Quant Research Layer (Plan of Record)
 
-**Last updated:** 2026-09-12 · **Status:** Part-1 audit complete; Part 2 (quant research half) starts today.
+**Last updated:** 2026-09-12 · **Status:** Phase 0 (repo hygiene) + Phase 1 (research spine) landed on `main`; next is Phase 2 (execution realism).
 **Read this FIRST each session, then `CLAUDE.md`.** This is the single source of truth for the research-half roadmap. Keep updating it as work progresses (§ Running log at the bottom).
 
 ---
@@ -237,4 +237,8 @@ REPORT (NEW research/report.py + docs/RESEARCH.md)
 
 ## 10. Running log (append per session)
 
-- **2026-09-12** — Full 16-part repo audit delivered; `plan_2.md` created. Part-1 work (systems half) confirmed complete. Decision flagged: reconcile branches to `main` before building the research half. Next action: Phase 0 (repo hygiene) → Phase 1 (research spine).
+- **2026-09-12** — Full 16-part repo audit delivered; `plan_2.md` created. Part-1 work (systems half) confirmed complete. Decision flagged: reconcile branches to `main` before building the research half.
+- **2026-09-12 (later)** — **Phase 0 + Phase 1 spine landed on `main`** (`e630ad7`; ruff clean; Tier 1 85 passed / 1 skipped).
+  - **Phase 0:** checkout `main` == docs; dashboard reconciled (combined desk `dashboard_page.html` + verification console `dashboard/index.html` + enhanced `SnapshotHub`); README deduped (was 2 full READMEs) + status matches main + slippage headline marked re-verification-pending (§1b/§6); CLAUDE.md brought to main's reality + points here; stale `.claude/worktrees/` + `pr7-fix` removed; `.github/workflows/ci.yml` (CMake+CTest+pytest on Linux/Windows, ruff lint); `requirements-dev.txt` (pytest/mypy/ruff pinned); Python layer ruff-clean (67 legacy findings, zero behavior change).
+  - **Phase 1:** `research/{features,labels,dataset,experiments,models}.py` + `test_research.py` (17 tests: leak locks, walk-forward disjointness, IC≈1/IC≈0, bootstrap CI coverage, DM, OLS slope recovery) + `docs/RESEARCH.md` skeleton. Wired as `nexus_quant.research`.
+  - **Remaining:** Phase 1 E1–E4 on synthetic (needs a small `run_experiment` vignette), then Phase 2 (cost/queue model, market-VWAP metrics), Phase 3 (queue dynamics + RL fairness rework), Phase 4 (real tape).
