@@ -33,6 +33,7 @@ def event_frame(
     apply: Callable[[Any], _View],
     *,
     feature_fns: Mapping[str, Callable[[_View], float]],
+    prev_feature_fns: Mapping[str, Callable[[_View, _View], float]] | None = None,
     h: int = 5,
     label_fn: Callable[[_View, _View, int], float] = forward_mid_move,
     ts_fn: Callable[[_View], int] = lambda v: int(v["seq"]),
@@ -44,18 +45,29 @@ def event_frame(
     at ``i + h``; the last ``h`` rows have no future state and are dropped.
 
     ``feature_fns``: name → pure function of a single view (see ``features.py``).
+    ``prev_feature_fns``: name → pure function ``(prev_view, cur_view)`` of two
+    consecutive views — for order-flow features such as ``ofi``. Rows ``i`` whose
+    ``prev`` view is this same row's view are NOT padded: row 0 cannot be an OFI
+    observation, so it is dropped when any pairwise feature is requested.
     """
     if h < 1:
         raise ValueError("h must be >= 1")
+    prev_feature_fns = prev_feature_fns or {}
     views: list[_View] = []
     for ev in events:
         views.append(apply(ev))
 
     rows: list[Row] = []
     for i in range(len(views) - h):
+        if prev_feature_fns and i == 0:
+            continue  # row 0 has no pairwise predecessor -> dropped (see docstring)
         v = views[i]
         fv = views[i + h]
         feat = {name: float(fn(v)) for name, fn in feature_fns.items()}
+        if prev_feature_fns:
+            prev = views[i - 1]
+            for name, fn in prev_feature_fns.items():
+                feat[name] = float(fn(prev, v))
         rows.append(Row(ts=ts_fn(v), features=feat, label=float(label_fn(v, fv, h))))
     return rows
 

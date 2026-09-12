@@ -15,11 +15,11 @@ and the statistical sanity checks:
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 
 import numpy as np
 import pytest
-
-from nexus_quant.book_state import DEPTH, Side, StubOrderBook
+from nexus_quant.book_state import Side, StubOrderBook
 from nexus_quant.research import (
     bootstrap_ci,
     decile_spread,
@@ -201,6 +201,40 @@ def test_event_frame_labels_and_tail(filled_book: StubOrderBook) -> None:
     assert math.isfinite(r0.label)
     for r in rows:
         assert all(math.isfinite(v) for v in r.features.values())
+
+
+def test_event_frame_pairwise_feature_drops_first_row(filled_book: StubOrderBook) -> None:
+    """Pairwise features (e.g. OFI) have no predecessor for row 0, so it is
+    dropped and every surviving row carries the pairwise feature."""
+    events = [(Side.Bid, 15000 + i, 100 + i) for i in range(1, 12)]  # 11 adds
+
+    def apply(book: StubOrderBook) -> Callable[[tuple[Side, int, int]], dict]:
+        def _apply(ev: tuple[Side, int, int]) -> dict:
+            side, px, sz = ev
+            book.add(side, px, sz)
+            return book.view()
+
+        return _apply
+
+    fns = {"imb": lob_imbalance}
+    pair = {"ofi": ofi}
+    rows = event_frame(
+        events,
+        apply(filled_book),
+        feature_fns=fns,
+        prev_feature_fns=pair,
+        h=2,
+        label_fn=forward_mid_move,
+    )
+    assert len(rows) == len(events) - 2 - 1  # tail (2) + leading pairwise row (1)
+    assert all("ofi" in r.features for r in rows)
+    # the first surviving row's OFI is exactly ofi(prev_view, cur_view) of the
+    # two consecutive views — verified on an independent, fresh book so the
+    # frame pass and the expectation pass do not share mutation state.
+    fresh = StubOrderBook()
+    views = [apply(fresh)(ev) for ev in events]
+    expect = ofi(views[0], views[1])
+    assert rows[0].features["ofi"] == pytest.approx(expect, abs=1e-9)
 
 
 # ---------------------------------------------------------------------------
