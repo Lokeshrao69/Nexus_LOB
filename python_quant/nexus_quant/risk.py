@@ -10,7 +10,6 @@ CVaR by remaining inventory fraction to get a dynamic holding penalty.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 
@@ -110,11 +109,11 @@ def compute_var_cvar(
     prefer_engine: bool = True,
 ) -> RiskResult:
     """Engine CPU reference when built; otherwise the matching NumPy oracle."""
-    params = dict(
-        s0=s0, mu=mu, sigma=sigma, T=T, steps=steps, n_paths=n_paths,
-        alpha=alpha, seed=seed, lambda_jump=lambda_jump,
-        jump_mu=jump_mu, jump_sigma=jump_sigma,
-    )
+    params = {
+        "s0": s0, "mu": mu, "sigma": sigma, "T": T, "steps": steps,
+        "n_paths": n_paths, "alpha": alpha, "seed": seed,
+        "lambda_jump": lambda_jump, "jump_mu": jump_mu, "jump_sigma": jump_sigma,
+    }
     if prefer_engine:
         try:
             import nexus_engine as ne
@@ -122,7 +121,7 @@ def compute_var_cvar(
             r = ne.compute_var_cvar(**params)
             return RiskResult(float(r["var"]), float(r["cvar"]), float(r["mean_loss"]),
                               int(r["n"]), "engine")
-        except Exception:
+        except Exception:  # noqa: S110, BLE001  # engine not built → NumPy oracle below
             pass
     losses = terminal_losses(
         s0, mu, sigma, T, steps, n_paths, lambda_jump, jump_mu, jump_sigma, seed

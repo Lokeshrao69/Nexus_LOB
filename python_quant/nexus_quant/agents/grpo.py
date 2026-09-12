@@ -9,15 +9,15 @@ eval harness already uses.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
 import numpy as np
 
 from ..envs.order_book_env import OrderBookEnv
 from .evaluate import evaluate_policy
-from .mlp import Adam, clip_grad_norm
-from .ppo import PPOConfig, PPOPolicy, TrainHistory, _LOG2PI, make_optimizers
+from .mlp import clip_grad_norm
+from .ppo import _LOG2PI, PPOConfig, PPOPolicy, TrainHistory, make_optimizers
 
 
 @dataclass
@@ -29,7 +29,7 @@ def train_grpo(
     env_factory: Callable[[], OrderBookEnv] = OrderBookEnv,
     cfg: GRPOConfig | None = None,
     *,
-    tracker: Optional[Callable[[TrainHistory], None]] = None,
+    tracker: Callable[[TrainHistory], None] | None = None,
 ) -> tuple[PPOPolicy, list[TrainHistory]]:
     cfg = cfg or GRPOConfig()
     if cfg.episodes % max(1, cfg.group) != 0:

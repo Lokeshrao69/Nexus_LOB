@@ -22,8 +22,8 @@ driven by a torch/GRPO variant later without changing the experiment code.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
 import numpy as np
 
@@ -72,7 +72,7 @@ class PPOPolicy:
         *,
         seed: int = 0,
         std0: float = 0.4,
-        rng: Optional[np.random.Generator] = None,
+        rng: np.random.Generator | None = None,
     ) -> None:
         self.obs_dim = int(obs_dim)
         self.hidden = tuple(int(h) for h in hidden)
@@ -144,7 +144,7 @@ class PPOPolicy:
         np.savez(path, **self.state_dict())
 
     @classmethod
-    def from_dict(cls, state: dict[str, np.ndarray]) -> "PPOPolicy":
+    def from_dict(cls, state: dict[str, np.ndarray]) -> PPOPolicy:
         obs_dim = int(state["_obs_dim"][0])
         hidden = tuple(int(x) for x in state["_hidden"])
         p = cls(obs_dim=obs_dim, hidden=hidden)
@@ -157,7 +157,7 @@ class PPOPolicy:
         return p
 
     @classmethod
-    def load(cls, path: str) -> "PPOPolicy":
+    def load(cls, path: str) -> PPOPolicy:
         return cls.from_dict(np.load(path))
 
 
@@ -255,9 +255,6 @@ def ppo_update(
     )
     adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
-    actor_ws = policy.actor.param_list()
-    critic_ws = policy.critic.param_list()
-
     pg_total = mse_total = ent_total = 0.0
     for _ in range(cfg.epochs):
         for idx in _chunks(policy.rng, n, cfg.minibatch):
@@ -273,7 +270,6 @@ def ppo_update(
             surr = np.minimum(ratio * ad, ratio_cl * ad)
             pg_loss = -float(np.mean(surr))
             ent = policy.entropy()
-            actor_loss = pg_loss - cfg.ent_coef * ent
 
             mask = (ratio > 1.0 - cfg.clip) & (ratio < 1.0 + cfg.clip)
             dlogp = -ad * ratio * mask                      # dL/dlogp per sample
@@ -346,7 +342,7 @@ def train_ppo(
     env_factory: Callable[[], OrderBookEnv] = OrderBookEnv,
     cfg: PPOConfig | None = None,
     *,
-    tracker: Optional[Callable[[TrainHistory], None]] = None,
+    tracker: Callable[[TrainHistory], None] | None = None,
 ) -> tuple[PPOPolicy, list[TrainHistory]]:
     """Train a ``PPOPolicy`` against ``OrderBookEnv`` episodes.
 

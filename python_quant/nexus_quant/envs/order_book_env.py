@@ -72,7 +72,7 @@ terminated / truncated step (terminal dump included).
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -83,7 +83,7 @@ except ImportError:  # pragma: no cover — tests install gymnasium
     gym = None  # type: ignore[assignment]
     spaces = None  # type: ignore[assignment]
 
-from ..book_port import Resting, StubBookAdapter, adapt
+from ..book_port import Resting, adapt
 from ..book_state import DEPTH, Side, StubOrderBook
 from ..replay import spread_ticks
 
@@ -106,7 +106,7 @@ _Base = gym.Env if gym is not None else object  # type: ignore[misc]
 
 
 class OrderBookEnv(_Base):  # type: ignore[misc]
-    metadata = {"render_modes": []}
+    metadata: ClassVar[dict[str, Any]] = {"render_modes": ()}
 
     def __init__(
         self,
@@ -196,8 +196,8 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
     def reset(
         self,
         *,
-        seed: Optional[int] = None,
-        options: Optional[dict] = None,
+        seed: int | None = None,
+        options: dict | None = None,
     ) -> tuple[np.ndarray, dict]:
         del options
         if seed is not None:
@@ -237,8 +237,8 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                 r = self.book.take(Side.Ask, want)
                 filled, notional = r.filled, r.notional_ticks
         else:
-            action_ticks = int(round(a * MAX_OFFSET))
-            px = int(round(mid0)) + action_ticks
+            action_ticks = round(a * MAX_OFFSET)
+            px = round(mid0) + action_ticks
             bid = int(snap["bid_px"][0])
             if bid and px <= bid:
                 mode = "market"
@@ -334,7 +334,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             return 0.0
         return sum(px * sz for _, px, sz in self.fills) / qty
 
-    def mark_to_market(self, mid: int | float | None = None) -> float:
+    def mark_to_market(self, mid: float | None = None) -> float:
         m = float(mid if mid is not None else (self._mid() or self.arrival_mid))
         return self.cash_ticks + self.inventory * m - self.inventory0 * self.arrival_mid
 
@@ -407,7 +407,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                 else:
                     side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
                     off = int(1 + self._rng.integers(0, 8))
-                    px = int(round(mid)) - off if side == Side.Bid else int(round(mid)) + off
+                    px = round(mid) - off if side == Side.Bid else round(mid) + off
                     self.book.rest(side, px, int(30 + self._rng.integers(0, 160)))
         else:
             # === volatile regime: larger takes, thinner/wider adds, gap events ===
@@ -433,7 +433,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                 else:
                     side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
                     off = int(self._rng.integers(self.vol_add_offset_min, self.vol_add_offset_max + 1))
-                    px = int(round(mid)) - off if side == Side.Bid else int(round(mid)) + off
+                    px = round(mid) - off if side == Side.Bid else round(mid) + off
                     self.book.rest(
                         side, px,
                         int(self._rng.integers(self.vol_add_min, self.vol_add_max + 1)),

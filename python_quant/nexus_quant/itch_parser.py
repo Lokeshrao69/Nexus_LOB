@@ -29,13 +29,13 @@ Nexus treats that integer as a tick; no float conversion is performed.
 """
 from __future__ import annotations
 
+import struct
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import IntEnum
 from io import BufferedIOBase
 from pathlib import Path
-from typing import BinaryIO, Iterator, Union
-
-import struct
+from typing import BinaryIO
 
 from .book_state import Side
 
@@ -120,7 +120,7 @@ class ItchParseStats:
     bytes_read: int = 0
 
 
-Source = Union[str, Path, BinaryIO, BufferedIOBase, bytes, bytearray, memoryview]
+Source = (str | Path | BinaryIO | BufferedIOBase | bytes | bytearray | memoryview)
 
 
 def iter_itch_events(
@@ -183,7 +183,7 @@ def _drain(
     i = 0
     n = len(mv)
     while i < n:
-        framed, typ, payload_len, hdr = _frame(mv, i)
+        _framed, typ, payload_len, hdr = _frame(mv, i)
         if typ is None:
             if final:
                 acc.truncated += 1
@@ -230,22 +230,22 @@ def _frame(mv: memoryview, i: int) -> tuple[bool, bytes | None, int, int]:
 def _decode(typ: bytes, payload: memoryview | bytes) -> NormalizedEvent | None:
     raw = bytes(payload)
     if typ == b"A":
-        loc, trk, ts, oid, bs, shares, _stk, px = _A.unpack(raw[1:])
+        _loc, _trk, ts, oid, bs, shares, _stk, px = _A.unpack(raw[1:])
         return NormalizedEvent(
             EventType.ADD, _ts6(ts), oid, _side(bs), px, shares, raw_type="A"
         )
     if typ == b"F":
-        loc, trk, ts, oid, bs, shares, _stk, px, _mpid = _F.unpack(raw[1:])
+        _loc, _trk, ts, oid, bs, shares, _stk, px, _mpid = _F.unpack(raw[1:])
         return NormalizedEvent(
             EventType.ADD_MPID, _ts6(ts), oid, _side(bs), px, shares, raw_type="F"
         )
     if typ == b"E":
-        loc, trk, ts, oid, shares, _match = _E.unpack(raw[1:])
+        _loc, _trk, ts, oid, shares, _match = _E.unpack(raw[1:])
         return NormalizedEvent(
             EventType.EXECUTE, _ts6(ts), oid, Side.NONE, 0, shares, raw_type="E"
         )
     if typ == b"C":
-        loc, trk, ts, oid, shares, _match, printable, px = _C.unpack(raw[1:])
+        _loc, _trk, ts, oid, shares, _match, printable, px = _C.unpack(raw[1:])
         return NormalizedEvent(
             EventType.EXECUTE_PX,
             _ts6(ts),
@@ -257,17 +257,17 @@ def _decode(typ: bytes, payload: memoryview | bytes) -> NormalizedEvent | None:
             raw_type="C",
         )
     if typ == b"X":
-        loc, trk, ts, oid, shares = _X.unpack(raw[1:])
+        _loc, _trk, ts, oid, shares = _X.unpack(raw[1:])
         return NormalizedEvent(
             EventType.CANCEL, _ts6(ts), oid, Side.NONE, 0, shares, raw_type="X"
         )
     if typ == b"D":
-        loc, trk, ts, oid = _D.unpack(raw[1:])
+        _loc, _trk, ts, oid = _D.unpack(raw[1:])
         return NormalizedEvent(
             EventType.DELETE, _ts6(ts), oid, Side.NONE, 0, 0, raw_type="D"
         )
     if typ == b"U":
-        loc, trk, ts, oid, new_id, shares, px = _U.unpack(raw[1:])
+        _loc, _trk, ts, oid, new_id, shares, px = _U.unpack(raw[1:])
         return NormalizedEvent(
             EventType.REPLACE,
             _ts6(ts),
@@ -279,7 +279,7 @@ def _decode(typ: bytes, payload: memoryview | bytes) -> NormalizedEvent | None:
             raw_type="U",
         )
     if typ == b"P":
-        loc, trk, ts, oid, bs, shares, _stk, px, _match = _P.unpack(raw[1:])
+        _loc, _trk, ts, oid, bs, shares, _stk, px, _match = _P.unpack(raw[1:])
         return NormalizedEvent(
             EventType.TRADE, _ts6(ts), oid, _side(bs), px, shares, raw_type="P"
         )

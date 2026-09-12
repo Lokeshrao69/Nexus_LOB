@@ -62,3 +62,6 @@ lightning_logs/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# --- Claude Code worktrees: local dev working copies, NEVER track ---
+.claude/worktrees/

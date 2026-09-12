@@ -1,0 +1,5 @@
+# Developer-only tooling for Nexus-LOB. NOT runtime deps (those live in
+# python_quant/requirements.txt). Pinned so CI and local runs match exactly.
+pytest==8.3.3
+mypy==1.11.2
+ruff==0.16.7
