@@ -6,6 +6,7 @@
 > **Part 2 (quant research layer) plan of record: `plan_2.md`** — read that FIRST
 > for the research half; this file stays the systems-half handoff.
 > Last updated: **2026-09-12**.
+> Last updated: **2026-09-09**.
 
 ---
 
@@ -254,6 +255,7 @@ comfortably exceeded. Saved policy: `python_quant/artifacts/policy_ppo_highvol.n
 Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
 
 **Phase 1e — Person B: combined interactive desk (subsystem 4/5, 2026-09-09).**
+**Phase 1e — Person B: combined interactive desk (subsystem 4/5, 2026-09-09, branch `feature/dashboard-file-ring`).**
 
 | Component | File | State |
 |---|---|---|
