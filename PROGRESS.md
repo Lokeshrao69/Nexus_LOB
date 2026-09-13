@@ -1,6 +1,6 @@
 # Nexus-LOB — Progress Report
 
-**Status date:** 2026-09-13 · **Branch:** `feature/part2-phase3-queue-rl` · **Milestone:** Part 1 (systems half) complete; Part 2 (quant research layer) — Phases 0–2 landed, **Phase 3 in progress** (queue dynamics E5, adverse selection E6, fair RL rework with full 6-regime eval). This file is a plain-language
+**Status date:** 2026-09-13 · **Branch:** `feature/part2-phase3-queue-rl` · **Milestone:** Part 1 (systems half) complete; Part 2 (quant research layer) — Phases 0–2 landed, **Phase 3 in progress** (queue dynamics E5, adverse selection E6, fair RL rework — per-regime ≥5-seed eval using the existing env vol-regime knobs). This file is a plain-language
 snapshot for anyone (Person A or Person B) picking the project up; the authoritative,
 constantly-updated handoff is `CLAUDE.md`, the research roadmap is `plan_2.md`, and the
 **approved Phase-3 working plan is `plan.md`**.
@@ -28,17 +28,19 @@ The systems half (Part 1) is done. The quant research layer turns Nexus-LOB into
 |---|---|---|
 | 0–1 | Repo hygiene, CI, research spine (features/labels/dataset/experiments/models), E1–E4 synthetic IC vignette | ✅ on `main` (PR #15); honest null IC on the random-walk tape |
 | 2 | Execution realism — cost model, market-VWAP metrics (the "self-VWAP" flaw fix), env cost/queue knobs, backtest harness | ✅ **verified green** on `feature/part2-phase3-queue-rl` (110 passed / 1 skipped) |
-| 3 | **Queue dynamics (E5) + adverse selection (E6) + fair RL rework** — order-level tracker + P(fill) KM/logistic models; post-fill drift; per-regime ≥5-seed eval with symmetric info; adaptive baselines; full 6-regime env knobs | 🚧 **IN PROGRESS** — plan approved; `synthetic_flow.py` + `queue_dynamics.py` exploration already on the branch |
+| 3 | **Queue dynamics (E5) + adverse selection (E6) + fair RL rework** — order-level tracker + P(fill) KM/logistic models; post-fill drift; per-regime ≥5-seed eval with symmetric info; adaptive baselines | 🚧 **IN PROGRESS** — plan approved; `synthetic_flow.py` + `queue_dynamics.py` exploration already on the branch |
 | 4–5 | Real NASDAQ ITCH tape, research report, honest README | ⏭️ next |
 
-**Phase-3 plan (approved 2026-09-13, `plan.md`):** WS-0 additive
-`drift_ticks`/`mean_revert`/`mrv_anchor` env knobs + 6-key `REGIME_PRESETS`;
-WS-1 `fill_prob_survival` (KM, cancel = competing risk) + `LogisticFillModel` +
-`fill_dataset`; WS-2 `post_fill_drift` / `P_adverse` / `adverse_groups`; WS-3
-`evaluate_regime_ci` with symmetric `vol_feature` toggle and market-VWAP slippage;
-WS-4 `apov` / `stwap` / `isaware` baselines; WS-5 wiring + an honest E5/E6 vignette.
-Working tree is on the feature branch; updates land via feature PR with a real merge
-commit (never squash).
+**Phase-3 plan (in force 2026-09-13, `plan.md`):** WS-1 E5 fill models
+(`fill_dataset` / `standing_order_lifetimes` / KM `fill_prob_survival` with cancel as a
+competing risk / NumPy-IRLS `LogisticFillModel` + calibration/Brier); WS-2 E6
+adverse (`post_fill_drift` / `P_adverse` / `adverse_groups`); WS-3 `evaluate_regime_ci`
+with a symmetric `vol_feature` toggle and market-VWAP slippage; WS-4 `apov` / `stwap`
+/ `isaware` baselines; WS-5 wiring + an honest E5/E6 vignette. **No `OrderBookEnv`
+changes in Phase 3** (the earlier WS-0 env drift/mean-revert knobs were dropped
+2026-09-13; regimes come from `HIGHVOL_PRESETS` and defaults, `vol_feature=False`
+in fair mode). Working tree is on the feature branch; updates land via feature PR
+with a real merge commit (never squash).
 
 ---
 

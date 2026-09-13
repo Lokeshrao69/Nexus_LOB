@@ -1,3 +1,9 @@
+> **HISTORICAL HANDOFF (2026-09-04/09-07) — SUPERSEDED.** This snapshot long
+> predates Phases 0–2 (research spine, execution realism) and even the PPO/GRPO
+> agent; much of what it lists as "not implemented" or "authored, not run" is merged
+> and green today. Do NOT use it for current status. Systems handoff: `CLAUDE.md`;
+> research roadmap: `plan_2.md`; current Phase-3 detailed plan: `plan.md`.
+
 # Person B Handoff: Python Quantitative Layer
 
 **Updated:** 2026-09-04

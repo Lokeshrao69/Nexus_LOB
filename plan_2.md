@@ -268,3 +268,17 @@ Exact shipped API: **`docs/work_package_b_phases_2_4.md §2.2`** (frozen). Signa
   - **Next:** implement WS-0 → WS-5, `python -m pytest python_quant/tests` green (≈135
     expected) + ruff clean, then update `plan_2.md` running log + `progress.md`/`plan.md`
     status and open the usual PR (real merge commit, feature branch only).
+- **2026-09-13 (later) — Phase 3 working plan REFRESHED at `plan.md` (scope correction).**
+  - WS-0 (additive `OrderBookEnv` `drift_ticks`/`mean_revert`/`mrv_anchor` knobs + 6-key
+    `REGIME_PRESETS`) is **REMOVED from Phase-3 scope** — the env is frozen
+    additive-default-only and the measure already exists: regimes for `evaluate_regime_ci`
+    are built from the env's existing Markov vol-regime knobs (`HIGHVOL_PRESETS["highvol"]`
+    vs defaults) with `vol_feature=False` in fair mode. **`plan.md` is now the single
+    authority for Phase-3 detail** — do not quote the older WS-0 text in this log or in
+    `PROGRESS.md`/`progress_b.md` as current scope.
+  - Scope now: WS-1 E5 (`fill_dataset` / `standing_order_lifetimes` / KM `fill_prob_survival`
+    / NumPy-IRLS `LogisticFillModel` + Brier/calibration), WS-2 E6 (`post_fill_drift` /
+    `P_adverse` / `adverse_groups`; `FillRecord` gains defaulted `level_size_at_fill`/`ofi`),
+    WS-3 `evaluate_regime_ci` (fair `vol_feature` toggle, market-VWAP slippage, seeds≥5),
+    WS-4 `apov`/`stwap`/`isaware`, WS-5 wiring + `queue_adverse_vignette.py`.
+  - Expected suite: ≈ 138 collected (≈ 27 new tests) instead of ≈ 135.
