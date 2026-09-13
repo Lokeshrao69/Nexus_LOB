@@ -128,22 +128,39 @@ StubBookAdapter  (oracle)  <->  EngineAdapter  (real C++ engine, via pybind)
 - **CREATE `python_quant/tests/test_cost_model.py`**, `python_quant/tests/test_exec_backtest.py`
 - **CREATE `docs/RESEARCH.md`** (§ methods + template tables; skeleton exists)
 
-### 2.2 Interfaces (exact, from plan_2.md §3 Phase 2)
+### 2.2 Interfaces — FINAL, as shipped on `feature/part2-phase2-cost-queue` (bumped 2026-09-13)
+The drafted signatures below were revised during implementation; these are the exact, frozen shapes Person B consumes. Wrap A/B: both already use `net_pnl`, `impact`, and `vpwap_slippage` unrescaled (Phase 5 confirmations).
+
 ```python
 # execution/cost_model.py
-CostParams(fee_bps=0.0, rebate_bps=0.0, spread_ecn=0.0, impact_coef=0.0, impact_mode="sqrt")
-net_pnl(gross, fills, side) -> float
-impact(qty, part_rate, sigma) -> float     # square-root law
-# execution/metrics.py
-implementation_shortfall(...)               # per-trade + aggregate
-vwap_slippage(market_vwap, fills)           # vs MARKET vwap, NOT self-executed vwap (Part-1 flaw fix)
-arrival_slippage, fill_rate, completion_rate, inv_risk(sigma, inv, T), max_drawdown(pnl_path)
-# execution/backtest.py
-run_backtest(policy, tape, book, *, cost=CostParams(...), metric="is") -> dict  # + per-regime breakdown
+@dataclass(frozen=True)
+class CostParams(fee_bps=0.0, rebate_bps=0.0, spread_ecn=0.0, impact_coef=0.0, impact_mode="sqrt")
+impact(qty_participation, *, sigma, coef, mode="sqrt") -> float   # market impact, bps; monotone in participation
+net_pnl(fills, *, side_cost: CostParams | None = None, gross=0.0) -> float
+    #  net = gross − fee_ticks + rebate_ticks   (fee lowers, rebate raises the net)
+
+# execution/metrics.py  — ALL slippage metrics read POSITIVE = A COST (worse),
+#   identical in sign to env `info["shortfall_bps"]`; `side`: +1 sell, −1 buy.
+implementation_shortfall(fills, arrival_mid, *, side=1) -> float
+vwap_slippage(fills, market_vwap, *, side=1) -> float  # vs MARKET vwap, NOT self-executed vwap (Phase-1 flaw fix)
+arrival_slippage(fills, arrival_mid, *, side=1) -> float   # alias of implementation_shortfall
+execution_vwap(fills) -> float                              # internal only — never a benchmark
+fill_rate(fills, target_qty) -> float
+completion_rate(fills, target_qty, leftover) -> float
+inv_risk(sigma, inv, t_fraction) -> float
+max_drawdown(pnl_path) -> float
+
+# execution/backtest.py  — variance vs the draft: no `policy,tape,book,cost` args. The env
+#   IS the tape + book; costs fold into the env's own reward via the cost knobs, and the
+#   slippage columns stay pre-cost so every strategy compares on the same timing skill.
+run_backtest(env_factories, *, policy=None, n_episodes=50, seed=0x51ED, name="policy") -> list[dict]
+    # env_factories: Callable[[], OrderBookEnv] | (name, factory) | [(name, factory), ...]
+summarize(rows) -> list[dict]   # per-(regime, policy) means
 ```
-- **env additions (defaults keep today byte-identical — same discipline as regime params):** `fee_bps`, `rebate_bps`, `impact_coef`, `queue_model`; add **`market_vwap` to `info`** in every `step`.
-- **Contract-freeze rule:** `reset()/step()` shapes, obs dim 44, reward type — **unchanged**. New knobs are keyword-only with defaults that reproduce the 2026-09 numbers from `README`.
-- **Acceptance:** `test_<...>.py` assert (a) maker-rebate sign, taker-fee sign, (b) impact monotone in qty, (c) MDD on a hand-built path, (d) **env byte-parity when all new knobs default** (train a few episodes twice — identical reward trace).
+- **env additions (defaults keep today byte-identical — same discipline as regime params):** `fee_bps`, `rebate_bps`, `impact_coef`, `impact_participation` (default 0.1), `queue_model` (`""` = off, `"uniform"` = placeholder queue degradation); **`market_vwap` is added to `info`** in every `step`, volume-weighted over the tape's own prints only — the agent's own active fills are excluded (never used as the benchmark).
+- **Fee/rebate are maker/taker-aware:** a resting limit filled by flow gets the maker rebate; a market / capped-market child pays the taker fee. `is_ticks` is a cost, so fees ADD and rebates subtract — verified against the original (inverted, was silently rewarding fees) implementation.
+- **Contract-freeze rule:** `reset()/step()` shapes, obs dim 44(45 with vol_feature), reward type — **unchanged**. New knobs are keyword-only with defaults that reproduce the 2026-09 byte-identical traces.
+- **Acceptance (all in `test_cost_model.py` + `test_exec_backtest.py`):** (a) maker-rebate sign, taker-fee sign; (b) impact monotone in participation; (c) MDD on a hand-built path; (d) **env byte-parity when all new knobs default** — identical 20-step reward trace; (e) slippage positive = a cost and benchmarked vs MARKET VWAP; (f) cost knobs move `reward`, never the pre-cost slippage columns.
 
 ---
 

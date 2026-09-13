@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from . import (
+    execution,  # Part 2 execution realism (cost model / metrics / backtest) — Phase 2
     research,  # Part 2 research layer (features / labels / dataset / experiments)
 )
 
@@ -77,6 +78,7 @@ __all__ = [
     "check_integrity",
     "empty_state",
     "evaluate_policy",
+    "execution",  # execution realism layer (Part 2) — exposed one level up
     "format_table",
     "iter_itch_events",
     "research",  # research layer (Part 2) — exposed one level up
