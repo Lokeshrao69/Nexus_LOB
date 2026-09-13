@@ -36,7 +36,6 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
 
 import numpy as np
 
@@ -169,7 +168,7 @@ class SyntheticFlow:
         self._emitted = 0
         self._seeded = False
 
-    def reset(self, seed: int | None = None) -> "SyntheticFlow":
+    def reset(self, seed: int | None = None) -> SyntheticFlow:
         if seed is not None:
             self.cfg = FlowConfig(**{**self.cfg.__dict__, "seed": int(seed)})
         self._rng = np.random.default_rng(self.cfg.seed)

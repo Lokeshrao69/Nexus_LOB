@@ -12,6 +12,7 @@ primitives used across E1–E7:
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Sequence
 from math import erf, isinf, isnan, sqrt
 
@@ -220,7 +221,7 @@ def calibration_curve(
     a_s, b_s = a[order], b[order]
     edges = np.linspace(0, a.size, n_bins + 1).astype(np.int64)
     bins: list[dict] = []
-    for lo, hi in zip(edges[:-1], edges[1:]):
+    for lo, hi in itertools.pairwise(edges):
         bs, aa = b_s[lo:hi], a_s[lo:hi]
         n = int(bs.size)
         p = float(bs.mean()) if n else float("nan")

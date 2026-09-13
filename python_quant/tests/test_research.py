@@ -321,9 +321,10 @@ def test_icir_and_hit_rate_smoke() -> None:
 
 
 def test_hac_se_hand_known() -> None:
-    # lag=0 is the plain sample s.e.: for [1,2,3], sd(ddof=1)=1 → se=1/sqrt(3)
+    # lag=0 is the plain HAC s.e.: for [1,2,3], gamma0 = mean(d*d) = 2/3
+    # (population-autocovariance convention, ddof=0) → se = sqrt(2/3 / 3).
     se0 = hac_se([1.0, 2.0, 3.0], lag=0)
-    assert se0 == pytest.approx(1.0 / math.sqrt(3))
+    assert se0 == pytest.approx(math.sqrt(2.0 / 9.0))
     # lag=1 on the same series: gamma1=0 → same variance, still sqrt(2/9)
     se1 = hac_se([1.0, 2.0, 3.0], lag=1)
     assert se1 == pytest.approx(math.sqrt(2.0 / 9.0))

@@ -123,28 +123,32 @@ def test_future_mutation_changes_only_label():
     f = _flow(4000)
     each, window, qty = 80, 200, 200
     rows = fill_dataset(f, each_tau_drop=each, window=window, qty=qty)
-    # pick a row originally NOT filled and where the first future event isn't a
-    # DELETE of the front order already.
+    # Pick a row whose fill depends on the front order being consumed, so that
+    # deleting the front order deterministically flips the label: exactly ONE
+    # order ahead at the decision, filled in the original tape, and whose first
+    # future event is the EXECUTE consuming that sole front order. Rewriting it
+    # as a DELETE leaves the consuming EXECUTE pointing at a now-gone id, so the
+    # walk never books our slot → filled becomes unfilled.
     victim = None
     for r in rows:
-        if r.filled:
+        if not r.filled:
             continue
         tr = _replay_prefix(f.events, r.decision_index)
         q = tr.queue(r.side, r.price)
-        if not q:
+        if len(q) != 1:
             continue
         fe = f.events[r.decision_index]
-        if fe.kind == EventType.DELETE and fe.order_id == q[0].oid:
+        if fe.kind not in (EventType.EXECUTE, EventType.EXECUTE_PX):
             continue
-        if fe.kind == EventType.CANCEL and fe.order_id == q[0].oid:
+        if fe.order_id != q[0].oid or fe.size < q[0].size:
             continue
         victim = r
         break
-    assert victim is not None, "expected an unfilled victim row"
+    assert victim is not None, "expected a filled victim row with a lone front order"
     p = victim.decision_index
     tr = _replay_prefix(f.events, p)
     front_oid = tr.queue(victim.side, victim.price)[0].oid
-    # mutate ONLY the first future event: delete the front order ahead of the drop
+    # mutate ONLY the first future event: delete the front order the fill consumed
     mut = list(f.events)
     mut[p] = NormalizedEvent(kind=EventType.DELETE, ts_ns=mut[p].ts_ns + 1,
                              order_id=front_oid, side=Side.NONE, price_ticks=0, size=0)
@@ -156,7 +160,8 @@ def test_future_mutation_changes_only_label():
     assert rm is not None, "mutated tape must still contain the decision row"
     # leak lock: the prefix is unchanged → features identical
     assert rm.features == victim.features
-    # label: removing the front order flakes a real change
+    # label: deleting the front order unfills the row (the consuming EXECUTE
+    # now points at a deleted id, so the walk never books our slot)
     assert (rm.filled, rm.fill_qty, rm.tau) != (victim.filled, victim.fill_qty, victim.tau)
 
 
@@ -175,13 +180,17 @@ def _ev(kind, oid, sz=0, ts=0):
 
 def test_queue_ahead_walk_full_and_partial():
     px = 10000
+    # ``queue_ahead_walk`` indexes into the FULL tape from ``decision_index + 1``
+    # (as ``fill_dataset`` does). These hand cases pass just the future events,
+    # so ``decision_index = -1`` puts ``events[0]`` at the first future event
+    # and tau counts forward from 1.
     # FULL FILL: one order ahead, take clears it + a surplus inside the event
     o = queue_ahead_walk([_ro(1, px, 100)], [_ev(EventType.EXECUTE, 1, 150, 1)],
-                         decision_index=0, side=Side.Bid, price=px, qty=50, window=2)
+                         decision_index=-1, side=Side.Bid, price=px, qty=50, window=2)
     assert o.filled and o.fill_qty == 50 and o.tau == 1
     # EXACT STOP: no surplus, no continuation → not filled
     o = queue_ahead_walk([_ro(2, px, 100)], [_ev(EventType.EXECUTE, 2, 100, 1)],
-                         decision_index=0, side=Side.Bid, price=px, qty=50, window=2)
+                         decision_index=-1, side=Side.Bid, price=px, qty=50, window=2)
     assert not o.filled and o.fill_qty == 0 and o.tau is None
     # LEVEL-DRAIN + TAKE CONTINUATION: last ahead cleared, next event is EXECUTE → full fill
     events = [
@@ -189,7 +198,7 @@ def test_queue_ahead_walk_full_and_partial():
         _ev(EventType.EXECUTE, 99, 200, 2),  # same take walks deeper
     ]
     o = queue_ahead_walk([_ro(3, px, 100)], events,
-                         decision_index=0, side=Side.Bid, price=px, qty=80, window=3)
+                         decision_index=-1, side=Side.Bid, price=px, qty=80, window=3)
     assert o.filled and o.fill_qty == 80 and o.tau == 1
     # CASCADE: multi-order level cleared by two listed executes, surplus into us
     events = [
@@ -198,7 +207,7 @@ def test_queue_ahead_walk_full_and_partial():
         _ev(EventType.EXECUTE, 6, 9, 3),   # not in rem → ignored (behind/other level)
     ]
     o = queue_ahead_walk([_ro(4, px, 50), _ro(5, px, 30)], events,
-                         decision_index=0, side=Side.Bid, price=px, qty=20, window=4)
+                         decision_index=-1, side=Side.Bid, price=px, qty=20, window=4)
     assert o.filled and o.fill_qty == 20 and o.tau == 2
     assert o.tau is not None and o.tau > 0   # tau forward-only
 
