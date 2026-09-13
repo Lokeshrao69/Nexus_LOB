@@ -282,3 +282,19 @@ Exact shipped API: **`docs/work_package_b_phases_2_4.md §2.2`** (frozen). Signa
     WS-3 `evaluate_regime_ci` (fair `vol_feature` toggle, market-VWAP slippage, seeds≥5),
     WS-4 `apov`/`stwap`/`isaware`, WS-5 wiring + `queue_adverse_vignette.py`.
   - Expected suite: ≈ 138 collected (≈ 27 new tests) instead of ≈ 135.
+- **2026-09-14 — WS-1 extended: `compute_metrics` flow-tape accumulator (queue_dynamics).**
+  - A context-manager "flow tape" dragged across a step loop (`with compute_metrics() as m:
+    for ev in tape: m(ev)`) that accumulates per-step `StepFlow` snapshots (mid pre/post,
+    spread, touch sizes pre/post, per-step OFI, lob imbalance) and — at closure —
+    computes **queue_decay** (per-event touch-queue attrition/growth, consumed fraction),
+    **latency_attrition** (the queue eaten per second of resting latency, s⁻¹ rate +
+    half-life), and **CAR** (conditional average response: mean `h`-event mid move
+    conditioned on event kind + flow terciles, with rank-IC). Exported from
+    `nexus_quant.research`; no-lookahead lock (posted book only; forward response is a
+    closure-time label), fully deterministic (seeded CIs). Tests:
+    `tests/test_compute_metrics.py` (11, all green). Suite now **140 passed / 1 skipped /
+    3 failed** — the 3 failures are pre-existing WIP WS-1 tests (`test_hac_se_hand_known`
+    HAC ddof mismatch vs hand-known spec; `test_queue_ahead_walk_full_and_partial` +
+    `test_future_mutation_changes_only_label` hand-case/label-flake vs current walk
+    semantics), present before this change and untouched by it. `queue_dynamics.py`,
+    `research/__init__.py`, `test_compute_metrics.py` ruff-clean.

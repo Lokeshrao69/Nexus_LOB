@@ -140,10 +140,10 @@ def ofi(prev_view: _View | None, cur_view: _View, k: int = 1) -> float:
 
 def realized_vol(mid_hist: Sequence[float], n: int = 10) -> float:
     """Annualized realized vol of the last ``n`` mid moves (zero if < 2 pts)."""
-    xs = np.asarray([float(x) for x in mid_hist[-n:]], dtype=np.float64)
+    # Drop non-positive mids: a 0 mid (empty-side gap in a HFT-style tape) would
+    # otherwise produce a divide-by-zero return and NaN the feature.
+    xs = np.asarray([float(x) for x in mid_hist[-n:] if float(x) > 0], dtype=np.float64)
     if xs.size < 2:
-        return 0.0
-    if np.all(xs <= 0):
         return 0.0
     r = np.diff(xs) / xs[:-1]
     mu = r.mean()

@@ -105,6 +105,17 @@ class LogisticFillModel:               # the frozen "logistic_fill_model(feature
     # iterate w -= lstsq(M^T diag(p(1-p)) M + l2*R, M^T(p-y) + l2*[0,w[1:]]);
     # p clipped to [1e-9,1-1e-9]; stop on max|dw| < tol. Label = row.filled.
 ```
+**Full-episode flow tape (`compute_metrics`, landed 2026-09-14)** — a context-manager
+accumulator dragged across a step loop (`with compute_metrics() as m: for ev in tape:
+m(ev)`): steps record `StepFlow` snapshots (mid/spread/touch sizes pre- and post-event,
+per-step OFI, lob imbalance) into a per-episode accumulator; `__exit__` freezes a closure
+summary computing **queue_decay** (per-event touch-queue attrition/growth via
+`mean_attrition`/`mean_growth`/`consumed_fraction`), **latency_attrition** (the same queue
+eaten per second of waiting, s⁻¹ rate + half-life), and **CAR** — conditional average
+response: mean `h`-event mid move conditioned on event kind + flow (OFI) terciles, with a
+rank-IC. No-lookahead by construction (per-step posted book only; forward response is a
+closure-time label). Tests: `tests/test_compute_metrics.py` (11).
+
 Add to `research/experiments.py` (statistical toolbox, reused by E1–E4 and Phase 4):
 ```python
 def brier_score(y_true, y_pred) -> float                       # mean((p-y)^2)
@@ -214,7 +225,8 @@ there and part of `evaluate_regime_ci`'s own default.
 
 ## Tests & expected count
 
-Baseline: **117 passed / 1 skipped** (118 collected) today. New ≈ 27:
+Baseline: **117 passed / 1 skipped** (118 collected) today. New ≈ 27 (+ 11 from the
+`compute_metrics` flow-tape addition — `tests/test_compute_metrics.py`):
 - `tests/test_queue_dynamics.py` (~11): lockstep `reconstruct()==internal_book()` after every
   event (+ mid-trace equality once both have a BBO); `fill_dataset` rows carry known queue
   (`price==tracker.best(side)`, `queue_ahead==level_size`); **leak lock** (recompute row i
