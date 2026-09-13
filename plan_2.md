@@ -1,6 +1,6 @@
 # Nexus-LOB — Part 2: Quant Research Layer (Plan of Record)
 
-**Last updated:** 2026-09-13 · **Status:** Phase 0 + Phase 1 landed (on `main`, PR #15); **Phase 2 (execution realism) landed on `feature/part2-phase2-cost-queue` (2026-09-13 — not yet merged; PR pending)**; next is Phase 3 (queue dynamics + RL fairness rework). Person B work-package for Phases 2–4: `docs/work_package_b_phases_2_4.md` (Phase-2 API frozen in §2.2, bumped this session).
+**Last updated:** 2026-09-13 · **Status:** Phases 0–1 on `main` (PR #15); **Phase 2 (execution realism) verified green on `feature/part2-phase3-queue-rl` (110 pass / 1 skip)**; **Phase 3 (queue dynamics + adverse selection + fair RL) IN PROGRESS on the same branch — plan approved, working plan at `plan.md`**. Person B work-package for Phases 2–4: `docs/work_package_b_phases_2_4.md` (Phase-2 API frozen in §2.2; Phase-3 API frozen in §3.3).
 **Read this FIRST each session, then `CLAUDE.md`.** This is the single source of truth for the research-half roadmap. Keep updating it as work progresses (§ Running log at the bottom).
 
 ---
@@ -251,3 +251,20 @@ Exact shipped API: **`docs/work_package_b_phases_2_4.md §2.2`** (frozen). Signa
   - **Tests:** `test_cost_model.py` (10) + `test_exec_backtest.py` (14) — fee/rebate signs, impact monotonicity, MDD on a hand-built path, slippage sign + market-not-self benchmark, cost-folds-into-reward-not-slippage, env byte-parity, market-VWAP volume-weighting. **Full suite 110 passed / 1 skipped**; ruff clean; `research_vignette.py` still prints the honest null IC table.
   - **Interfaces:** frozen in `docs/work_package_b_phases_2_4.md §2.2` (bumped for the two intended deltas: env-factory backtest + maker/taker-aware env costs).
   - **Remaining (unchanged):** Phase 3 (queue dynamics + RL fairness rework, random-walk null arm) → Phase 4 (real tape; `fetch_itch.py` + `run_research.py` + order-level parser events).
+- **2026-09-13 — Phase 3 planned & approved (branch `feature/part2-phase3-queue-rl`).**
+  - Phase 2 verified green on this branch (110 passed / 1 skipped). Two exploration modules
+    already on the branch (untracked): `research/synthetic_flow.py` (seeded order-level ITCH
+    tape with FIFO ground truth, `FLOW_PRESETS` rw/drift/revert/stress) and
+    `research/queue_dynamics.py` (`QueueTracker` + `queue_ahead_walk` hypothetical-fill walk).
+  - **Plan approved 2026-09-13 — the detailed working plan lives at `plan.md`** (mirrors
+    §3 Phase 3 below + experiment registry E5/E6/E7). Six workstreams: WS-0 env regimes
+    (additive `drift_ticks`/`mean_revert`/`mrv_anchor` knobs + 6-key `REGIME_PRESETS`; user
+    chose **FULL 6-regime**), WS-1 E5 fill models (`fill_dataset` / `standing_order_lifetimes`
+    / KM `fill_prob_survival` with cancel as competing risk / NumPy-IRLS `LogisticFillModel`),
+    WS-2 E6 adverse (`post_fill_drift` / `P_adverse` / `adverse_groups`), WS-3 fair RL eval
+    (`evaluate_regime_ci`, symmetric `vol_feature` toggle, market-VWAP slippage, bootstrap
+    CIs), WS-4 live baselines (`apov` / `stwap` / `isaware`), WS-5 wiring + an honest
+    `queue_adverse_vignette.py` (E5 slope + E6 drift-null on rw vs drift) + docs.
+  - **Next:** implement WS-0 → WS-5, `python -m pytest python_quant/tests` green (≈135
+    expected) + ruff clean, then update `plan_2.md` running log + `progress.md`/`plan.md`
+    status and open the usual PR (real merge commit, feature branch only).
