@@ -12,6 +12,7 @@ primitives used across E1–E7:
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Sequence
 from math import erf, isinf, isnan, sqrt
 
@@ -22,20 +23,19 @@ import numpy as np
 # signal metrics
 # ---------------------------------------------------------------------------
 def _rank(x: np.ndarray) -> np.ndarray:
-    """Average ranks (standard Spearman) — ties are common on integer-tick labels.
-
-    Vectorized: a tie block occupying sorted positions ``[i, j)`` gets rank
-    ``(i + j − 1) / 2`` for every member (identical to the scalar definition).
-    """
+    """Average ranks (standard Spearman) — ties are common on integer-tick labels."""
     n = x.size
     order = np.argsort(x, kind="mergesort")
-    xs = x[order]
-    new_block = np.concatenate(([True], xs[1:] != xs[:-1]))
-    starts = np.flatnonzero(new_block)
-    ends = np.concatenate((starts[1:], [n]))
-    block_rank = (starts + ends - 1) / 2.0
     ranks = np.empty(n, dtype=np.float64)
-    ranks[order] = block_rank[np.cumsum(new_block) - 1]
+    ranks[order] = np.arange(n, dtype=np.float64)
+    i = 0
+    while i < n:
+        j = i + 1
+        while j < n and x[order[j]] == x[order[i]]:
+            j += 1
+        if j - i > 1:
+            ranks[order[i:j]] = (i + j - 1) / 2.0
+        i = j
     return ranks
 
 
@@ -73,22 +73,15 @@ def hit_rate(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
 
 
 def decile_spread(y_true: Sequence[float], y_pred: Sequence[float], n: int = 10) -> float:
-    """mean(label | top decile of prediction) − mean(label | bottom decile).
-
-    ``n`` is the number of quantile bins (10 = deciles): the top and bottom
-    ``size // n`` observations by prediction are averaged, so the statistic
-    is a *bin* mean, not the mean of ``n`` extreme points. NaN if fewer than
-    ``2n`` observations.
-    """
+    """mean(label of top pred decile) − mean(label of bottom pred decile)."""
     a = np.asarray(y_true, dtype=np.float64)
     b = np.asarray(y_pred, dtype=np.float64)
     if a.size != b.size or a.size < 2 * n:
         return float("nan")
     order = np.argsort(b, kind="mergesort")
     a_sorted = a[order]
-    k = max(1, a.size // n)
-    top = a_sorted[-k:].mean()
-    bot = a_sorted[:k].mean()
+    top = a_sorted[-n:].mean()
+    bot = a_sorted[:n].mean()
     return float(top - bot)
 
 
@@ -127,7 +120,9 @@ def bootstrap_ci(
     for b in range(n_boot):
         if kind == "block":
             starts = rng.integers(0, n, size=n_blocks)
-            idx = _block_indices(starts, blen, n)
+            idx = np.concatenate(
+                [np.arange(s, min(s + blen, n), dtype=np.int64) for s in starts]
+            )[:n]
             if idx.size == 0:
                 idx = np.arange(n)
             sample = x[idx]
@@ -140,16 +135,6 @@ def bootstrap_ci(
 
 def _mean(x: np.ndarray) -> float:
     return float(np.mean(x))
-
-
-def _block_indices(starts: np.ndarray, blen: int, n: int) -> np.ndarray:
-    """Concatenate ``[s, min(s+blen, n))`` for every block start, truncated to ``n`` draws.
-
-    Same draw as the scalar loop it replaces (block-by-block, clipped at the
-    series end), computed without a Python-level list of ranges.
-    """
-    idx = (starts[:, None] + np.arange(blen, dtype=np.int64)[None, :]).ravel()
-    return idx[idx < n][:n] if blen > 0 else np.arange(n)
 
 
 # ---------------------------------------------------------------------------
@@ -187,16 +172,97 @@ def diebold_mariano(
     mean_diff = float(np.mean(a**2 - b**2))
     dm = float(mean_diff / se) if se > 0 else float("nan")
     if alternative in ("two-sided", "two_sided"):
-        p = 2.0 * (1.0 - _normal_cdf(abs(dm)))
+        p = 2.0 * (1.0 - normal_cdf(abs(dm)))
     elif alternative == "less":
-        p = _normal_cdf(dm)
+        p = normal_cdf(dm)
     else:  # greater
-        p = 1.0 - _normal_cdf(dm)
+        p = 1.0 - normal_cdf(dm)
     return {"dm": dm, "p_value": float(p), "mean_diff": mean_diff}
 
 
-def _normal_cdf(z: float) -> float:
+def normal_cdf(z: float) -> float:
+    """Standard-normal CDF (used for asymptotically-normal test statistics)."""
     return 0.5 * (1.0 + erf(z / sqrt(2.0)))
+
+
+# ---------------------------------------------------------------------------
+# probability calibration (E5)
+# ---------------------------------------------------------------------------
+def brier_score(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
+    """Mean squared error of a probability forecast: mean((p − y)^2), 0 = perfect."""
+    a = np.asarray(y_true, dtype=np.float64)
+    b = np.asarray(y_pred, dtype=np.float64)
+    if a.size != b.size or a.size == 0:
+        raise ValueError("brier_score needs equal-length non-empty series")
+    return float(np.mean((b - a) ** 2))
+
+
+def calibration_curve(
+    y_true: Sequence[float],
+    y_pred: Sequence[float],
+    *,
+    n_bins: int = 10,
+) -> dict:
+    """Binned calibration of predicted probabilities against realized outcomes.
+
+    Bin *by predicted value* (equal-frequency, n-weighted); each bin reports the
+    mean prediction and the observed outcome rate plus its binomial s.e. The
+    return includes an n-weighted OLS ``slope`` of obs-rate on predicted — the
+    honest calibration statistic: slope ≈ 1 = calibrated, slope ≈ 0 = no signal
+    beyond the base rate. Returns:
+    ``{"bins":[{lo,hi,pred_mean,obs_rate,se,n}...], "slope", "intercept"}``.
+    """
+    a = np.asarray(y_true, dtype=np.float64)
+    b = np.asarray(y_pred, dtype=np.float64)
+    if a.size != b.size or a.size < 2:
+        raise ValueError("calibration_curve needs equal-length series of >= 2")
+    n_bins = max(1, int(min(n_bins, a.size)))
+    order = np.argsort(b, kind="mergesort")
+    a_s, b_s = a[order], b[order]
+    edges = np.linspace(0, a.size, n_bins + 1).astype(np.int64)
+    bins: list[dict] = []
+    for lo, hi in itertools.pairwise(edges):
+        bs, aa = b_s[lo:hi], a_s[lo:hi]
+        n = int(bs.size)
+        p = float(bs.mean()) if n else float("nan")
+        o = float(aa.mean()) if n else float("nan")
+        se = sqrt(o * (1.0 - o) / n) if n else float("nan")
+        bins.append({
+            "lo": float(bs.min()) if n else float("nan"),
+            "hi": float(bs.max()) if n else float("nan"),
+            "pred_mean": p, "obs_rate": o, "se": se, "n": n,
+        })
+    ws = np.asarray([bb["n"] for bb in bins], dtype=np.float64)
+    ps = np.asarray([bb["pred_mean"] for bb in bins], dtype=np.float64)
+    oo = np.asarray([bb["obs_rate"] for bb in bins], dtype=np.float64)
+    wsum = float(ws.sum())
+    pm = float((ps * ws).sum() / wsum)
+    om = float((oo * ws).sum() / wsum)
+    sp = float((ws * (ps - pm) ** 2).sum())
+    if sp > 0:
+        slope = float((ws * (ps - pm) * (oo - om)).sum() / sp)
+    else:
+        slope = float("nan")
+    return {"bins": bins, "slope": slope, "intercept": float(om - slope * pm)}
+
+
+def hac_se(values: Sequence[float], *, lag: int = 0) -> float:
+    """Newey–West (Bartlett) HAC standard error of the mean of ``values``.
+
+    ``lag`` handles overlap (e.g. drift over ``h`` events uses ``lag=h``).
+    Falls back to the raw sample s.e. when the HAC variance is non-positive.
+    """
+    x = np.asarray(values, dtype=np.float64)
+    n = x.size
+    if n < 2:
+        return float("nan")
+    d = x - x.mean()
+    L = int(min(int(lag), n - 1)) if lag > 0 else 0
+    gamma = np.array([np.mean(d[i:] * d[: n - i]) for i in range(L + 1)])
+    var = gamma[0] + 2.0 * np.sum(gamma[1:] * (1.0 - np.arange(1, L + 1) / (L + 1)))
+    if var <= 0:
+        var = np.var(d, ddof=1)
+    return float(sqrt(var / n))
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +338,9 @@ def _rank_ic_bootstrap(
     stats = np.empty(n_boot, dtype=np.float64)
     for b in range(n_boot):
         starts = rng.integers(0, n, size=n_blocks)
-        idx = _block_indices(starts, blen, n)
+        idx = np.concatenate(
+            [np.arange(s, min(s + blen, n), dtype=np.int64) for s in starts]
+        )[:n]
         stats[b] = rank_ic(yt[idx], yp[idx])
     lo, hi = np.quantile(stats, [alpha / 2, 1 - alpha / 2])
     return {"lo": float(lo), "hi": float(hi), "mean": float(np.mean(stats))}

@@ -34,10 +34,12 @@ external contributor trailers.
   and `mdd_ticks` alongside shortfall and slippage (`docs/results/rl_fairness.md` and `docs/results/rl_fairness.json`).
 - **Queue model status & simulation distinction:** `OrderBookEnv` provides an enhanced,
   deterministic FIFO queue model (`queue_model="fifo"`) with multi-step resting order persistence,
-  exact queue-ahead depth tracking, and cancellation/partial-fill accounting, verified by 11 targeted unit tests.
+  exact queue-ahead depth tracking, and partial-fill accounting, verified across 11 targeted pytest unit tests.
+  Book-level cancellation mechanics are supported in `StubBookAdapter` and tested, but the simulation's exogenous
+  flow generator does not emit cancellations of other resting orders (FIFO cancellation labeled PARTIAL).
   Separately, `OrderLevelTracker` and `queue_dynamics.py` implement offline order-level FIFO queue tracking,
-  Kaplan–Meier fill survival, and logistic fill models on historical ITCH tapes (E5). Connecting empirical tape-fitted
-  fill probabilities directly into online RL training remains a future roadmap item.
+  Kaplan–Meier fill survival, and logistic fill models on historical ITCH tapes (E5). Empirical queue dynamics
+  are research tooling and NOT integrated into the RL simulation environment. Tooling complete; multi-day empirical campaign pending.
 - **Multi-day runner:** `batch_research_itch.py` accepts `--days` (catalogued dates
   or `all`), `--symbols` (default `AAPL,QQQ`), `--max-gz-bytes`, `--out-dir`
   (default `data/itch`), `--results-dir` (default `docs/results/multi_day`), and

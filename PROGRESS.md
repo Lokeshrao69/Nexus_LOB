@@ -315,22 +315,21 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
     sets VWAP aggression. Profiles are estimates from prior sessions, never future tape prints.
     The environment still controls child size. Without either profile the legacy VWAP arithmetic
     is unchanged; `schedule_twap` retains its existing cumulative-profile support.
-11. ✅ **FIFO queue simulation & offline queue research** — `OrderBookEnv` provides an enhanced,
+11. 🟡 **FIFO queue simulation (PARTIAL: resting persistence & book mechanics verified; exogenous cancel unmodeled) & offline queue research** — `OrderBookEnv` provides an enhanced,
     deterministic FIFO queue model (`queue_model="fifo"`) with multi-step resting order persistence,
-    exact queue-ahead depth tracking, and cancellation/partial-fill accounting, verified by 11 targeted unit tests.
+    exact queue-ahead depth tracking, and partial-fill accounting, verified across 11 targeted pytest unit tests.
+    Book-level cancellation mechanics are supported in `StubBookAdapter` and tested, but the simulation's exogenous
+    flow generator does not emit cancellations of other resting orders (FIFO cancellation labeled PARTIAL).
     Separately, `OrderLevelTracker` and `queue_dynamics.py` implement offline order-level FIFO queue tracking,
-    Kaplan–Meier fill survival, and logistic fill models on historical ITCH tapes (E5). Connecting empirical tape-fitted
-    fill probabilities directly into online RL training remains a future roadmap item.
-12. 🟡 **Multi-day batch tooling verified; full statistical campaign not run** — all 15 dates
-    in `PUBLIC_SAMPLE_DAYS` are supported by `scripts/batch_research_itch.py`. The runner uses
+    Kaplan–Meier fill survival, and logistic fill models on historical ITCH tapes (E5). Empirical queue dynamics
+    are research tooling and NOT integrated into the RL simulation environment.
+12. 🟡 **Multi-day batch tooling COMPLETE; full empirical campaign PARTIAL** — all 15 dates
+    in `PUBLIC_SAMPLE_DAYS` are catalogued and supported by `scripts/batch_research_itch.py`. The runner uses
     sequential staged downloads, validated source/slice hashes, resumable E1–E6 outputs tied to
     a source-code fingerprint, and descriptive cross-day tables. Tests are network-free. 8 dates
-    on `emi.nasdaq.com` return HTTP 404 (retired by NASDAQ); 7 dates are accessible. A 1 MiB transport smoke
-    verified the download, parse, and slice pipeline across all 7 accessible dates, but covers only
-    pre-market hours (0 regular-session rows) and is strictly transport validation, not empirical evidence.
-    Empirical full-day evidence remains established on `12302019` (1.48M regular session rows for AAPL, 2.83M for QQQ);
-    running the remaining full days (~3.5 GB compressed each) remains bandwidth-dependent (~300 KB/s).
-    No raw tape files or generated tape slices were committed.
+    on `emi.nasdaq.com` return HTTP 404 (retired upstream); 6 dates are accessible but full download/replay was not
+    completed due to local bandwidth/resource bounds. 1 date (`12302019`) has genuine full-session empirical
+    validation (1.48M regular session rows for AAPL, 2.83M for QQQ). Tooling is complete; multi-day empirical campaign pending.
 13. ⏳ **Remaining Project Work (Person A):**
     - Verify GPU risk engine on a CUDA machine (`nexus_risk` + `risk_bench` with `nvcc`).
     - Hardware benchmarks for zero-copy shmem ring throughput.
