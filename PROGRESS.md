@@ -3,12 +3,11 @@
 **Status date:** 2026-09-14 · **Branch:** `feature/person-b-part2` (PR #19 targeting `main` on `Lokeshrao69/Nexus_LOB`).
 This branch completes the Person B quantitative layer, execution realism, and empirical research tooling.
 
-**Current verification:** Python 3.12.3 on Linux, **274 passed / 1 skipped** in
-`python_quant/tests`; **8 passed** in `bindings/tests`; **5/5 CTest** tests passed.
-The skip requires a full local ITCH tape. With engine import disabled, the same
-Python suite has **262 passed / 13 skipped**, retaining the always-on stub/fake tests.
-Compileall, CI-scope Ruff, and `git diff --check` pass. Protected C++/CUDA/bindings
-sources and the 448-byte state ABI are unchanged.
+**Current verification:** Python 3.12.3 on Linux / Python 3.10 on Windows, **336 tests collected** in
+`python_quant/tests` (**322 passed / 14 skipped** without engine; **335 passed / 1 skipped**
+with engine); **8 passed** in `bindings/tests`; **5/5 CTest** tests passed.
+Compileall, CI-scope Ruff (`python -m ruff check python_quant/nexus_quant/ bindings/`), and `git diff --check` pass with 0 errors.
+Protected C++/CUDA/bindings sources and the 448-byte state ABI are unchanged.
 
 The empirical VWAP, E7 family-bootstrap, resumable batch, and Python adapter work
 is complete. The dated studies below are historical: neither the full multi-day
@@ -315,21 +314,20 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
     sets VWAP aggression. Profiles are estimates from prior sessions, never future tape prints.
     The environment still controls child size. Without either profile the legacy VWAP arithmetic
     is unchanged; `schedule_twap` retains its existing cumulative-profile support.
-11. 🟡 **FIFO queue simulation (PARTIAL: resting persistence & book mechanics verified; exogenous cancel unmodeled) & offline queue research** — `OrderBookEnv` provides an enhanced,
-    deterministic FIFO queue model (`queue_model="fifo"`) with multi-step resting order persistence,
-    exact queue-ahead depth tracking, and partial-fill accounting, verified across 11 targeted pytest unit tests.
-    Book-level cancellation mechanics are supported in `StubBookAdapter` and tested, but the simulation's exogenous
-    flow generator does not emit cancellations of other resting orders (FIFO cancellation labeled PARTIAL).
-    Separately, `OrderLevelTracker` and `queue_dynamics.py` implement offline order-level FIFO queue tracking,
-    Kaplan–Meier fill survival, and logistic fill models on historical ITCH tapes (E5). Empirical queue dynamics
-    are research tooling and NOT integrated into the RL simulation environment.
-12. 🟡 **Multi-day batch tooling COMPLETE; full empirical campaign PARTIAL** — all 15 dates
-    in `PUBLIC_SAMPLE_DAYS` are catalogued and supported by `scripts/batch_research_itch.py`. The runner uses
-    sequential staged downloads, validated source/slice hashes, resumable E1–E6 outputs tied to
-    a source-code fingerprint, and descriptive cross-day tables. Tests are network-free. 8 dates
-    on `emi.nasdaq.com` return HTTP 404 (retired upstream); 6 dates are accessible but full download/replay was not
-    completed due to local bandwidth/resource bounds. 1 date (`12302019`) has genuine full-session empirical
-    validation (1.48M regular session rows for AAPL, 2.83M for QQQ). Tooling is complete; multi-day empirical campaign pending.
+11. ✅ **FIFO queue simulation COMPLETE (exogenous resting cancellations + persistence + depletion) & Empirical Hazard RL Seam** — `OrderBookEnv`
+    provides a fully realized, deterministic FIFO queue model (`queue_model="fifo"`):
+    multi-step resting order persistence at limit price, exact price-level queue-ahead tracking (`_get_queue_ahead()`),
+    external trade depletion, and **exogenous resting cancellations**: `_exogenous_cancel()` probabilistically selects
+    non-agent resting orders in the book via `cancel_prob`, decreasing queue-ahead in real time while strictly protecting
+    the agent's resting order. Verified across 21 unit tests (11 in `test_fifo_queue_simulation.py` + 10 in `test_fifo_cancellations.py`).
+    Additionally, `queue_model="empirical_hazard"` connects historical queue dynamics (`EmpiricalQueueHazard`) to the online RL
+    simulator without lookahead, verified across 10 unit tests in `test_empirical_hazard_env.py`.
+12. ✅ **Multi-day batch tooling & cross-day aggregation COMPLETE; empirical status documented** —
+    Cross-day empirical aggregation engine implemented in `nexus_quant.research.multi_day_aggregation`, computing unweighted and
+    sample-weighted means, between-day standard deviation, and seeded bootstrap CIs across separate trading sessions.
+    Verified across 10 unit tests in `test_multi_day_aggregation.py`. Summary report committed at `docs/results/multi_day_aggregation.md`
+    covering verified full day `12302019` (3.69M regular events) and documenting all 13 other dates (7 permanently retired with HTTP 404,
+    6 bandwidth-bound at ~238 KB/s needing >4h per tape); zero partial or smoke runs are misrepresented as completed empirical research.
 13. ⏳ **Remaining Project Work (Person A):**
     - Verify GPU risk engine on a CUDA machine (`nexus_risk` + `risk_bench` with `nvcc`).
     - Hardware benchmarks for zero-copy shmem ring throughput.

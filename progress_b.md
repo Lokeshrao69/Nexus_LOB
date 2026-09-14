@@ -32,14 +32,24 @@ external contributor trailers.
   *Report status:* The evaluation study was fully regenerated and committed with verified numbers
   (600 iterations x 5 training seeds x 5 eval families x 20 episodes per seed) including `fill_rate`
   and `mdd_ticks` alongside shortfall and slippage (`docs/results/rl_fairness.md` and `docs/results/rl_fairness.json`).
-- **Queue model status & simulation distinction:** `OrderBookEnv` provides an enhanced,
-  deterministic FIFO queue model (`queue_model="fifo"`) with multi-step resting order persistence,
-  exact queue-ahead depth tracking, and partial-fill accounting, verified across 11 targeted pytest unit tests.
-  Book-level cancellation mechanics are supported in `StubBookAdapter` and tested, but the simulation's exogenous
-  flow generator does not emit cancellations of other resting orders (FIFO cancellation labeled PARTIAL).
-  Separately, `OrderLevelTracker` and `queue_dynamics.py` implement offline order-level FIFO queue tracking,
-  Kaplan–Meier fill survival, and logistic fill models on historical ITCH tapes (E5). Empirical queue dynamics
-  are research tooling and NOT integrated into the RL simulation environment. Tooling complete; multi-day empirical campaign pending.
+- **Queue model & exogenous FIFO cancellations:** `OrderBookEnv` provides a fully realized,
+  deterministic FIFO queue model (`queue_model="fifo"`):
+  - multi-step resting order persistence at limit price
+  - exact price-level queue-ahead tracking (`_get_queue_ahead()`)
+  - external trade depletion and partial-fill accounting
+  - **exogenous resting cancellations:** `OrderBookEnv._exogenous_flow()` actively executes cancellation arrivals for non-agent resting orders in the book via `_exogenous_cancel()` with configurable rate (`cancel_prob`). Partial and full cancellations reduce queue-ahead immediately. The agent's resting order is strictly protected.
+  - Verified across 21 targeted pytest unit tests (11 in `test_fifo_queue_simulation.py` + 10 in `test_fifo_cancellations.py`).
+- **Historical queue dynamics -> online RL seam:** Added explicit `queue_model="empirical_hazard"`
+  to `OrderBookEnv` powered by `EmpiricalQueueHazard` in `queue_dynamics.py`:
+  - Pre-calibrated hazard representation with methods `from_tracker(tracker)` and `from_survival_dict(surv)`.
+  - Strictly observable placement-time features (`queue_ahead`, `level_size`, `distance_ticks`) with zero forward lookahead.
+  - Strict mode separation: `""` (optimistic baseline), `"uniform"` (depth fraction), `"fifo"` (discrete price-time priority), `"empirical_hazard"` (calibrated microstructure hazard).
+  - 10 targeted deterministic unit tests in `test_empirical_hazard_env.py`.
+- **Multi-day ITCH campaign & cross-day aggregation tooling:**
+  - Implemented cross-day aggregation engine in `nexus_quant.research.multi_day_aggregation`:
+    computes per-day metrics, sample-weighted and unweighted cross-day means, between-day standard deviation (distinguishing cross-sectional session variance from within-session estimation error), and seeded bootstrap 95% confidence intervals.
+  - 10 unit tests in `test_multi_day_aggregation.py` covering all aggregation edge cases.
+  - Empirical campaign reality: verified full day `12302019` (3,693,390 regular session events across AAPL and QQQ) aggregated in `docs/results/multi_day_aggregation.md` and `.json`. The other 13 catalogued NASDAQ public dates are documented honestly (7 permanently retired with HTTP 404, 6 bandwidth-bound at ~238 KB/s needing >4h per tape); zero partial or smoke runs are misrepresented as completed empirical research.
 - **Multi-day runner:** `batch_research_itch.py` accepts `--days` (catalogued dates
   or `all`), `--symbols` (default `AAPL,QQQ`), `--max-gz-bytes`, `--out-dir`
   (default `data/itch`), `--results-dir` (default `docs/results/multi_day`), and

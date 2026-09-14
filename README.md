@@ -63,15 +63,16 @@ Pure-NumPy stack (no torch), byte-reproducible:
 | **Fair RL re-verification** | `scripts/rl_fairness_study.py` → `docs/results/rl_fairness.md` | 5 train seeds × 5 eval families × 6 regimes × 2 info modes, fees+queue on |
 | Research spine (Part 2) | `nexus_quant/research/{features,labels,dataset,experiments,models}.py` | leak-locked features, walk-forward splits, rank IC / block bootstrap / DM |
 | Execution realism (Part 2) | `nexus_quant/execution/{cost_model,metrics,backtest,volume_profile}.py` | fees/rebates/impact, IS vs **market** VWAP, fill rate / MDD, empirical volume profiler |
-| Order-level queue + fill models (E5) | `nexus_quant/research/queue_dynamics.py` | `OrderLevelTracker`, Kaplan–Meier P(fill), logistic fill model + calibration (offline tape research) |
+| Order-level queue + fill models (E5) | `nexus_quant/research/queue_dynamics.py` | `OrderLevelTracker`, Kaplan–Meier P(fill), logistic fill model, `EmpiricalQueueHazard` + RL seam |
 | Adverse selection (E6) | `nexus_quant/research/adverse_selection.py` | post-fill drift, Newey–West t, pre-fill matched control |
-| **Real NASDAQ ITCH tape** | `scripts/fetch_itch.py`, `scripts/run_research.py` | public `emi.nasdaq.com` day → per-symbol slice → E1–E6 (12/30/2019 verified; 15-date catalogue; batch research tooling) |
+| Multi-day aggregation & ITCH | `nexus_quant/research/multi_day_aggregation.py` | cross-day means, between-day variance, bootstrap CIs, 12/30/2019 full-day verified |
 | Regime design doc | `HIGHVOL_PLAN.md` | the high-vol regime (historical; its headline is retired above) |
 
-**Tests (all green):** **272 passed** (14 skipped on Windows without engine; 286 collected; 285 passed on Linux with engine) — contract smoke, ITCH, replay, env,
-baselines, PPO + GRPO agents, risk parity (3× bit-for-bit), the high-vol regime,
+**Tests (all green):** **322 passed** (14 skipped on Windows without engine; 336 collected; 335 passed on Linux with engine) — contract smoke, ITCH, replay, env,
+baselines, PPO + GRPO agents, risk parity (3× bit-for-bit), high-vol regime,
 dashboard codec/hub, risk↔env penalty, research spine leak locks, cost model /
 backtest, empirical volume profiler, E7 metrics hand tests, offline queue tracker + Kaplan–Meier + logistic calibration, adverse selection,
+exogenous FIFO cancellations (21 tests), empirical hazard RL seam (10 tests), cross-day aggregation (10 tests),
 batch research ITCH runner, engine adapter parity, regimes / fair baselines / CI harness, and the real-tape slicer (the real-tape
 smoke runs whenever `data/itch/<day>/<SYMBOL>.itch` is present).
 

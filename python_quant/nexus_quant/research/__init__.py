@@ -47,7 +47,13 @@ from .features import (
 )
 from .labels import forward_mid_move, forward_return
 from .models import fit_ols_ic, zscore
+from .multi_day_aggregation import (
+    aggregate_multi_day_results,
+    extract_day_study_record,
+    render_multi_day_aggregation_md,
+)
 from .queue_dynamics import (
+    EmpiricalQueueHazard,
     FillOutcome,
     FillRecord,
     FillRow,
@@ -72,6 +78,7 @@ from .synthetic_flow import FLOW_PRESETS, FlowConfig, SyntheticFlow
 
 __all__ = [
     "FLOW_PRESETS",
+    "EmpiricalQueueHazard",
     "FillOutcome",
     "FillRecord",
     "FillRow",
@@ -88,6 +95,7 @@ __all__ = [
     "TrackedOrder",
     "adverse_groups",
     "adverse_selection_report",
+    "aggregate_multi_day_results",
     "bootstrap_ci",
     "brier_score",
     "calibration_curve",
@@ -99,6 +107,7 @@ __all__ = [
     "diebold_mariano",
     "drift_ticks",
     "event_frame",
+    "extract_day_study_record",
     "fill_dataset",
     "fill_prob_survival",
     "fills_from_tracker",
@@ -124,6 +133,7 @@ __all__ = [
     "queue_ahead_walk",
     "rank_ic",
     "realized_vol",
+    "render_multi_day_aggregation_md",
     "run_experiment",
     "spread_bps",
     "standing_order_lifetimes",

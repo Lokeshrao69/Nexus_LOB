@@ -1700,3 +1700,78 @@ def brier_score(p: Sequence[float], y: Sequence[float]) -> float:
     if pa.size != ya.size or pa.size == 0:
         return float("nan")
     return float(np.mean((pa - ya) ** 2))
+
+
+@dataclass(frozen=True, slots=True)
+class EmpiricalQueueHazard:
+    """Pre-calibrated empirical queue hazard representation for online simulation.
+
+    Encapsulates calibrated fill hazard rates or survival probabilities
+    derived from historical ITCH queue dynamics (e.g. Kaplan-Meier or logistic models),
+    ensuring strictly observable features at placement time without lookahead.
+    """
+
+    base_logit: float = -1.2
+    queue_coef: float = -1.5
+    dist_coef: float = -0.8
+    horizons: tuple[float, ...] = (1.0, 5.0, 10.0, 20.0)
+    p_fill_by_horizon: tuple[float, ...] = (0.05, 0.18, 0.35, 0.58)
+
+    def predict_fill_prob(
+        self,
+        queue_ahead: int,
+        level_size: int = 0,
+        distance_ticks: int = 0,
+    ) -> float:
+        """Predict within-step fill probability using observable placement-time state.
+
+        Zero lookahead: inputs are strictly known at decision time t before subsequent prints.
+        """
+        lvl = max(1, int(level_size))
+        frac_ahead = float(np.clip(int(queue_ahead) / lvl, 0.0, 1.0))
+        dist = max(0, int(distance_ticks))
+        z = self.base_logit + self.queue_coef * frac_ahead + self.dist_coef * dist
+        if z >= 0.0:
+            return float(1.0 / (1.0 + np.exp(-z)))
+        ez = float(np.exp(z))
+        return float(ez / (1.0 + ez))
+
+    @classmethod
+    def from_tracker(
+        cls,
+        tracker: OrderLevelTracker,
+        *,
+        horizons: Sequence[float] = (1.0, 5.0, 10.0, 20.0),
+    ) -> EmpiricalQueueHazard:
+        """Calibrate hazard representation from an empirical OrderLevelTracker stream."""
+        completed = tracker.completed
+        if not completed:
+            return cls(horizons=tuple(horizons))
+        surv = _fill_prob_survival_tracked(completed, horizons=horizons)
+        p_fills = tuple(surv.get("p_fill", [0.0] * len(horizons)))
+        n_tot = max(1, len(completed))
+        n_filled = sum(1 for o in completed if o.outcome == "filled")
+        fill_rate = max(0.01, min(0.99, n_filled / n_tot))
+        base_logit = float(np.log(fill_rate / (1.0 - fill_rate)))
+        return cls(
+            base_logit=base_logit,
+            horizons=tuple(horizons),
+            p_fill_by_horizon=p_fills,
+        )
+
+    @classmethod
+    def from_survival_dict(
+        cls,
+        surv: dict[str, Any],
+    ) -> EmpiricalQueueHazard:
+        """Calibrate hazard representation from a pre-computed survival dictionary."""
+        tau = tuple(float(h) for h in surv.get("tau", (1.0, 5.0, 10.0, 20.0)))
+        p_fills = tuple(float(p) for p in surv.get("p_fill", (0.05, 0.18, 0.35, 0.58)))
+        base_p = p_fills[0] if p_fills else 0.1
+        base_p = max(0.01, min(0.99, base_p))
+        base_logit = float(np.log(base_p / (1.0 - base_p)))
+        return cls(
+            base_logit=base_logit,
+            horizons=tau,
+            p_fill_by_horizon=p_fills,
+        )

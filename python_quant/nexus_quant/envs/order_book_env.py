@@ -148,7 +148,9 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         rebate_bps: float = 0.0,
         impact_coef: float = 0.0,
         impact_participation: float = 0.1,
-        queue_model: str = "",  # "" = off; "uniform" = placeholder queue-depth model
+        queue_model: str = "",  # "" = off; "uniform" = placeholder; "fifo" = discrete FIFO; "empirical_hazard" = calibrated hazard
+        cancel_prob: float = 0.0,
+        empirical_hazard: Any | None = None,
     ) -> None:
         self.inventory0 = int(inventory)
         self.horizon = int(horizon)
@@ -186,11 +188,20 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         self.rebate_bps = float(rebate_bps)
         self.impact_coef = float(impact_coef)
         self.impact_participation = float(impact_participation)
+        self.cancel_prob = float(cancel_prob)
         self.queue_model = str(queue_model)
-        if self.queue_model not in ("", "uniform", "fifo"):
+        if self.queue_model not in ("", "uniform", "fifo", "empirical_hazard"):
             raise ValueError(
-                f"queue_model must be '', 'uniform', or 'fifo', got {self.queue_model!r}"
+                f"queue_model must be '', 'uniform', 'fifo', or 'empirical_hazard', got {self.queue_model!r}"
             )
+        if self.queue_model == "empirical_hazard":
+            if empirical_hazard is None:
+                from ..research.queue_dynamics import EmpiricalQueueHazard
+                self.empirical_hazard = EmpiricalQueueHazard()
+            else:
+                self.empirical_hazard = empirical_hazard
+        else:
+            self.empirical_hazard = empirical_hazard
         self._queue_ahead_fifo = 0
         self._queue_ahead_fifo_initial = 0
         self.last_cvar = 0.0
@@ -277,7 +288,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             else:
                 limit = max(px, (bid + 1) if bid else px)
                 can_persist = (
-                    self.queue_model == "fifo"
+                    self.queue_model in ("fifo", "empirical_hazard")
                     and self.agent_rest is not None
                     and self.agent_rest.price == limit
                     and live_existing is not None
@@ -292,7 +303,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                         self.agent_rest.size = want
                 else:
                     self._cancel_agent()
-                    if self.queue_model == "fifo":
+                    if self.queue_model in ("fifo", "empirical_hazard"):
                         s_pre = self.book.view()
                         apx = s_pre["ask_px"]
                         idx_arr = np.where(apx == limit)[0]
@@ -317,6 +328,20 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                         depleted = min(self._queue_ahead_fifo, got)
                         self._queue_ahead_fifo -= depleted
                         got -= depleted
+                elif self.queue_model == "empirical_hazard":
+                    ahead = self._get_queue_ahead()
+                    lvl_sz = max(got, ahead + rest_sz_before)
+                    dist = max(0, action_ticks)
+                    hazard = self.empirical_hazard
+                    if hazard is None:
+                        from ..research.queue_dynamics import EmpiricalQueueHazard
+
+                        hazard = self.empirical_hazard = EmpiricalQueueHazard()
+                    p_fill = hazard.predict_fill_prob(
+                        queue_ahead=ahead, level_size=lvl_sz, distance_ticks=dist
+                    )
+                    if float(self._rng.random()) > p_fill:
+                        got = 0
                 else:
                     # Queue-position degradation: only a fraction of the *displayed*
                     # depth ahead of the child is actually reachable this step.
@@ -410,7 +435,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             "vwap": vwap,
             "market_vwap": self.market_vwap(),
             "cvar": self.last_cvar,
-            "queue_ahead": self._get_queue_ahead() if self.queue_model == "fifo" else 0,
+            "queue_ahead": self._get_queue_ahead() if self.queue_model in ("fifo", "empirical_hazard") else 0,
         }
         return self._observe(), float(reward), bool(terminated), bool(truncated), info
 
@@ -484,12 +509,13 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
     def _queue_ahead_frac(self) -> float:
         """Fraction of the queue deemed ahead of the child this step (0..1).
 
-        Under ``queue_model="fifo"``, returns the remaining fraction of the initial
-        queue ahead at placement without drawing from RNG. Under ``queue_model="uniform"``,
-        returns a uniform draw per step (deterministic under a fixed seed). Only called
-        when ``queue_model`` is non-empty, so the default RNG stream is unaffected.
+        Under ``queue_model="fifo"`` or ``queue_model="empirical_hazard"``, returns
+        the remaining fraction of the initial queue ahead at placement without
+        drawing from RNG. Under ``queue_model="uniform"``, returns a uniform draw per step
+        (deterministic under a fixed seed). Only called when ``queue_model`` is non-empty,
+        so the default RNG stream is unaffected.
         """
-        if self.queue_model == "fifo":
+        if self.queue_model in ("fifo", "empirical_hazard"):
             ahead = self._get_queue_ahead()
             init = max(1, self._queue_ahead_fifo_initial)
             return float(min(1.0, ahead / init))
@@ -522,6 +548,66 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             self.book.rest(Side.Bid, mid - 1 - i, bsz)
             self.book.rest(Side.Ask, mid + 1 + i, asz)
 
+    def _exogenous_cancel(self, order_id: int | None = None, size: int | None = None) -> int:
+        """Cancel non-agent resting liquidity in the book.
+
+        If ``order_id`` is provided, targets that specific order (protecting the agent's order).
+        If ``order_id`` is None, probabilistically selects a candidate order from active book levels.
+        Supports both partial (size < order.size) and full cancellation.
+        Returns the number of cancelled shares.
+        """
+        if order_id is not None:
+            if self.agent_rest is not None and order_id == self.agent_rest.order_id:
+                return 0
+            if hasattr(self.book, "cancel_id"):
+                return int(self.book.cancel_id(order_id, size=size))
+            return 0
+
+        if hasattr(self.book, "_orders"):
+            candidates = [
+                live
+                for oid, live in self.book._orders.items()
+                if (self.agent_rest is None or oid != self.agent_rest.order_id) and live.size > 0
+            ]
+            if not candidates:
+                return 0
+            # If the agent has a resting order, prioritize orders at the agent's price level:
+            agent_level = [
+                c
+                for c in candidates
+                if self.agent_rest is not None
+                and c.side == self.agent_rest.side
+                and c.price == self.agent_rest.price
+            ]
+            if agent_level and float(self._rng.random()) < 0.5:
+                pool = agent_level
+            else:
+                pool = candidates
+
+            idx = int(self._rng.integers(0, len(pool)))
+            target = pool[idx]
+            if size is not None:
+                cut = min(target.size, int(size))
+            else:
+                is_partial = bool(self._rng.random() < 0.5)
+                cut = int(self._rng.integers(1, target.size)) if (is_partial and target.size > 1) else target.size
+            return int(self.book.cancel_id(target.order_id, size=cut))
+
+        # Fallback for books without order-level adapter
+        if self._queue_ahead_fifo > 0:
+            cut = min(self._queue_ahead_fifo, int(size) if size is not None else 10)
+            self._queue_ahead_fifo -= cut
+            return cut
+        return 0
+
+    def _exogenous_cancellations(self) -> int:
+        """Execute cancellation arrivals for non-agent resting orders."""
+        if self.cancel_prob <= 0.0:
+            return 0
+        if float(self._rng.random()) < self.cancel_prob:
+            return self._exogenous_cancel()
+        return 0
+
     def _exogenous_flow(self) -> None:
         # --- Markov regime transition ---
         if self.regime_prob > 0 or self.vol_decay > 0:
@@ -534,6 +620,8 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
 
         if not self._volatile:
             # === calm regime: original code path (deterministic when params = 0) ===
+            if self.cancel_prob > 0.0:
+                self._exogenous_cancellations()
             n = int(3 + self._rng.integers(0, 5))
             for _ in range(n):
                 s = self.book.view()
@@ -549,6 +637,8 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                     self.book.rest(side, px, int(30 + self._rng.integers(0, 160)))
         else:
             # === volatile regime: larger takes, thinner/wider adds, gap events ===
+            if self.cancel_prob > 0.0:
+                self._exogenous_cancellations()
             if self.gap_prob > 0 and self._rng.random() < self.gap_prob:
                 gap_sz = int(self._rng.integers(self.gap_min, self.gap_max + 1))
                 # take() walks the OPPOSITE book: an Ask taker hits bids

@@ -1,0 +1,150 @@
+{
+  "n_days": 1,
+  "days": [
+    "12302019"
+  ],
+  "symbols": [
+    "AAPL",
+    "QQQ"
+  ],
+  "total_regular_events": 3693390,
+  "total_orders": 1932619,
+  "total_passive_fills": 64019,
+  "per_day": [
+    {
+      "day": "12302019",
+      "symbol": "AAPL",
+      "coverage": "full_day",
+      "is_full_day": true,
+      "regular_events": 1484259,
+      "total_messages": 1519370,
+      "rank_ic_h5": 0.22011427126551894,
+      "rank_ic_h10": 0.23806158452007534,
+      "n_orders": 791477,
+      "km_p_fill_50": 0.03350108910530625,
+      "n_passive_fills": 46357,
+      "adverse_drift_h5": -50.0442220160925
+    },
+    {
+      "day": "12302019",
+      "symbol": "QQQ",
+      "coverage": "full_day",
+      "is_full_day": true,
+      "regular_events": 2209131,
+      "total_messages": 2376260,
+      "rank_ic_h5": 0.29611738335034293,
+      "rank_ic_h10": 0.3751479934803844,
+      "n_orders": 1141142,
+      "km_p_fill_50": 0.011951100221350708,
+      "n_passive_fills": 17662,
+      "adverse_drift_h5": -25.724719737289096
+    }
+  ],
+  "rank_ic_by_horizon": {
+    "1": {
+      "n_days": 2,
+      "mean_unweighted": 0.147227,
+      "mean_weighted": 0.148743,
+      "std_between_days": 0.010919,
+      "ci95": {
+        "lo": 0.139507,
+        "hi": 0.154948
+      }
+    },
+    "5": {
+      "n_days": 2,
+      "mean_unweighted": 0.258116,
+      "mean_weighted": 0.265575,
+      "std_between_days": 0.053742,
+      "ci95": {
+        "lo": 0.220114,
+        "hi": 0.296117
+      }
+    },
+    "10": {
+      "n_days": 2,
+      "mean_unweighted": 0.306605,
+      "mean_weighted": 0.320058,
+      "std_between_days": 0.096935,
+      "ci95": {
+        "lo": 0.238062,
+        "hi": 0.375148
+      }
+    },
+    "25": {
+      "n_days": 2,
+      "mean_unweighted": 0.345658,
+      "mean_weighted": 0.368578,
+      "std_between_days": 0.16514,
+      "ci95": {
+        "lo": 0.228887,
+        "hi": 0.46243
+      }
+    }
+  },
+  "km_fill_50": {
+    "n_days": 2,
+    "mean": 0.022726,
+    "std_between_days": 0.015238
+  },
+  "adverse_drift_h5": {
+    "n_days": 2,
+    "mean": -37.8845,
+    "std_between_days": 17.1965
+  },
+  "missing_days": [
+    {
+      "day": "02282019",
+      "reason": "HTTP 404: Tape permanently retired on emi.nasdaq.com"
+    },
+    {
+      "day": "04302019",
+      "reason": "HTTP 404: Tape permanently retired on emi.nasdaq.com"
+    },
+    {
+      "day": "05312019",
+      "reason": "HTTP 404: Tape permanently retired on emi.nasdaq.com"
+    },
+    {
+      "day": "06282019",
+      "reason": "HTTP 404: Tape permanently retired on emi.nasdaq.com"
+    },
+    {
+      "day": "09302019",
+      "reason": "HTTP 404: Tape permanently retired on emi.nasdaq.com"
+    },
+    {
+      "day": "11292019",
+      "reason": "HTTP 404: Tape permanently retired on emi.nasdaq.com"
+    },
+    {
+      "day": "12312019",
+      "reason": "HTTP 404: Tape permanently retired on emi.nasdaq.com"
+    },
+    {
+      "day": "01302019",
+      "reason": "Bandwidth-bound: 3.8 GB raw tape requires ~4.5h download at current 238 KB/s"
+    },
+    {
+      "day": "01302020",
+      "reason": "Bandwidth-bound: 3.5 GB raw tape requires ~4.2h download at current 238 KB/s"
+    },
+    {
+      "day": "03272019",
+      "reason": "Bandwidth-bound: 3.6 GB raw tape requires ~4.3h download at current 238 KB/s"
+    },
+    {
+      "day": "07302019",
+      "reason": "Bandwidth-bound: 3.7 GB raw tape requires ~4.4h download at current 238 KB/s"
+    },
+    {
+      "day": "08302019",
+      "reason": "Bandwidth-bound: 3.5 GB raw tape requires ~4.2h download at current 238 KB/s"
+    },
+    {
+      "day": "10302019",
+      "reason": "Bandwidth-bound: 3.9 GB raw tape requires ~4.6h download at current 238 KB/s"
+    }
+  ],
+  "policy_statement": "Aggregated 1 calendar sessions across 2 symbol(s). Between-day dispersion reflects genuine session variation; cross-day sample size is small (< 5 days); metrics remain descriptive rather than asymptotic."
+}
