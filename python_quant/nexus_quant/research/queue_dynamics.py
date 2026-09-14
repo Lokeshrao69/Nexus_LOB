@@ -1542,16 +1542,13 @@ def fill_prob_survival(
             cancel_is_censoring=cancel_is_censoring,
         )
     first = None
-    if isinstance(orders_or_levels, Sequence) and len(orders_or_levels) > 0:
-        first = orders_or_levels[0]
+    if isinstance(orders_or_levels, Sequence):
+        if len(orders_or_levels) > 0:
+            first = orders_or_levels[0]
     elif isinstance(orders_or_levels, Iterable):
-        try:
-            it = iter(orders_or_levels)
-            first = next(it, None)
-            from itertools import chain
-            orders_or_levels = list(chain([first], it)) if first is not None else []
-        except Exception:
-            pass
+        orders_or_levels = list(orders_or_levels)
+        if len(orders_or_levels) > 0:
+            first = orders_or_levels[0]
     if isinstance(first, TrackedOrder):
         return _fill_prob_survival_tracked(
             orders_or_levels,

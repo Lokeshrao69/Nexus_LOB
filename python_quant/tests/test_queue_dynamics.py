@@ -17,15 +17,12 @@ from nexus_quant.itch_parser import (
     iter_itch_events,
 )
 from nexus_quant.research.queue_dynamics import (
-    FillOutcome,
-    FillRecord,
     FillRow,
     LogisticFillModel,
-    OrderLife,
     OrderLevelTracker,
+    OrderLife,
     QueueTracker,
     RestingOrder,
-    TrackedOrder,
     _decision_features,
     brier_score,
     calibration_table,
@@ -38,6 +35,7 @@ from nexus_quant.research.queue_dynamics import (
     standing_order_lifetimes,
 )
 from nexus_quant.research.synthetic_flow import FlowConfig, SyntheticFlow
+
 
 # ===========================================================================
 # Part 1: Lokesh PR #18 tests
@@ -554,7 +552,6 @@ def test_logistic_fill_model_walk_forward_not_shuffled():
 
 
 def test_logistic_rejects_bad_shapes_and_tiny_samples():
-    import pytest
 
     with pytest.raises(ValueError):
         logistic_fill_model({"a": [0.0] * 10}, [True] * 10)
