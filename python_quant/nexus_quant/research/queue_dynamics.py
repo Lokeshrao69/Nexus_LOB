@@ -95,6 +95,10 @@ class FillRecord:
     size_at_birth: int
     ahead_at_birth: int
     ahead_at_fill: int
+    # (WS-2/E6, additive defaults) — level size at the moment of the fill and the
+    # order-flow imbalance *of the take that filled us*, both knowable at fill time.
+    level_size_at_fill: int = 0
+    ofi: float = 0.0
 
 
 @dataclass(slots=True)
@@ -141,11 +145,17 @@ class QueueTracker:
         self.seq = 0
         self.ts_ns = 0
         self._last_mid = 0.0
+        self._prev_view: _View | None = None  # view BEFORE the current event (E6 ofi)
 
     # ------------------------------------------------------------------ #
     # event handling (mirrors ReplayEngine.apply)                        #
     # ------------------------------------------------------------------ #
     def on_event(self, ev: NormalizedEvent) -> None:
+        # Capture the view BEFORE this event's mutation, but only for EXECUTE
+        # events (the only ones E6 reads) — ``view()`` is a per-call alloc, so
+        # skipping it on the ~94% non-take events keeps replay cheap.
+        if ev.kind in (EventType.EXECUTE, EventType.EXECUTE_PX):
+            self._prev_view = self.view()
         kind = ev.kind
         if kind in (EventType.ADD, EventType.ADD_MPID):
             self._add_order(ev.order_id, ev.side, ev.price_ticks, ev.size, ev.ts_ns)
@@ -189,15 +199,20 @@ class QueueTracker:
         lvl = self._levels[live.side].get(live.price)
         px = ev.price_ticks if (ev.kind == EventType.EXECUTE_PX and ev.price_ticks) else live.price
         ahead_at_fill = lvl.ahead_of(live.oid) if lvl is not None else 0
+        level_size_at_fill = lvl.total() if lvl is not None else 0
+        # Reduce first so ``ofi(self._prev_view, view())`` below sees the book
+        # AFTER this fill's take — the flow of the take that filled us (E6).
+        self._reduce(live.oid, filled)
+        ofi_val = ofi(self._prev_view, self.view())
         self.fills.append(
             FillRecord(
                 oid=live.oid, side=live.side, price=px, filled=filled,
                 event_index=self.seq, ts_ns=ev.ts_ns,
                 size_at_birth=live.born_size,
                 ahead_at_birth=live.ahead_at_birth, ahead_at_fill=ahead_at_fill,
+                level_size_at_fill=level_size_at_fill, ofi=ofi_val,
             )
         )
-        self._reduce(live.oid, filled)
 
     def _cancel(self, oid: int, size: int | None) -> None:
         live = self._orders.get(oid)
