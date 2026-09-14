@@ -1,6 +1,6 @@
 # Nexus-LOB — Progress Report
 
-**Status date:** 2026-09-13 · **Branch:** `feature/part2-phase3-queue-rl` · **Milestone:** Part 1 (systems half) complete; Part 2 (quant research layer) — Phases 0–2 landed, **Phase 3 in progress** (queue dynamics E5, adverse selection E6, fair RL rework — per-regime ≥5-seed eval using the existing env vol-regime knobs). This file is a plain-language
+**Status date:** 2026-09-14 · **Branch:** `feature/part2-phase3-rl-fairness` · **Milestone:** Part 1 (systems half) complete; Part 2 (quant research layer) — Phases 0–3 landed, **Phase 3 complete** (queue dynamics E5, adverse selection E6, fair RL rework — per-regime ≥5-seed eval, adaptive baselines, honest vignette). This file is a plain-language
 snapshot for anyone (Person A or Person B) picking the project up; the authoritative,
 constantly-updated handoff is `CLAUDE.md`, the research roadmap is `plan_2.md`, and the
 **approved Phase-3 working plan is `plan.md`**.
@@ -8,39 +8,46 @@ constantly-updated handoff is `CLAUDE.md`, the research roadmap is `plan_2.md`, 
 > TL;DR: the cross-language state contract is frozen, the C++ matching engine is
 > built and passing its own tests (86/86), the Python bridge drives that real engine,
 > and the **shared-memory ring** that will feed the dashboard (subsystem 5's C++ core)
-> is built and demoed live. **Person B has also landed** the ITCH 5.0 parser, an
+> is built and demoed live. **Person B has landed** the ITCH 5.0 parser, an
 > ITCH→L2 replay engine, the injectable stub↔engine adapter, the Gymnasium
-> `OrderBookEnv`, and TWAP/VWAP/POV/Passive baselines — plus a new Engine-vs-Stub
-> diff-test harness. **Not yet built/verified:** the compiled `nexus_engine` module
-> (must build in WSL) and everything downstream (RL agent, GPU risk, the Python
-> dashboard grain on the ring). All Python is **authored, not yet run** (no interpreter
-> in this shell — see §7).
+> `OrderBookEnv`, TWAP/VWAP/POV/Passive baselines, PPO/GRPO agents, the combined
+> interactive dashboard, and the risk↔env integration seam. **Phase 3 is complete:**
+> E5 fill models (logistic + KM survival), E6 adverse selection (post-fill drift +
+> P_adverse), fair per-regime RL eval with bootstrap CIs, adaptive baselines (apov,
+> stwap, isaware), and an honest E5/E6 vignette. Full test suite: **157 passed, 1
+> skipped**. Next: push this branch, open the PR, then Phase 4 (real NASDAQ ITCH tape).
 
 ---
 
-## 0. Part 2 (research layer) — status as of 2026-09-13
+## 0. Part 2 (research layer) — status as of 2026-09-14
 
 The systems half (Part 1) is done. The quant research layer turns Nexus-LOB into
 "systems + real market-microstructure research" (`plan_2.md` is the roadmap of record;
-`plan.md` is the approved Phase-3 build plan):
+`plan.md` was the approved Phase-3 build plan):
 
 | Phase | What | State |
 |---|---|---|
 | 0–1 | Repo hygiene, CI, research spine (features/labels/dataset/experiments/models), E1–E4 synthetic IC vignette | ✅ on `main` (PR #15); honest null IC on the random-walk tape |
-| 2 | Execution realism — cost model, market-VWAP metrics (the "self-VWAP" flaw fix), env cost/queue knobs, backtest harness | ✅ **verified green** on `feature/part2-phase3-queue-rl` (110 passed / 1 skipped) |
-| 3 | **Queue dynamics (E5) + adverse selection (E6) + fair RL rework** — order-level tracker + P(fill) KM/logistic models; post-fill drift; per-regime ≥5-seed eval with symmetric info; adaptive baselines | 🚧 **IN PROGRESS** — plan approved; `synthetic_flow.py` + `queue_dynamics.py` exploration already on the branch |
+| 2 | Execution realism — cost model, market-VWAP metrics (the "self-VWAP" flaw fix), env cost/queue knobs, backtest harness | ✅ on `main` (PRs #18/#20); 110 passed / 1 skipped |
+| 3 | **Queue dynamics (E5) + adverse selection (E6) + fair RL rework** — order-level tracker + P(fill) KM/logistic models; post-fill drift; per-regime ≥5-seed eval with symmetric info; adaptive baselines | ✅ **COMPLETE** on `feature/part2-phase3-rl-fairness` (WS-1/2 via PRs #18/#20; WS-3/4/5 as 3 commits, 157 passed / 1 skipped) |
 | 4–5 | Real NASDAQ ITCH tape, research report, honest README | ⏭️ next |
 
-**Phase-3 plan (in force 2026-09-13, `plan.md`):** WS-1 E5 fill models
-(`fill_dataset` / `standing_order_lifetimes` / KM `fill_prob_survival` with cancel as a
-competing risk / NumPy-IRLS `LogisticFillModel` + calibration/Brier); WS-2 E6
-adverse (`post_fill_drift` / `P_adverse` / `adverse_groups`); WS-3 `evaluate_regime_ci`
-with a symmetric `vol_feature` toggle and market-VWAP slippage; WS-4 `apov` / `stwap`
-/ `isaware` baselines; WS-5 wiring + an honest E5/E6 vignette. **No `OrderBookEnv`
-changes in Phase 3** (the earlier WS-0 env drift/mean-revert knobs were dropped
-2026-09-13; regimes come from `HIGHVOL_PRESETS` and defaults, `vol_feature=False`
-in fair mode). Working tree is on the feature branch; updates land via feature PR
-with a real merge commit (never squash).
+**Phase 3 delivered (2026-09-14, `feature/part2-phase3-rl-fairness`):**
+
+- **WS-1 (E5 fill models):** `queue_dynamics.py` — `fill_dataset`, `standing_order_lifetimes`, KM `fill_prob_survival` with cancel as competing risk, NumPy-IRLS `LogisticFillModel` + calibration/Brier. Merged via PR #20.
+- **WS-2 (E6 adverse selection):** `adverse.py` — `post_fill_drift`, `P_adverse`, `adverse_groups`. Merged via PR #20.
+- **WS-3 (fair RL eval):** `agents/evaluate.py` — `evaluate_regime_ci(policy, regimes, ...)` with symmetric `vol_feature` toggle, same-seed episodes per strategy, market-VWAP slippage, iid-bootstrap CIs, seeds ≥ 5 enforced.
+- **WS-4 (adaptive baselines):** `baselines.py` — `apov` (adaptive-POV), `stwap` (schedule-TWAP on a (1−t)^0.8 curve), `isaware` (IS-aware). All stateless, reading only the live book + t/inventory.
+- **WS-5 (vignette + docs):** `scripts/queue_adverse_vignette.py` runs E5 (logistic calibration slope + Brier vs base rate) and E6 (adverse drift + CI gated) on rw vs drift; `docs/RESEARCH.md` carries the E5/E6 tables.
+
+**Honest results (documented, not tuned):**
+- E6 null holds: on the random-walk arm every horizon's CI straddles 0.
+- E6 structural: on the drift arm, ask fills are adversely drift-chased (p_adverse=1.00), bid fills were early (0.00).
+- E5 negative: on the trending arm the fill model ties the base-rate baseline (Brier 0.034 vs 0.034) — calibrated but not informative beyond base rate on a trend.
+- Queue-position degenerate on synthetic: ahead_at_fill==0 for every fill (the generator takes the queue front), so adverse_groups' queue terciles collapse — logged as needing Phase-4 tape.
+
+**No `OrderBookEnv` changes in Phase 3.** Working tree is on the feature branch;
+updates land via feature PR with a real merge commit (never squash).
 
 ---
 
@@ -120,14 +127,13 @@ and every reject path (bad qty/price, dup id, pool-full).
 - `python_quant/tests/test_contract_smoke.py` — pure-NumPy smoke test.
 - `python_quant/nexus_quant/__init__.py` — package exports.
 
-### 3d. Pybind bridge — **wired to the real engine, not yet compiled** ⚠️
-`bindings/pybind_wrapper.cpp` no longer a placeholder. `Engine` now owns a real
+### 3d. Pybind bridge — **wired to the real engine, compiled & parity-tested** ✅
+`bindings/pybind_wrapper.cpp` no longer a placeholder. `Engine` owns a real
 `LimitOrderBook` and exposes order entry, fills, and the two view flavors (see §5).
-`bindings/tests/test_abi_parity.py` updated to drive the real engine.
+`bindings/tests/test_abi_parity.py` drives the real engine.
 
-> **⚠️ Important status nuance:** the C++ engine is verified here. The **compiled
-> `nexus_engine` module and the Python tests are NOT built/run yet** — this machine's
-> shell has no real Python / CMake / pybind (see §7). They must be built in **WSL**.
+> ✅ **Built and verified 2026-09-04 (Windows/MSVC):** Tier 2 passed — `nexus_engine`
+> compiled, `test_abi_parity.py` (6) and the Engine-vs-Stub diff-test (2) green (see §3f).
 
 ### 3e. Shared-memory ring + flow (subsystem 5, C++) — **built & demoed** ✅
 | Piece | File | Notes |
@@ -141,9 +147,9 @@ This is the transport the future dashboard consumes: the engine (real or synthet
 publishes its `BookStateView` into the ring after every order; a reader process follows
 the live book. Same frozen 448-byte payload end to end.
 
-### 3f. Person B — ITCH replay + execution env (**authored, not yet run** ⚠️)
-Merged in PR #2 (`feature/env-and-itch`). Runs today against `StubOrderBook` (no C++ build
-needed); swaps to the real engine via `book_port.adapt(...)`.
+### 3f. Person B — ITCH replay + execution env ✅
+Merged in PR #2 (`feature/env-and-itch`). Runs against `StubOrderBook` (no C++ build
+needed) or the real engine via `book_port.adapt(...)`.
 
 | Piece | File | Notes |
 |---|---|---|
@@ -181,6 +187,26 @@ CUDA, and a NumPy oracle all draw *identical* paths → **bit-for-bit** parity
 **Verified here (no GPU): pytest 49 passed, CTest 5/5.** The CUDA kernel and
 ~40× speedup cannot be compiled/measured on this machine — that's the blocker.
 
+### 3h. Phase 3 — Queue dynamics (E5) + adverse selection (E6) + fair RL rework ✅
+Built on `feature/part2-phase3-rl-fairness` (2026-09-14). WS-1/2 landed via PRs #18/#20;
+WS-3/4/5 as 3 branch commits (`ca4b0bd`, `6bb9905`, `b6cb67a`).
+
+| Piece | File | Notes |
+|---|---|---|
+| E5 fill-model substrate | `python_quant/nexus_quant/queue_dynamics.py` | `fill_dataset`, `standing_order_lifetimes`, KM `fill_prob_survival` (cancel as competing risk), NumPy-IRLS `LogisticFillModel` + calibration/Brier |
+| E6 adverse selection | `python_quant/nexus_quant/adverse.py` | `post_fill_drift`, `P_adverse`, `adverse_groups` |
+| Fair per-regime RL eval | `python_quant/nexus_quant/agents/evaluate.py` | `evaluate_regime_ci(...)` — symmetric info, ≥5-seed (enforced), same-seed episodes, market-VWAP slippage, iid-bootstrap CIs |
+| Adaptive baselines | `python_quant/nexus_quant/baselines.py` | `apov` (adaptive-POV), `stwap` (schedule-TWAP, (1−t)^0.8), `isaware`; stateless, live-book only; original baselines untouched |
+| E5/E6 vignette | `python_quant/scripts/queue_adverse_vignette.py` | honest results on rw vs drift |
+| Research doc | `docs/RESEARCH.md` | E5/E6 tables + negative results |
+| Test suite | full `pytest python_quant/tests` | ✅ **157 passed / 1 skipped**; CI lint scope (nexus_quant + bindings) clean |
+
+**Honest findings:** E6 null holds on rw (all CIs straddle 0); on drift, ask fills
+adversely chase drift (p_adverse=1.00) while bid fills were early (0.00). E5's
+logistic model ties base rate on a trend (Brier 0.034 vs 0.034) — calibrated but not
+informative. Queue-position signal is degenerate on synthetic flow (ahead_at_fill==0);
+on the agenda for the Phase-4 NASDAQ tape.
+
 ## 4. What is NOT done yet
 
 - ✅ ~~Pybind module built + parity tests green~~ — **DONE 2026-09-04** (Windows/MSVC).
@@ -192,13 +218,17 @@ CUDA, and a NumPy oracle all draw *identical* paths → **bit-for-bit** parity
   Markov regime-switching + gap-off flow to `OrderBookEnv` (defaults preserve calm behavior).
   PPO shortfall **1.401 bps vs VWAP 2.827 = +50.4%** on 100 seeded episodes; robust across seeds
   (+38.2% on a 200-episode re-check). Policy saved at `python_quant/artifacts/policy_ppo_highvol.npz`.
-  See `HIGHVOL_PLAN.md` at the repo root. (Person B's remaining items: GRPO/PPO refinement, the
-  Python dashboard on the shmem ring, and the risk↔env integration seam.)
+  See `HIGHVOL_PLAN.md` at the repo root.
+- ✅ ~~**GRPO + Python dashboard on the shmem ring + risk↔env integration seam**~~ — **DONE 2026-09-09**
+  (combined desk: `dashboard_page.html` + `SnapshotHub` + `serve_dashboard.py`; GRPO trainer; `lambda_risk`
+  CVaR inventory penalty wired into `OrderBookEnv`).
+- ✅ ~~**Phase 3: queue dynamics E5 + adverse selection E6 + fair RL rework**~~ — **COMPLETE 2026-09-14**
+  (see §3h; 157 passed / 1 skipped; `feature/part2-phase3-rl-fairness`).
 - ⚠️ **CUDA VaR/CVaR risk engine (subsystem 3)** — CPU reference + exact NumPy parity + CTest
   **DONE & green** (2026-09-06, branch `feature/risk-engine`); the **GPU kernel + ~40× speedup
   are BLOCKED** here (no CUDA toolkit) — compile `nexus_risk`/`risk_bench` on a CUDA machine.
-- ❌ Python dashboard on top of the shmem ring (the ring's C++ publisher/reader core
-  ✅ is done — see §3e).
+- ⏭️ **Phase 4/5:** real NASDAQ ITCH tape ingestion (`fetch_itch.py` + order-level parser), research
+  report, honest README — next milestone.
 
 ---
 
@@ -268,18 +298,16 @@ pytest python_quant/tests/test_contract_smoke.py -v
 
 ---
 
-## 7. Environment notes (why some things say "not run here")
+## 7. Environment notes
 
 This session runs on **Windows 11 + Git Bash / MSYS2**, repo on a **OneDrive** path.
-Updated **2026-09-04**: `g++` (C++20 ✅), **real Python 3.12 installed** (Tier 1 pure-Python
-tests **PASS**), and `cmake` via `pip`. The only remaining gap for the full build is
-**MSVC Build Tools** (install in progress) — needed to compile the pybind `nexus_engine`
-module for Tier 2 (parity + diff-test). CUDA still needs Linux or a Windows CUDA toolkit.
+Current toolchain (updated 2026-09-04/09-14): `g++` (C++20 ✅), **real Python 3.12**
+(Tier 1 pure-Python tests **PASS**), `cmake`, and **MSVC Build Tools** (Tier 2
+compile + parity **PASSED 2026-09-04**). CUDA still needs Linux or a Windows CUDA toolkit.
 
 - ✅ C++-only compile/run checks work here (engine tests above).
-- ✅ Pure-Python tests work here (`python -m pytest python_quant/tests -v`).
-- ⏳ Tier 2 (compile `nexus_engine`) needs MSVC → then `cmake -S . -B build
-  -DNEXUS_BUILD_PYBIND=ON && cmake --build build -j` + parity + diff-test.
+- ✅ Pure-Python tests work here — **157 passed / 1 skipped** as of 2026-09-14.
+- ✅ Tier 2 (compile `nexus_engine`) **passed on Windows/MSVC** (parity + diff-test).
 - ⚠️ Keep `build/`, `data/`, venvs **out of the OneDrive-synced tree** — sync + build
   artifacts is a known breakage source (copy the repo off OneDrive if the build is slow/flaky).
 
@@ -294,12 +322,16 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
 3. ✅ ~~**Diff-test harness**~~ — done + passing.
 4. ✅ ~~**PPO/GRPO agent vs baselines**~~ — done 2026-09-05 (reward beats all baselines;
    shortfall ≈ VWAP; high-vol regime identified as the path to the ~14% headline).
-5. **Next: verify the GPU risk engine on a CUDA machine** — compile `nexus_risk` +
-   `risk_bench` (needs `nvcc`/toolkit: WSL/Linux or Windows CUDA), capture the ~40×
-   speedup and the bit-for-bit CPU-vs-GPU parity.
-6. **Person B polish:** GRPO variant or PPO refinement; the **Python dashboard**
-   on the shmem ring (subsystem 4/5 — the ring's C++ core is done); and wiring
-   the risk engine's `compute_var_cvar` into `OrderBookEnv` as a dynamic
-   inventory penalty (risk↔env integration seam).
-7. ✅ ~~**High-volatility regime → ~14% below VWAP**~~ — **ACHIEVED 2026-09-07** (+50.4%; see §4
+5. ✅ ~~**High-volatility regime → ~14% below VWAP**~~ — **ACHIEVED 2026-09-07** (+50.4%; see §4
    and `HIGHVOL_PLAN.md`).
+6. ✅ ~~**Dashboard + GRPO + risk↔env seam**~~ — done 2026-09-09 (combined desk on `main`;
+   GRPO trainer; `lambda_risk` CVaR penalty).
+7. ✅ ~~**Phase 3: E5 queue dynamics + E6 adverse selection + fair RL rework**~~ — **COMPLETE
+   2026-09-14** (157 passed / 1 skipped; §3h).
+8. 🔜 **Open the PR for `feature/part2-phase3-rl-fairness`** and merge with a real merge commit
+   (per the git workflow).
+9. 🔜 **Phase 4: real NASDAQ ITCH tape** — `fetch_itch.py` + order-level parser events; the
+   Phase-4 tape unblocks the degenerate queue-position signal found in Phase 3.
+10. ⏳ **Verify the GPU risk engine on a CUDA machine** — compile `nexus_risk` + `risk_bench`
+    (needs `nvcc`/toolkit: WSL/Linux or Windows CUDA), capture the ~40× speedup and the
+    bit-for-bit CPU-vs-GPU parity.
