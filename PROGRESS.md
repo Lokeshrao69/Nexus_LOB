@@ -1,9 +1,7 @@
 # Nexus-LOB — Progress Report
 
-**Status date:** 2026-09-14 · **Branch:** `hoplite/kranioi-df83c5d6` in `shrikartad/thelema`.
-This authorized working copy preserves upstream Nexus-LOB PR #19 at
-`69ae5af8faeaaf6694630cddc2c44b6ce0096ca6` and adds the remaining Person-B implementation.
-No upstream PR was opened or modified by this follow-up.
+**Status date:** 2026-09-14 · **Branch:** `feature/person-b-part2` (PR #19 targeting `main` on `Lokeshrao69/Nexus_LOB`).
+This branch completes the Person B quantitative layer, execution realism, and empirical research tooling.
 
 **Current verification:** Python 3.12.3 on Linux, **274 passed / 1 skipped** in
 `python_quant/tests`; **8 passed** in `bindings/tests`; **5/5 CTest** tests passed.
@@ -303,18 +301,26 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
 6. ✅ **Interactive order-book dashboard** — done (`serve_dashboard.py`, shmem/file-ring decoding).
 7. ✅ **Part 2 Phases 0–5 quant research layer** — done (`docs/RESEARCH.md`, `run_all.py`, PR #19).
 8. ✅ **Dashboard Sanitization (Audit Priority 1)** — completed; retired +50.4% exploratory run labeled `Historical exploratory result — retired`, active fair study benchmark featured.
-9. ✅ **E7 confidence intervals** — `evaluate_regime_ci()` and `paired_difference_ci()` support
+9. ✅ **E7 confidence intervals & execution metrics** — `evaluate_regime_ci()` and `paired_difference_ci()` support
    `fill_rate` and `mdd_ticks` alongside shortfall and market-VWAP slippage. Whole seed families
    are resampled without cutting dependent episode blocks; at least two equally sized families
    are required. Paired rows match by family and episode seed; higher fill rate and lower drawdown
    count as improvements. Intervals contain their estimate, initial execution loss enters MDD,
    and undefined relative percentages are `None` / `n/a`, not NaN or a superiority claim.
+   *Report status:* The evaluation harness now computes these metrics, but the committed fairness report
+   (`docs/results/rl_fairness.md`) contains the Phase 3 study results and was not regenerated.
 10. ✅ **Empirical VWAP conditioning** — an explicit `VolumeProfile` overrides
     `env.volume_profile`; its next-step forecast volume, normalized against uniform participation,
     sets VWAP aggression. Profiles are estimates from prior sessions, never future tape prints.
     The environment still controls child size. Without either profile the legacy VWAP arithmetic
     is unchanged; `schedule_twap` retains its existing cumulative-profile support.
-11. 🟡 **Multi-day implementation ready; full statistical campaign not run** — all 15 dates
+11. 🟡 **Queue model status & simulation distinction** — `OrderLevelTracker` and `queue_dynamics.py`
+    implement offline FIFO queue tracking, fill timing, Kaplan–Meier survival, and logistic fill models
+    on historical ITCH tapes (E5). In contrast, the live execution simulation in `OrderBookEnv` currently
+    uses a synthetic uniform random queue degradation heuristic (`_queue_ahead_frac` returning `self._rng.random()`).
+    The RL agent does not train against or evaluate the empirical `OrderLevelTracker` queue model;
+    connecting empirical queue dynamics into the live simulation remains a future research roadmap item.
+12. 🟡 **Multi-day implementation ready; full statistical campaign not run** — all 15 dates
     in `PUBLIC_SAMPLE_DAYS` are supported by `scripts/batch_research_itch.py`. The runner uses
     sequential staged downloads, validated source/slice hashes, resumable E1–E6 outputs tied to
     a source-code fingerprint, and descriptive cross-day tables. Tests are network-free. A live
@@ -322,6 +328,6 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
     zero regular-session rows and are explicitly partial, not research evidence. Full days are
     roughly 3.5 GB compressed each; completing all 15 remains bandwidth-dependent (historical
     local throughput was about 300 KB/s). No full-day data or generated tape slices were committed.
-12. ⏳ **Remaining Project Work (Person A):**
+13. ⏳ **Remaining Project Work (Person A):**
     - Verify GPU risk engine on a CUDA machine (`nexus_risk` + `risk_bench` with `nvcc`).
     - Hardware benchmarks for zero-copy shmem ring throughput.

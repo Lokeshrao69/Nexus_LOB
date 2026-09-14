@@ -121,8 +121,7 @@ training · W7-8 profiling, dashboard, benchmarks, write-up.
 
 ## 6. Status — latest verification 2026-09-14; dated implementation history below
 
-**Person-B follow-up:** working branch `hoplite/kranioi-df83c5d6` in the authorized
-`shrikartad/thelema` copy, based on upstream PR #19 head `69ae5af`.
+**Person-B follow-up:** canonical branch `feature/person-b-part2` targeting `main` in PR #19.
 
 - Empirical `vwap` now uses the forecast volume over the next episode step. Explicit
   profiles override `env.volume_profile`; no-profile legacy actions are unchanged.
@@ -131,10 +130,18 @@ training · W7-8 profiling, dashboard, benchmarks, write-up.
   paired-metric direction and seed alignment. At least two equal-sized families
   are required; initial loss is included in drawdown. Undefined percentages are
   `None` and render as `n/a`. Existing published fairness results were not regenerated.
-- `batch_research_itch.py` supports all 15 catalogued dates, byte-limited smoke
+- **Queue model status:** `OrderLevelTracker` and `queue_dynamics.py` implement offline FIFO queue
+  tracking, fill timing, Kaplan–Meier survival, and logistic fill models on historical ITCH tapes (E5).
+  `OrderBookEnv` execution simulation uses a synthetic uniform random queue degradation heuristic
+  (`_queue_ahead_frac` returning `self._rng.random()`); the RL agent does not train against the empirical
+  tracker. Connecting the empirical queue model to the simulation remains a separate future task.
+- **E7 report status:** `evaluate.py` and `test_e7_metrics.py` now compute `fill_rate` and `mdd_ticks`,
+  but the committed fairness report (`docs/results/rl_fairness.md`) contains the Phase 3 study results and
+  predates this integration (it was not regenerated).
+- **Multi-day research status:** `batch_research_itch.py` supports all 15 catalogued dates, byte-limited smoke
   downloads, verified manifests, resumable per-day E1–E6, source-code fingerprints,
-  and descriptive cross-day tables. Full multi-day statistical validation remains
-  outstanding: roughly 3.5 GB compressed per full day, bandwidth-dependent.
+  and descriptive cross-day tables. The full 15-day empirical campaign has not yet been executed
+  (roughly 3.5 GB compressed per full day, bandwidth-dependent); only single-day results (`12302019`) are committed.
 - Python adapters now preserve injected stub/reset semantics and reconcile native
   fills, rejection results, partial-modify FIFO priority, order counts, and cancelled
   handles. Linux pybind and the no-engine path are both tested. C++/CUDA/bindings

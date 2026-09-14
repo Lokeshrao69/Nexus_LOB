@@ -1,15 +1,14 @@
 # Person B Handoff: Python Quantitative Layer
 
 **Updated:** 2026-09-14
-**Checkout:** Linux verification workspace; authorized destination `shrikartad/thelema`.
-**Branch:** `hoplite/kranioi-df83c5d6`.
-**Upstream base:** Nexus-LOB PR #19, `69ae5af8faeaaf6694630cddc2c44b6ce0096ca6`.
+**Branch:** `feature/person-b-part2` (PR #19 on `Lokeshrao69/Nexus_LOB`).
+**Base:** `main` (`e9e88ee`).
 
 ## Current status — remaining Person-B implementation complete
 
-New commits use `ShrikarT <132975062+ShrikarT@users.noreply.github.com>` as both
-author and committer. Imported upstream history is preserved. Milestones were
-pushed to `thelema`; no upstream PR was opened or modified.
+All commits use `ShrikarT <132975062+ShrikarT@users.noreply.github.com>` as both
+author and committer. Upstream project history is preserved cleanly without
+external contributor trailers.
 
 ### Interfaces and correctness
 
@@ -30,6 +29,17 @@ pushed to `thelema`; no upstream PR was opened or modified.
   the observed estimate. MDD includes the initial zero-to-first-step loss.
   **Compatibility:** `pct_vs_baseline` is `None` for nonpositive/near-zero baselines
   and renders as `n/a`; incomplete families and invalid pairings raise `ValueError`.
+  *Report status:* `evaluate.py` and `test_e7_metrics.py` now compute `fill_rate` and `mdd_ticks`,
+  but the committed fairness report (`docs/results/rl_fairness.md`) contains the Phase 3 study results
+  and was not regenerated.
+- **Queue model status & simulation distinction:** `OrderLevelTracker` and
+  `queue_dynamics.py` implement offline FIFO queue tracking, fill timing, Kaplan–Meier
+  survival, and logistic fill models on historical ITCH tapes (E5). In contrast,
+  the live execution simulation in `OrderBookEnv` currently uses a synthetic uniform
+  random queue degradation heuristic (`_queue_ahead_frac` returning `self._rng.random()`).
+  The RL agent does not train against or evaluate the empirical `OrderLevelTracker`
+  queue model; connecting empirical queue dynamics into the live simulation remains
+  a future research roadmap item.
 - **Multi-day runner:** `batch_research_itch.py` accepts `--days` (catalogued dates
   or `all`), `--symbols` (default `AAPL,QQQ`), `--max-gz-bytes`, `--out-dir`
   (default `data/itch`), `--results-dir` (default `docs/results/multi_day`), and
