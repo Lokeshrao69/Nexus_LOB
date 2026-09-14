@@ -78,7 +78,20 @@ so the agent competes on price inside a fixed participation pace. The knobs
 in the env (`is_coef`, `lambda_sched`) and the harness are all in place to run
 that experiment.
 
-## The headline — achieved on the high-volatility regime ✅
+## The high-volatility headline (historical exploratory run; re-verified & retired)
+
+> ⚠️ **AUDITED & RETIRED (2026-09-13):**
+> The +50.4% shortfall improvement measured below against a 2-line VWAP heuristic was audited
+> under the **Part 2 Phase 3 fair RL protocol** (`plan_2.md` §6, `docs/results/rl_fairness.md`).
+> When evaluated with symmetric information (baselines observing `regime_indicator`),
+> defensible adaptive baselines (`adaptive_pov`), transaction fees, and queue priority:
+> - PPO exhibits **no statistically significant edge** over `adaptive_pov` on high-vol, trending, or null regimes (|Δ| ≲ 0.3 bps).
+> - PPO is **significantly worse** on calm/low-vol hold-outs (−0.05 … −0.16 bps).
+> - PPO demonstrates a genuine edge only during extreme liquidity shocks (+0.4 … +1.4 bps).
+> The naive +50.4% headline was an artifact of asymmetric information and is **officially retired**.
+> Full report: `docs/RESEARCH.md` §7 and `docs/results/rl_fairness.md`.
+
+### Historical Exploratory Result (2026-09-07)
 
 The gentle-walk sim above is the honest baseline: there, PPO wins on reward
 but lands ≈VWAP on shortfall. The path to the ~14%-below-VWAP headline was a
@@ -99,11 +112,10 @@ passive       -12.81         2.679     +5.3%
 ```
 
 The regime roughly triples VWAP's slippage (1.64 → 2.83 bps) by punishing
-fixed-schedule execution around mid-price gaps. The PPO agent learns to detect
-volatility and execute more before/around the gaps, so its realized VWAP is
-~1.4 bps better than the VWAP strategy — **~38–50% lower shortfall**, robust
-across seeds (200-episode re-check on a different seed: +38.2%). The 14%
-headline is comfortably exceeded.
+fixed-schedule execution around mid-price gaps. The PPO agent learned to detect
+volatility and execute more before/around the gaps, yielding an exploratory
+~1.4 bps improvement over a basic heuristic VWAP schedule. Policy saved at
+`python_quant/artifacts/policy_ppo_highvol.npz`. See above for the fair re-verification.
 
 How to reproduce the headline run:
 

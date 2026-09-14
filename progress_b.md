@@ -190,7 +190,7 @@ PYTHONPATH=python_quant:bindings python -m pytest \
 
 ## Update 2026-09-13 — Part 2 Phases 3 + 4 (queue dynamics, fair RL re-verification, real ITCH tape)
 
-**Branch:** `hoplite/kranioi-5b44d8a8` (Person B session; Linux sandbox, Python 3.12, numpy 2.5, gymnasium 1.3).
+**Branch:** `feature/person-b-part2` (PR #19 on `Lokeshrao69/Nexus_LOB`; Linux sandbox, Python 3.12, numpy 2.5, gymnasium 1.3).
 **Plan of record:** `plan_2.md` Phase 3 (E5/E6 + §6 RL fairness rework) and Phase 4 (real tape). Work package: `docs/work_package_b_phases_2_4.md` §3–§4.
 
 ### Landed (commits `f1f07f9`, `f31c8c1`, + this docs/results commit)
@@ -229,7 +229,7 @@ PYTHONPATH=python_quant:bindings python -m pytest \
 
 ## Update 2026-09-13 (final) — Part 2 Phase 5 (report, one-command reproduce, honest docs). Research half complete.
 
-**Branch:** `hoplite/kranioi-5b44d8a8` (third commit of the session; the two before it are Phases 3 + 4 above).
+**Branch:** `feature/person-b-part2` (PR #19 on `Lokeshrao69/Nexus_LOB`).
 **Plan of record:** `plan_2.md` Phase 5 — all three items landed; §9 DoD ticks updated; §10 log appended.
 
 ### Landed

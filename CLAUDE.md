@@ -72,8 +72,8 @@ Finance Project-1/            # repo root (branch: main)
 │   │   ├── dashboard_page.html # combined interactive desk page
 │   │   ├── envs/order_book_env.py  # Gymnasium execution env (44-dim, high-vol regime)
 │   │   └── agents/            # mlp.py, ppo.py, grpo.py, evaluate.py
-│   ├── scripts/               # train_eval_agent.py, serve_dashboard.py
-│   ├── tests/                 # 68 tests, all green (+ 1 shm skip on Windows)
+│   ├── scripts/               # train_eval_agent.py, serve_dashboard.py, run_all.py, run_research.py
+│   ├── tests/                 # 152 tests, all green in CI (143 passed / 6 skipped on Windows without ITCH file / .pyd)
 │   └── artifacts/             # policy_ppo.npz, policy_ppo_highvol.npz
 ├── bindings/                  # pybind_wrapper.cpp, CONTRACT.md, tests/ (+ compiled .pyd)
 ├── dashboard/                 # static verification console (dashboard/index.html)
@@ -249,13 +249,16 @@ did not beat TWAP on this *gentle-walk* sim — the env's bid-cap fill mechanics
 headline is a **high-vol/gap-off flow regime** (and/or a schedule-constrained
 post-at-touch objective).
 
-**Headline achieved (high-vol regime, 2026-09-07):** added a Markov
-regime-switching + gap-off flow to `OrderBookEnv` (new constructor params;
-defaults preserve the calm behavior byte-for-byte). See `HIGHVOL_PLAN.md`.
-Training `--highvol --vol-feature --iters 2000` → PPO shortfall **1.401 bps vs
-VWAP 2.827** = **+50.4%** lower slippage (100 seeded episodes); robust across
-seeds (+38.2% on a 200-episode re-check). The ~14% resume headline is
-comfortably exceeded. Saved policy: `python_quant/artifacts/policy_ppo_highvol.npz`.
+**Headline achieved (high-vol regime, 2026-09-07; re-verified & retired 2026-09-13):**
+added a Markov regime-switching + gap-off flow to `OrderBookEnv` (new constructor params;
+defaults preserve calm behavior). In initial testing, `--highvol --vol-feature --iters 2000`
+showed PPO shortfall **1.401 bps vs VWAP 2.827 (+50.4%)** on 100 seeded episodes.
+However, under the rigorous Part 2 Phase 3 fair RL re-verification protocol (`plan_2.md` §6,
+`docs/results/rl_fairness.md`), this naive +50.4% headline was audited and officially retired:
+against `adaptive_pov` with symmetric information and fees+queue enabled, PPO demonstrates
+no statistically significant edge on high-vol/trending regimes (|Δ| ≲ 0.3 bps), and only
+outperforms during liquidity shocks (+0.4…+1.4 bps).
+Policy preserved at: `python_quant/artifacts/policy_ppo_highvol.npz`.
 Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
 
 **Phase 1e — Person B: combined interactive desk (subsystem 4/5, 2026-09-09).**
@@ -318,8 +321,9 @@ This is the Person A ↔ Person B integration seam.
    speedup remain **blocked**: no CUDA toolkit on this machine — compile
    `nexus_risk` + `risk_bench` on WSL/Linux or a Windows CUDA toolkit and
    capture the CPU-vs-GPU number.
-10. ~~**Person B — high-volatility regime → ~14% below VWAP**~~ — ✅ **ACHIEVED
-    2026-09-07** (+50.4% on shortfall vs VWAP; see `HIGHVOL_PLAN.md` + Phase 1c).
+10. ~~**Person B — high-volatility regime → ~14% below VWAP**~~ — ⚠️ **RE-VERIFIED
+    & RETIRED 2026-09-13** (initial +50.4% shortfall vs VWAP in `HIGHVOL_PLAN.md`;
+    superseded by fair RL study in `docs/results/rl_fairness.md` showing edge only in liquidity shocks).
 11. ~~**Person B — GRPO + Python dashboard on the shmem ring (subsystem 4/5)**~~ — ✅ **DONE
     2026-09-09** as the combined desk: `dashboard_page.html` + `SnapshotHub` + `serve_dashboard.py`
     (see Phase 1e). GRPO trainer also landed. Remaining polish: the static `dashboard/index.html`
@@ -341,7 +345,7 @@ All 12 original plan items are complete. Remaining work is **polish & measuremen
 | ~~Reconcile two dashboard pages~~ — both now on `main` (combined desk + verification console) | Both | ✅ 2026-09-12 |
 | Execution timeline + inventory chart in dashboard | Person B | No |
 | ~~Final README.md polish + write-up~~ — README status/headline table rewritten with measured numbers; `docs/RESEARCH.md` full report | Both | ✅ 2026-09-13 |
-| **Part 2 quant research layer** (plan_2.md): ~~Phase 0–1 spine~~ ✅ · ~~Phase 2 execution realism~~ ✅ · ~~Phase 3 queue/adverse-selection + RL fairness~~ ✅ · ~~Phase 4 real ITCH tape~~ ✅ · ~~Phase 5 report + `run_all.py`~~ ✅ (2026-09-13, Person B branch `hoplite/kranioi-5b44d8a8`) | Person B | No — merge the PR |
+| **Part 2 quant research layer** (plan_2.md): ~~Phase 0–1 spine~~ ✅ · ~~Phase 2 execution realism~~ ✅ · ~~Phase 3 queue/adverse-selection + RL fairness~~ ✅ · ~~Phase 4 real ITCH tape~~ ✅ · ~~Phase 5 report + `run_all.py`~~ ✅ (2026-09-13, Person B branch `feature/person-b-part2`, PR #19 on `Lokeshrao69/Nexus_LOB`) | Person B | No — review/merge PR #19 |
 | More real tape days / symbols (each day ≈ 14 min stream via `fetch_itch.py`) | Person B | No |
 
 ## 8. Environment reality (IMPORTANT — read before running anything)

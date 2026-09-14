@@ -1,6 +1,6 @@
 # Nexus-LOB — Progress Report
 
-**Status date:** 2026-09-13 · **Branch:** `main` (+ Person B branch `hoplite/kranioi-5b44d8a8` for Part 2 Phases 3–5, PR pending) · **Milestone:** C++ matching engine + pybind seam, Person B's ITCH/env/baselines/PPO agent, Person A's Monte-Carlo VaR/CVaR risk engine (CPU-validated, CUDA blocked), **and now the Part 2 quant research layer complete through Phase 5: a real NASDAQ ITCH day parsed/replayed/diff-tested against the C++ engine, E1–E6 microstructure results with CIs (`docs/RESEARCH.md`), and the RL slippage headline re-verified fairly and retired (`docs/results/rl_fairness.md`)**. This file is a plain-language
+**Status date:** 2026-09-14 · **Branch:** `main` (+ Person B branch `feature/person-b-part2` for Part 2 Phases 3–5, PR #19 pending review) · **Milestone:** C++ matching engine + pybind seam, Person B's ITCH/env/baselines/PPO/GRPO agent, Person A's Monte-Carlo VaR/CVaR risk engine (CPU-validated, CUDA blocked), interactive dashboard (subsystem 4/5), **and now the Part 2 quant research layer complete through Phase 5: a real NASDAQ ITCH day parsed/replayed/diff-tested against the C++ engine, E1–E6 microstructure results with CIs (`docs/RESEARCH.md`), and the RL slippage headline re-verified fairly and retired (`docs/results/rl_fairness.md`)**. This file is a plain-language
 snapshot for anyone (Person A or Person B) picking the project up; the authoritative,
 constantly-updated handoff doc is `CLAUDE.md`.
 
@@ -15,16 +15,14 @@ constantly-updated handoff doc is `CLAUDE.md`.
 > decent adaptive schedule except when liquidity dries up — so the old "+50 % lower slippage"
 > is retired. Full report: `docs/RESEARCH.md`; how to reproduce: `python_quant/scripts/run_all.py`.
 >
-> TL;DR (systems half): the cross-language state contract is frozen, the C++ matching engine is
-> built and passing its own tests (86/86), the Python bridge drives that real engine,
-> and the **shared-memory ring** that will feed the dashboard (subsystem 5's C++ core)
-> is built and demoed live. **Person B has also landed** the ITCH 5.0 parser, an
-> ITCH→L2 replay engine, the injectable stub↔engine adapter, the Gymnasium
-> `OrderBookEnv`, and TWAP/VWAP/POV/Passive baselines — plus a new Engine-vs-Stub
-> diff-test harness. **Not yet built/verified:** the compiled `nexus_engine` module
-> (must build in WSL) and everything downstream (RL agent, GPU risk, the Python
-> dashboard grain on the ring). All Python is **authored, not yet run** (no interpreter
-> in this shell — see §7).
+> TL;DR: The cross-language state contract is frozen, the C++ matching engine is
+> built and passing its own tests (86/86, 0 allocs/op), the pybind bridge drives the real engine,
+> and the **shared-memory ring + interactive dashboard** (subsystems 4 and 5) are built and operational.
+> Person B has landed the ITCH 5.0 streaming parser, replay engine, Gymnasium `OrderBookEnv`,
+> baselines, GRPO trainer, and the dynamic risk↔env inventory penalty.
+> All 152 pure-Python tests pass (6 skipped on Windows without local tape data / pybind module).
+> Part 2 Phases 0–5 are complete on `feature/person-b-part2` (PR #19). Remaining items are Person A's
+> CUDA kernel compile and hardware benchmarking.
 
 ---
 
@@ -39,12 +37,15 @@ Five subsystems (from CLAUDE.md §2):
    Cancel / Modify, zero-allocation, integer-tick prices.
 2. **Microstructure sim + RL execution agent** (Person B) — Gymnasium env; PPO/GRPO vs
    TWAP/VWAP/Avellaneda–Stoikov baselines.
-3. **GPU risk engine (CUDA)** — Monte-Carlo VaR/CVaR over 100k+ paths (stubbed, not started).
-4. **Zero-copy pipeline + dashboard** — shmem/WebSocket → live depth, latency, PnL (not started).
+3. **GPU risk engine (CUDA)** — Monte-Carlo VaR/CVaR over 100k+ paths (CPU path + exact NumPy parity ✅; CUDA kernel authored, blocked on GPU hardware).
+4. **Zero-copy pipeline + interactive dashboard** — shmem/file-ring IPC → live L2 depth, latency histogram, VaR/CVaR tiles, trade ticker (✅ complete; subsystem 4/5).
 5. *(Subsystem 5 in comments — the shmem ring → dashboard.)*
 
-Headline resume targets (not yet met): >500k orders/sec sub-µs matching; ~14% lower
-slippage vs VWAP; ~40× CUDA VaR speedup.
+Headline resume targets:
+- C++ matching engine: **>500k orders/sec, sub-µs latency**, zero-alloc (0 allocs/op proven in bench).
+- Real-tape microstructure signals (Part 2): L1 imbalance rank IC 0.14→0.46, calibrated fill model (1.03–1.09), passive fills adversely selected 96–99% (`docs/RESEARCH.md`).
+- PPO execution vs best fair baseline: re-verified fairly in Part 2 Phase 3 (`docs/results/rl_fairness.md`) — old naive +50.4% headline retired; genuine edge concentrated under liquidity shocks (+0.4…+1.4 bps).
+- CUDA Monte-Carlo VaR/CVaR: CPU reference + exact NumPy parity verified (3/3); GPU kernel awaiting CUDA hardware.
 
 ---
 
@@ -172,17 +173,22 @@ CUDA, and a NumPy oracle all draw *identical* paths → **bit-for-bit** parity
 - ✅ ~~RL execution agent (PPO) vs the baselines~~ — **DONE 2026-09-05** (beats all baselines on the
   env's reward; ≈ VWAP on shortfall — see `python_quant/nexus_quant/agents/README.md` for the
   honest numbers and the high-vol path to the slippage headline).
-- ✅ ~~**High-volatility regime → ~14% below VWAP headline**~~ — **ACHIEVED 2026-09-07**. Added a
-  Markov regime-switching + gap-off flow to `OrderBookEnv` (defaults preserve calm behavior).
-  PPO shortfall **1.401 bps vs VWAP 2.827 = +50.4%** on 100 seeded episodes; robust across seeds
-  (+38.2% on a 200-episode re-check). Policy saved at `python_quant/artifacts/policy_ppo_highvol.npz`.
-  See `HIGHVOL_PLAN.md` at the repo root. (Person B's remaining items: GRPO/PPO refinement, the
-  Python dashboard on the shmem ring, and the risk↔env integration seam.)
+- ⚠️ **High-volatility headline (+50.4%) → RE-VERIFIED & RETIRED (2026-09-13)**: The naive
+  +50.4% shortfall improvement vs a simple VWAP heuristic on synthetic Markov regimes was audited
+  in Part 2 Phase 3 (`docs/results/rl_fairness.md`). Under symmetric information and against
+  `adaptive_pov`, PPO shows no significant edge on high-vol/trending regimes (|Δ| ≲ 0.3 bps) and
+  only shows an edge in liquidity shocks (+0.4…+1.4 bps). The naive claim is officially retired.
+- ✅ **Person B polish & Part 2 quantitative research layer** — **ALL PHASES COMPLETE (2026-09-13)**:
+  - GRPO policy optimization agent (`python_quant/nexus_quant/agents/grpo.py`).
+  - Risk ↔ environment integration: CVaR inventory penalty in `OrderBookEnv` (`lambda_risk`).
+  - Interactive Python order-book dashboard (`python_quant/scripts/serve_dashboard.py`) reading live shmem/file rings.
+  - Full Part 2 Phases 0–5: real ITCH streaming, order-level queue dynamics, Kaplan–Meier fill models, adverse selection accounting, full-day E1–E6 real-tape results on AAPL/QQQ (`docs/RESEARCH.md`), and fair RL re-verification (`docs/results/rl_fairness.md`).
+  - Landed on `feature/person-b-part2` (PR #19 on `Lokeshrao69/Nexus_LOB`).
 - ⚠️ **CUDA VaR/CVaR risk engine (subsystem 3)** — CPU reference + exact NumPy parity + CTest
   **DONE & green** (2026-09-06, branch `feature/risk-engine`); the **GPU kernel + ~40× speedup
-  are BLOCKED** here (no CUDA toolkit) — compile `nexus_risk`/`risk_bench` on a CUDA machine.
-- ❌ Python dashboard on top of the shmem ring (the ring's C++ publisher/reader core
-  ✅ is done — see §3e).
+  are BLOCKED** on CUDA hardware (needs `nvcc`/toolkit).
+- ✅ **Interactive order-book dashboard (subsystems 4 & 5)** — C++ ring producer + Python consumer + HTML ladder
+  **DONE & operational**.
 
 ---
 
@@ -223,10 +229,6 @@ Key enum values:
   `Rejected_DupId`, `Rejected_BadPrice`, `Rejected_BadQty`, `Rejected_PoolFull`,
   `Rejected_FOK`, `NoOp`.
 
-**You can start NOW against `StubOrderBook`** (no engine build needed) — build the ITCH
-parser and `OrderBookEnv` on the frozen contract, then swap `StubOrderBook` for
-`Engine` when the WSL build lands.
-
 ---
 
 ## 6. How to see everything work
@@ -242,6 +244,12 @@ g++ -std=c++20 -O2 -I cpp_engine/include cpp_engine/demos/ring_producer.cpp -o r
 g++ -std=c++20 -O2 -I cpp_engine/include cpp_engine/demos/ring_probe.cpp -o ring_probe
 ./ring_producer nex_aapl 4000 16384 0xC0FFEE 1     # terminal 1: book -> ring
 ./ring_probe nex_aapl 4000 5                          # terminal 2: watch it live
+
+# Python dashboard (subsystems 4 & 5):
+PYTHONPATH=python_quant python python_quant/scripts/serve_dashboard.py --synthetic --port 8080
+
+# Run full Part 2 research suite:
+python python_quant/scripts/run_all.py --quick
 
 # Full build + Python tests (WSL / Ubuntu + real Python required):
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEXUS_BUILD_PYBIND=ON
@@ -261,7 +269,7 @@ tests **PASS**), and `cmake` via `pip`. The only remaining gap for the full buil
 module for Tier 2 (parity + diff-test). CUDA still needs Linux or a Windows CUDA toolkit.
 
 - ✅ C++-only compile/run checks work here (engine tests above).
-- ✅ Pure-Python tests work here (`python -m pytest python_quant/tests -v`).
+- ✅ Pure-Python tests work here (`python -m pytest python_quant/tests -v` — 152 tests).
 - ⏳ Tier 2 (compile `nexus_engine`) needs MSVC → then `cmake -S . -B build
   -DNEXUS_BUILD_PYBIND=ON && cmake --build build -j` + parity + diff-test.
 - ⚠️ Keep `build/`, `data/`, venvs **out of the OneDrive-synced tree** — sync + build
@@ -271,19 +279,16 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
 
 ---
 
-## 8. Suggested next steps
+## 8. Status and remaining work
 
-1. ✅ ~~Tier 2 on Windows~~ — **PASSED 2026-09-04** (MSVC build + parity + diff-test).
-2. ✅ ~~**Person B: ITCH parser + `OrderBookEnv` + baselines**~~ — done (PR #2, merged).
-3. ✅ ~~**Diff-test harness**~~ — done + passing.
-4. ✅ ~~**PPO/GRPO agent vs baselines**~~ — done 2026-09-05 (reward beats all baselines;
-   shortfall ≈ VWAP; high-vol regime identified as the path to the ~14% headline).
-5. **Next: verify the GPU risk engine on a CUDA machine** — compile `nexus_risk` +
-   `risk_bench` (needs `nvcc`/toolkit: WSL/Linux or Windows CUDA), capture the ~40×
-   speedup and the bit-for-bit CPU-vs-GPU parity.
-6. **Person B polish:** GRPO variant or PPO refinement; the **Python dashboard**
-   on the shmem ring (subsystem 4/5 — the ring's C++ core is done); and wiring
-   the risk engine's `compute_var_cvar` into `OrderBookEnv` as a dynamic
-   inventory penalty (risk↔env integration seam).
-7. ✅ ~~**High-volatility regime → ~14% below VWAP**~~ — **ACHIEVED 2026-09-07** (+50.4%; see §4
-   and `HIGHVOL_PLAN.md`).
+1. ✅ **Tier 2 on Windows** — **PASSED 2026-09-04** (MSVC build + parity + diff-test).
+2. ✅ **Person B: ITCH parser + `OrderBookEnv` + baselines** — merged.
+3. ✅ **Diff-test harness** — done + passing.
+4. ✅ **PPO/GRPO agent vs baselines** — done.
+5. ✅ **Risk ↔ Environment integration** — done (`risk.py`, `lambda_risk` in `OrderBookEnv`).
+6. ✅ **Interactive order-book dashboard** — done (`serve_dashboard.py`, shmem/file-ring decoding).
+7. ✅ **Part 2 Phases 0–5 quant research layer** — done (`docs/RESEARCH.md`, `run_all.py`, PR #19).
+8. ⚠️ **High-volatility headline (+50.4%)** — audited, re-verified, and retired under fair RL study (`docs/results/rl_fairness.md`).
+9. ⏳ **Remaining Project Work (Person A):**
+   - Verify GPU risk engine on a CUDA machine (`nexus_risk` + `risk_bench` with `nvcc`).
+   - Hardware benchmarks for zero-copy shmem ring throughput.

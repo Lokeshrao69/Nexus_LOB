@@ -135,43 +135,33 @@ The related shared-memory transport is `cpp_engine/include/nexus/shm_ring.hpp` +
 
 ---
 
-## The headline claim, measured honestly
+## The headline claim, re-verified fairly
 
-On the **default gentle-walk env** PPO wins the composite reward but lands
-≈VWAP on pure slippage (1.60 vs 1.55 bps) — there's no regime where adaptive
-execution pays. So we added a **high-volatility / gap-off regime**
-(`HIGHVOL_PLAN.md`): Markov-switching between calm and volatile states, plus
-gap events that sweep the book and drop the mid several ticks. This punishes
-fixed-schedule execution and gives a smart agent a real edge.
+In initial exploratory tests (2026-09-07, `HIGHVOL_PLAN.md`), a PPO agent trained on a Markov
+high-volatility regime achieved a naive **+50.4% lower shortfall than a 2-line VWAP heuristic**.
 
-**Measured 2026-09-07**, `--highvol --vol-feature --iters 2000`, 100 seeded
-episodes (seed `0xBEEF`), policy at `python_quant/artifacts/policy_ppo_highvol.npz`:
+However, under the **Part 2 Phase 3 fair RL re-verification protocol** (`plan_2.md` §6,
+`docs/results/rl_fairness.md`), we audited and eliminated the methodological flaws behind that claim:
+1. **Symmetric information:** Baselines now observe the exact same regime signal as the agent (`regime_indicator`).
+2. **Defensible adaptive baselines:** Compared against volume-aware schedules (`schedule_twap`) and adaptive participation (`adaptive_pov`).
+3. **Execution realism:** Realistic transaction fees and queue priority enabled.
+4. **Statistical rigor:** 5 training seeds × 5 evaluation families across 6 regimes with paired-difference block-bootstrap CIs.
 
-```
-strategy      reward shortfall_bps  vs_vwap%
-ppo            -5.04         1.401    +50.4%   ← 14% headline exceeded
-twap           -8.60         2.659     +5.9%
-vwap           -7.40         2.827      0.0%
-pov            -9.32         2.519    +10.9%
-passive       -12.81         2.679     +5.3%
-```
+### Fair Study Findings (`docs/results/rl_fairness.md`)
 
-`shortfall_bps` = `(arrival_mid − realized_VWAP) / arrival_mid × 1e4` — lower
-is better. The regime triples VWAP's slippage (1.64 → 2.83 bps); PPO learns to
-execute before/around gaps, landing **~38–50% below VWAP** across seeds.
+* **High-volatility / Trending / Null arm (random-walk with gaps):** PPO shows **no statistically significant edge** over `adaptive_pov` (0/5 seeds significant, |Δ| ≲ 0.3 bps).
+* **Calm & Low-vol hold-outs:** PPO is **significantly worse** than `adaptive_pov` in 5/5 seeds (−0.05 … −0.16 bps) due to unnecessary aggressiveness.
+* **Liquidity shock:** PPO demonstrates a genuine, statistically significant advantage in 5/5 seeds (+0.4 … +1.4 bps) by learning to execute before liquidity completely vanishes.
 
-**Reproduce:**
+**Conclusion:** The naive "+50.4% vs VWAP" claim is **officially retired**. Real adaptive RL execution value is concentrated during liquidity crises, not general volatility. Full report: `docs/RESEARCH.md` §7.
+
+**Reproduce the fair study:**
 
 ```bash
-# train + eval on the high-vol regime (obs_dim=45)
-PYTHONPATH=python_quant python python_quant/scripts/train_eval_agent.py \
-    --highvol --vol-feature --iters 2000 --eval-every 400 --eval-episodes 40 \
-    --out python_quant/artifacts/policy_ppo_highvol.npz --table-episodes 100
-
-# sweep regime params without retraining
-PYTHONPATH=python_quant python python_quant/scripts/train_eval_agent.py \
-    --eval-only python_quant/artifacts/policy_ppo_highvol.npz \
-    --highvol --vol-feature --table-episodes 200 --table-seed 12345
+# Run the complete fairness study (6 regimes, 5 seeds, paired CIs)
+PYTHONPATH=python_quant python python_quant/scripts/rl_fairness_study.py
+# Or run the quick smoke test
+PYTHONPATH=python_quant python python_quant/scripts/rl_fairness_study.py --quick
 ```
 
 ---

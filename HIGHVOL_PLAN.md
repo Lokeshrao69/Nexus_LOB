@@ -2,21 +2,32 @@
 
 **Date:** 2026-09-07 · **Owner:** Person A (doing Person B's quant work) · **Target:** ~14% lower slippage vs VWAP
 
-> **Status: IMPLEMENTED + HEADLINE ACHIEVED ✅.** All 11 new highvol tests pass;
-> all 52 Python tests pass (default env unchanged). Full training
-> (`--highvol --vol-feature --iters 2000`) + a 100-episode table:
+> ⚠️ **RE-CHARACTERIZED & RETIRED (2026-09-13):**
+> The +50.4% headline measured below was re-evaluated under the **Part 2 Phase 3 fair RL protocol**
+> (`plan_2.md` §6, `docs/results/rl_fairness.md`). When evaluated with symmetric information
+> (baselines observing the regime), fair adaptive baselines (`adaptive_pov`), transaction fees,
+> queue priority, and out-of-sample holdouts across 5 seeds:
+> - PPO exhibits **no statistically significant edge** on highvol, trending, or the null arm (|Δ| ≲ 0.3 bps).
+> - PPO is **significantly worse** on calm and lowvol holdouts (−0.05 … −0.16 bps).
+> - PPO is **significantly better** only during extreme liquidity shocks (+0.4 … +1.4 bps).
+> The naive +50.4% number was an artifact of asymmetric information and a 2-line heuristic baseline;
+> it is **officially retired** from active project claims.
+>
+> ---
+>
+> **Historical Record (2026-09-07 — exploratory run):**
+> Initial training (`--highvol --vol-feature --iters 2000`) on 100 seeded episodes (seed `0xBEEF`):
 >
 > ```
 > strategy      reward shortfall_bps  vs_vwap%
-> ppo            -5.04         1.401    +50.4%   ← far past the 14% target
+> ppo            -5.04         1.401    +50.4%   ← naive initial result vs simple heuristic
 > twap           -8.60         2.659     +5.9%
 > vwap           -7.40         2.827      0.0%
 > pov            -9.32         2.519    +10.9%
 > passive       -12.81         2.679     +5.3%
 > ```
 >
-> Robust across seeds (200-episode re-check on a different seed: **+38.2%**).
-> The trained policy is at `python_quant/artifacts/policy_ppo_highvol.npz`.
+> Policy preserved at `python_quant/artifacts/policy_ppo_highvol.npz`. See `docs/results/rl_fairness.md` for the rigorous study.
 
 ---
 
@@ -198,26 +209,31 @@ The key is that the regime creates the *opportunity* for an edge — the algorit
 
 ---
 
-## 10. Success criterion
+## 10. Success criterion & retrospective outcome
 
-In `strategy_table` output on 100+ seeded episodes:
+In `strategy_table` output on 100+ seeded episodes, the initial target was:
 
 ```
 ppo['vs_vwap_pct'] >= 14.0
 ```
 
-This means PPO's shortfall_bps is at least 14% lower than VWAP's. The delta must also exceed `shortfall_bps_std` to be statistically meaningful.
+**Retrospective Outcome (2026-09-13):**
+While this criterion was initially surpassed (+50.4%) against a simple VWAP rule, subsequent audit
+(`plan_2.md` §6, `docs/results/rl_fairness.md`) revealed that comparing an informed agent against an
+uninformed baseline on an in-distribution regime was invalid. Under fair testing against `adaptive_pov`
+with symmetric information, no significant edge exists on high-vol regimes (|Δ| ≲ 0.3 bps). The criterion
+and target have been officially superseded by the fair study.
 
 ---
 
-## 11. Implementation order
+## 11. Implementation history
 
-1. Modify `order_book_env.py` (regime params, Markov state, `_exogenous_flow`, `_ensure_bbo`, `_observe`)
-2. Add `HIGHVOL_PRESETS` to `__init__.py`
-3. Update `evaluate.py` (thread env_factory)
-4. Update `ppo.py` (auto-detect obs_dim, thread env_factory)
-5. Update `train_eval_agent.py` (CLI flags)
-6. Write `test_highvol_env.py`
-7. Run all tests → verify existing 21 pass + new 7 pass
-8. Train PPO on highvol env
-9. Verify the 14% headline
+1. ✅ Modify `order_book_env.py` (regime params, Markov state, `_exogenous_flow`, `_ensure_bbo`, `_observe`)
+2. ✅ Add `HIGHVOL_PRESETS` to `__init__.py`
+3. ✅ Update `evaluate.py` (thread env_factory)
+4. ✅ Update `ppo.py` (auto-detect obs_dim, thread env_factory)
+5. ✅ Update `train_eval_agent.py` (CLI flags)
+6. ✅ Write `test_highvol_env.py`
+7. ✅ Run all tests → verified 11 highvol tests passing
+8. ✅ Train PPO on highvol env → saved `policy_ppo_highvol.npz`
+9. ⚠️ Initial 14% headline evaluation completed 2026-09-07; rigorously audited, re-verified, and retired on 2026-09-13 in `docs/results/rl_fairness.md`.
