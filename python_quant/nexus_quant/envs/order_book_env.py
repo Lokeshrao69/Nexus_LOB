@@ -187,10 +187,12 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         self.impact_coef = float(impact_coef)
         self.impact_participation = float(impact_participation)
         self.queue_model = str(queue_model)
-        if self.queue_model not in ("", "uniform"):
+        if self.queue_model not in ("", "uniform", "fifo"):
             raise ValueError(
-                f"queue_model must be '' or 'uniform', got {self.queue_model!r}"
+                f"queue_model must be '', 'uniform', or 'fifo', got {self.queue_model!r}"
             )
+        self._queue_ahead_fifo = 0
+        self._queue_ahead_fifo_initial = 0
         self.last_cvar = 0.0
         self._volatile = False
         obs_dim = 45 if self.vol_feature else OBS_DIM
@@ -227,6 +229,8 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         self.cash_ticks = 0
         self.fills = []
         self.agent_rest = None
+        self._queue_ahead_fifo = 0
+        self._queue_ahead_fifo_initial = 0
         self._volatile = False
         self._mkt_qty = 0
         self._mkt_notional = 0
@@ -239,16 +243,25 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         a = max(-1.0, min(1.0, a))
         snap = self.book.snapshot()
         mid0 = self._mid(snap) or self.arrival_mid
-        self._cancel_agent()
         want = min(self.inventory, self._child_size())
         filled = 0
         notional = 0
         mode = "limit"
         action_ticks = 0
 
+        # Check if existing resting order is still live in the book
+        live_existing = None
+        if self.agent_rest is not None and hasattr(self.book, "lookup"):
+            live_existing = self.book.lookup(self.agent_rest.order_id)
+        if live_existing is None or live_existing.size <= 0:
+            self.agent_rest = None
+            self._queue_ahead_fifo = 0
+            self._queue_ahead_fifo_initial = 0
+
         if a <= -0.92 or want <= 0:
             mode = "market"
             action_ticks = -MAX_OFFSET
+            self._cancel_agent()
             if want > 0:
                 r = self.book.take(Side.Ask, want)
                 filled, notional = r.filled, r.notional_ticks
@@ -258,11 +271,37 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             bid = int(snap["bid_px"][0])
             if bid and px <= bid:
                 mode = "market"
+                self._cancel_agent()
                 r = self.book.take(Side.Ask, want, limit_px=px)
                 filled, notional = r.filled, r.notional_ticks
             else:
                 limit = max(px, (bid + 1) if bid else px)
-                self.agent_rest = self.book.rest(Side.Ask, limit, want)
+                can_persist = (
+                    self.queue_model == "fifo"
+                    and self.agent_rest is not None
+                    and self.agent_rest.price == limit
+                    and live_existing is not None
+                    and live_existing.size > 0
+                )
+                if can_persist:
+                    # PERSIST: maintain queue priority at this price level across steps
+                    if want < live_existing.size:
+                        cut = live_existing.size - want
+                        if hasattr(self.book, "cancel_id"):
+                            self.book.cancel_id(self.agent_rest.order_id, size=cut)
+                        self.agent_rest.size = want
+                else:
+                    self._cancel_agent()
+                    if self.queue_model == "fifo":
+                        s_pre = self.book.view()
+                        apx = s_pre["ask_px"]
+                        idx_arr = np.where(apx == limit)[0]
+                        ahead = int(s_pre["ask_sz"][idx_arr[0]]) if len(idx_arr) > 0 else 0
+                        self._queue_ahead_fifo = ahead
+                        self._queue_ahead_fifo_initial = ahead
+                    self.agent_rest = self.book.rest(Side.Ask, limit, want)
+
+        rest_sz_before = self.agent_rest.size if self.agent_rest is not None else 0
 
         self._exogenous_flow()
 
@@ -271,19 +310,27 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             if hasattr(self.book, "lookup"):
                 live = self.book.lookup(self.agent_rest.order_id)
             residual = live.size if live is not None else 0
-            got = want - residual
+            got = rest_sz_before - residual
             if self.queue_model and got > 0:
-                # Queue-position degradation: only a fraction of the *displayed*
-                # depth ahead of the child is actually reachable this step.
-                # Default "" = today's optimistic fill (queue ignored) = byte-identical.
-                reachable = max(0, got - int(want * self._queue_ahead_frac()))
-                got = min(got, reachable)
+                if self.queue_model == "fifo":
+                    if not hasattr(self.book, "_orders") and self._queue_ahead_fifo > 0:
+                        depleted = min(self._queue_ahead_fifo, got)
+                        self._queue_ahead_fifo -= depleted
+                        got -= depleted
+                else:
+                    # Queue-position degradation: only a fraction of the *displayed*
+                    # depth ahead of the child is actually reachable this step.
+                    # Default "" = today's optimistic fill (queue ignored) = byte-identical.
+                    reachable = max(0, got - int(want * self._queue_ahead_frac()))
+                    got = min(got, reachable)
             if got > 0:
                 px = live.price if live is not None else self.agent_rest.price
                 filled += got
                 notional += got * px
             if live is None or live.size <= 0:
                 self.agent_rest = None
+                self._queue_ahead_fifo = 0
+                self._queue_ahead_fifo_initial = 0
 
         if filled > 0:
             self.inventory -= filled
@@ -363,6 +410,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             "vwap": vwap,
             "market_vwap": self.market_vwap(),
             "cvar": self.last_cvar,
+            "queue_ahead": self._get_queue_ahead() if self.queue_model == "fifo" else 0,
         }
         return self._observe(), float(reward), bool(terminated), bool(truncated), info
 
@@ -409,19 +457,42 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         twap = int(np.ceil(self.inventory / left))
         return max(20, min(self.child_max, twap))
 
+    def _get_queue_ahead(self) -> int:
+        """Shares ahead of the agent's resting order at its price level."""
+        if self.agent_rest is None:
+            return 0
+        if hasattr(self.book, "_orders"):
+            oid = self.agent_rest.order_id
+            side = self.agent_rest.side
+            price = self.agent_rest.price
+            ahead = 0
+            for other_id, live in self.book._orders.items():
+                if other_id == oid:
+                    break
+                if live.side == side and live.price == price and live.size > 0:
+                    ahead += live.size
+            return ahead
+        return max(0, self._queue_ahead_fifo)
+
     def _cancel_agent(self) -> None:
         if self.agent_rest is not None:
             self.book.cancel_resting(self.agent_rest)
             self.agent_rest = None
+            self._queue_ahead_fifo = 0
+            self._queue_ahead_fifo_initial = 0
 
     def _queue_ahead_frac(self) -> float:
         """Fraction of the queue deemed ahead of the child this step (0..1).
 
-        Placeholder until the order-level tracker lands (Phase 3
-        ``queue_dynamics.py``): a uniform draw per step, deterministic under a
-        fixed seed. Only called when ``queue_model`` is non-empty, so the
-        default RNG stream (used for book flow / fills) is unaffected.
+        Under ``queue_model="fifo"``, returns the remaining fraction of the initial
+        queue ahead at placement without drawing from RNG. Under ``queue_model="uniform"``,
+        returns a uniform draw per step (deterministic under a fixed seed). Only called
+        when ``queue_model`` is non-empty, so the default RNG stream is unaffected.
         """
+        if self.queue_model == "fifo":
+            ahead = self._get_queue_ahead()
+            init = max(1, self._queue_ahead_fifo_initial)
+            return float(min(1.0, ahead / init))
         return float(self._rng.random())
 
     def _record_market_trade(self, result: Any) -> None:

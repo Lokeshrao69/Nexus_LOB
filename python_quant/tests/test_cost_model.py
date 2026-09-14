@@ -6,7 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from nexus_quant.book_port import TakeResult
+from nexus_quant.book_port import StubBookAdapter, TakeResult
+from nexus_quant.book_state import Side
 from nexus_quant.envs.order_book_env import OrderBookEnv
 from nexus_quant.execution.cost_model import CostParams, impact, net_pnl
 
@@ -157,3 +158,185 @@ def test_env_market_vwap_in_info() -> None:
     assert "market_vwap" in info
     assert isinstance(info["market_vwap"], float)
     assert info["market_vwap"] >= 0.0
+
+
+# =========================================================================
+# FIFO Queue Model Tests (Deterministic Priority, Consumption & Accounting)
+# =========================================================================
+
+
+def test_fifo_depth_ahead_delays_fill() -> None:
+    """1. Existing depth ahead delays agent fill."""
+    env = OrderBookEnv(seed=42, queue_model="fifo")
+    env.reset(seed=42)
+    env.book = StubBookAdapter()
+    px = 15001
+    env.book.rest(Side.Ask, px, 100)
+    agent_h = env.book.rest(Side.Ask, px, 50)
+    env.agent_rest = agent_h
+    assert env._get_queue_ahead() == 100
+    env.book.take(Side.Bid, 60)
+    # Agent order untouched; ahead reduced to 40
+    assert agent_h.size == 50
+    assert env._get_queue_ahead() == 40
+
+
+def test_fifo_external_consumption_reduces_queue_ahead() -> None:
+    """2. Exact amount of external consumption reduces queue-ahead."""
+    env = OrderBookEnv(seed=42, queue_model="fifo")
+    env.reset(seed=42)
+    env.book = StubBookAdapter()
+    px = 15001
+    env.book.rest(Side.Ask, px, 100)
+    agent_h = env.book.rest(Side.Ask, px, 50)
+    env.agent_rest = agent_h
+    assert env._get_queue_ahead() == 100
+    env.book.take(Side.Bid, 40)
+    assert env._get_queue_ahead() == 60
+    env.book.take(Side.Bid, 35)
+    assert env._get_queue_ahead() == 25
+
+
+def test_fifo_multi_step_depletion() -> None:
+    """3. Partial queue depletion across multiple steps."""
+    env = OrderBookEnv(seed=42, horizon=10, queue_model="fifo")
+    env.reset(seed=42)
+    _, _, _, _, i1 = env.step(0.1)
+    a1 = i1["queue_ahead"]
+    assert a1 >= 0
+    _, _, _, _, i2 = env.step(0.1)
+    assert "queue_ahead" in i2
+
+
+def test_fifo_cancellation_ahead_advances_agent() -> None:
+    """4. Cancellation ahead moves the agent forward."""
+    env = OrderBookEnv(seed=42, queue_model="fifo")
+    env.reset(seed=42)
+    env.book = StubBookAdapter()
+    px = 15001
+    h_other = env.book.rest(Side.Ask, px, 100)
+    agent_h = env.book.rest(Side.Ask, px, 50)
+    env.agent_rest = agent_h
+    assert env._get_queue_ahead() == 100
+    env.book.cancel_id(h_other.order_id, size=40)
+    assert env._get_queue_ahead() == 60
+    env.book.cancel_id(h_other.order_id)
+    assert env._get_queue_ahead() == 0
+
+
+def test_fifo_new_liquidity_behind_preserves_position() -> None:
+    """5. New liquidity arriving behind does not move the agent backward."""
+    env = OrderBookEnv(seed=42, queue_model="fifo")
+    env.reset(seed=42)
+    env.book = StubBookAdapter()
+    px = 15001
+    env.book.rest(Side.Ask, px, 50)
+    agent_h = env.book.rest(Side.Ask, px, 40)
+    env.agent_rest = agent_h
+    assert env._get_queue_ahead() == 50
+    # New order behind agent at same price
+    env.book.rest(Side.Ask, px, 300)
+    assert env._get_queue_ahead() == 50
+
+
+def test_fifo_two_orders_same_price_priority() -> None:
+    """6. Two resting orders at the same price preserve FIFO priority."""
+    env = OrderBookEnv(seed=42, queue_model="fifo")
+    env.reset(seed=42)
+    env.book = StubBookAdapter()
+    px = 15001
+    h1 = env.book.rest(Side.Ask, px, 100)
+    agent_h = env.book.rest(Side.Ask, px, 50)
+    env.agent_rest = agent_h
+    h3 = env.book.rest(Side.Ask, px, 200)
+    env.book.take(Side.Bid, 120)
+    assert h1.size == 0
+    assert agent_h.size == 30
+    assert h3.size == 200
+    assert env._get_queue_ahead() == 0
+
+
+def test_fifo_agent_cannot_fill_before_ahead_consumed() -> None:
+    """7. Agent cannot fill before queue-ahead is consumed."""
+    env = OrderBookEnv(seed=42, queue_model="fifo")
+    env.reset(seed=42)
+    env.book = StubBookAdapter()
+    px = 15001
+    env.book.rest(Side.Ask, px, 100)
+    agent_h = env.book.rest(Side.Ask, px, 50)
+    env.agent_rest = agent_h
+    env.book.take(Side.Bid, 99)
+    assert agent_h.size == 50
+    assert env._get_queue_ahead() == 1
+    env.book.take(Side.Bid, 1)
+    assert agent_h.size == 50
+    assert env._get_queue_ahead() == 0
+    env.book.take(Side.Bid, 1)
+    assert agent_h.size == 49
+
+
+def test_fifo_partial_agent_fills_update_quantity() -> None:
+    """8. Partial agent fills update remaining quantity correctly."""
+    env = OrderBookEnv(seed=42, queue_model="fifo")
+    env.reset(seed=42)
+    env.book = StubBookAdapter()
+    px = 15001
+    agent_h = env.book.rest(Side.Ask, px, 50)
+    env.agent_rest = agent_h
+    assert env._get_queue_ahead() == 0
+    env.book.take(Side.Bid, 15)
+    assert agent_h.size == 35
+    env.book.take(Side.Bid, 20)
+    assert agent_h.size == 15
+
+
+def test_fifo_inventory_cash_pnl_accounting() -> None:
+    """9. Inventory/cash/PnL accounting remains correct."""
+    env = OrderBookEnv(inventory=500, horizon=15, seed=42, queue_model="fifo")
+    env.reset(seed=42)
+    done = False
+    while not done:
+        _, _, term, trunc, _ = env.step(0.0)
+        done = term or trunc
+    executed = sum(f[2] for f in env.fills)
+    assert env.inventory + executed == 500
+    assert env.cash_ticks == sum(p * s for _, p, s in env.fills)
+    mid = env._mid() or env.arrival_mid
+    expected_pnl = env.cash_ticks + env.inventory * mid - 500 * env.arrival_mid
+    assert abs(env.mark_to_market(mid) - expected_pnl) < 1e-6
+
+
+def test_fifo_mode_deterministic_fixed_seed() -> None:
+    """10. FIFO mode is deterministic for a fixed seed and event sequence."""
+    env1 = OrderBookEnv(inventory=500, horizon=10, seed=99, queue_model="fifo")
+    env2 = OrderBookEnv(inventory=500, horizon=10, seed=99, queue_model="fifo")
+    o1, _ = env1.reset(seed=99)
+    o2, _ = env2.reset(seed=99)
+    np.testing.assert_array_equal(o1, o2)
+    for _ in range(10):
+        o1, r1, t1, tr1, i1 = env1.step(0.1)
+        o2, r2, t2, tr2, i2 = env2.step(0.1)
+        np.testing.assert_array_equal(o1, o2)
+        assert abs(r1 - r2) < 1e-6
+        assert t1 == t2
+        assert tr1 == tr2
+        assert i1["queue_ahead"] == i2["queue_ahead"]
+        assert i1["filled"] == i2["filled"]
+
+
+def test_fifo_mode_no_random_degradation() -> None:
+    """11. FIFO mode does not invoke random queue degradation."""
+    env = OrderBookEnv(seed=77, queue_model="fifo")
+    env.reset(seed=77)
+    px = 15001
+    agent_h = env.book.rest(Side.Ask, px, 50)
+    env.agent_rest = agent_h
+    env._queue_ahead_fifo_initial = 100
+    f1 = env._queue_ahead_frac()
+    f2 = env._queue_ahead_frac()
+    assert f1 == f2
+    rng_val = env._rng.random()
+    env_clone = OrderBookEnv(seed=77, queue_model="fifo")
+    env_clone.reset(seed=77)
+    env_clone.book.rest(Side.Ask, px, 50)
+    assert abs(env_clone._rng.random() - rng_val) < 1e-9

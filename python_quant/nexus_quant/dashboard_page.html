@@ -401,16 +401,75 @@
       <div class="tablewrap">
         <table>
           <thead>
-            <tr><th>regime</th><th>PPO shortfall (bps)</th><th>best baseline</th><th>&Delta; vs best [95% CI]</th><th>status</th><th>PPO vs market VWAP</th><th>completion</th></tr>
+            <tr><th>regime</th><th>PPO shortfall (bps)</th><th>best baseline</th><th>&Delta; vs best [95% CI]</th><th>status</th><th>PPO vs market VWAP</th><th>completion</th><th>fill rate</th><th>max DD (ticks)</th></tr>
           </thead>
           <tbody>
-            <tr><td class="strategy">highvol (train)</td><td class="nums">2.597 &plusmn; 0.079</td><td>adaptive_pov 2.650</td><td class="nums">+0.05 [-0.20, +0.30]</td><td><span class="cell-pill">~0 bps (parity)</span></td><td class="nums">+1.211 bps</td><td class="nums">0.981</td></tr>
-            <tr><td class="strategy">calm (holdout)</td><td class="nums">1.605 &plusmn; 0.018</td><td>twap 1.471</td><td class="nums">-0.13 [-0.21, -0.08]</td><td><span class="cell-pill warn">PPO worse (0/5)</span></td><td class="nums">+1.038 bps</td><td class="nums">1.000</td></tr>
-            <tr><td class="strategy">lowvol (holdout)</td><td class="nums">0.957 &plusmn; 0.014</td><td>adaptive_pov 0.896</td><td class="nums">-0.06 [-0.09, -0.03]</td><td><span class="cell-pill warn">PPO worse (0/5)</span></td><td class="nums">+0.792 bps</td><td class="nums">1.000</td></tr>
-            <tr><td class="strategy">trending (holdout)</td><td class="nums">2.893 &plusmn; 0.131</td><td>adaptive_pov 2.909</td><td class="nums">-0.01 [-0.30, +0.27]</td><td><span class="cell-pill">parity</span></td><td class="nums">+0.559 bps</td><td class="nums">0.978</td></tr>
-            <tr class="herorow"><td class="strategy hero">liquidity_shock</td><td class="nums">3.048 &plusmn; 0.312</td><td>adaptive_pov 3.742</td><td class="nums pos">+0.69 [+0.35, +1.03]</td><td><span class="cell-pill ok">PPO better (5/5)</span></td><td class="nums">+1.610 bps</td><td class="nums">0.942</td></tr>
+            <tr><td class="strategy">highvol (train)</td><td class="nums">2.507 &plusmn; 0.082</td><td>adaptive_pov 2.678</td><td class="nums">+0.17 [-0.01, +0.41]</td><td><span class="cell-pill">~0 bps (parity)</span></td><td class="nums">+1.045 bps</td><td class="nums">0.971</td><td class="nums">0.971</td><td class="nums">9,965 &plusmn; 311</td></tr>
+            <tr><td class="strategy">calm (holdout)</td><td class="nums">1.636 &plusmn; 0.025</td><td>twap 1.471</td><td class="nums">-0.16 [-0.23, -0.11]</td><td><span class="cell-pill warn">PPO worse (0/5)</span></td><td class="nums">-0.001 bps</td><td class="nums">1.000</td><td class="nums">1.000</td><td class="nums">4,807 &plusmn; 35</td></tr>
+            <tr><td class="strategy">lowvol (holdout)</td><td class="nums">1.002 &plusmn; 0.046</td><td>adaptive_pov 0.896</td><td class="nums">-0.11 [-0.12, -0.09]</td><td><span class="cell-pill warn">PPO worse (0/5)</span></td><td class="nums">-0.079 bps</td><td class="nums">1.000</td><td class="nums">1.000</td><td class="nums">2,824 &plusmn; 52</td></tr>
+            <tr><td class="strategy">trending (holdout)</td><td class="nums">2.943 &plusmn; 0.174</td><td>adaptive_pov 3.013</td><td class="nums">+0.07 [-0.17, +0.32]</td><td><span class="cell-pill">parity</span></td><td class="nums">+0.445 bps</td><td class="nums">0.974</td><td class="nums">0.974</td><td class="nums">10,937 &plusmn; 496</td></tr>
+            <tr class="herorow"><td class="strategy hero">liquidity_shock</td><td class="nums">2.796 &plusmn; 0.167</td><td>adaptive_pov 3.751</td><td class="nums pos">+0.95 [+0.72, +1.21]</td><td><span class="cell-pill ok">PPO better (5/5)</span></td><td class="nums">+1.821 bps</td><td class="nums">0.928</td><td class="nums">0.928</td><td class="nums">11,262 &plusmn; 354</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Execution Episode & Inventory Trajectory Visualizer -->
+    <div class="chartcard" style="margin-top:16px;">
+      <div class="cap">
+        <h4>Execution Episode &amp; Inventory Trajectory</h4>
+        <span class="sub">Generated research episode artifact (OrderBookEnv seed=42, Q&#8320; = 500 shares, T = 20 steps, queue_model=&quot;fifo&quot;) &middot; Real deterministic trajectory &middot; Inventory decay q_t/Q&#8320; &middot; Midpoint path &middot; Child fill executions</span>
+      </div>
+      <div style="padding:16px 20px;">
+        <svg viewBox="0 0 800 240" style="width:100%;height:auto;display:block;background:var(--surface2);border-radius:8px;border:1px solid var(--line);">
+          <defs>
+            <linearGradient id="invGrad2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#37c98c" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#37c98c" stop-opacity="0.0"/>
+            </linearGradient>
+          </defs>
+          <!-- Grid lines -->
+          <line x1="60" y1="30" x2="760" y2="30" stroke="var(--line)" stroke-dasharray="3,3"/>
+          <line x1="60" y1="80" x2="760" y2="80" stroke="var(--line)" stroke-dasharray="3,3"/>
+          <line x1="60" y1="130" x2="760" y2="130" stroke="var(--line)" stroke-dasharray="3,3"/>
+          <line x1="60" y1="180" x2="760" y2="180" stroke="var(--line)" stroke-dasharray="3,3"/>
+          <!-- Axis labels -->
+          <text x="50" y="34" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end">100%</text>
+          <text x="50" y="84" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end">75%</text>
+          <text x="50" y="134" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end">50%</text>
+          <text x="50" y="184" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end">25%</text>
+          <text x="50" y="215" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end">0%</text>
+          <!-- Time steps -->
+          <text x="60" y="228" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="middle">t=0</text>
+          <text x="235" y="228" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="middle">t=5</text>
+          <text x="410" y="228" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="middle">t=10</text>
+          <text x="585" y="228" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="middle">t=15</text>
+          <text x="760" y="228" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="middle">t=20</text>
+          <!-- Price Path (gold line) -->
+          <path d="M 60.0 75.0 L 95.0 75.0 L 130.0 75.0 L 165.0 90.0 L 200.0 90.0 L 235.0 75.0 L 270.0 90.0 L 305.0 105.0 L 340.0 120.0 L 375.0 90.0 L 410.0 105.0 L 445.0 120.0 L 480.0 90.0 L 515.0 105.0 L 550.0 135.0 L 585.0 105.0 L 620.0 90.0 L 655.0 90.0 L 690.0 105.0 L 725.0 105.0 L 760.0 120.0" fill="none" stroke="#e9b64b" stroke-width="2" opacity="0.85"/>
+          <!-- Inventory Area & Path (green fill & line) -->
+          <path d="M 60.0 30.0 L 95.0 39.2 L 130.0 48.5 L 165.0 48.5 L 200.0 48.5 L 235.0 57.8 L 270.0 57.8 L 305.0 57.8 L 340.0 70.0 L 375.0 82.2 L 410.0 82.2 L 445.0 95.1 L 480.0 108.4 L 515.0 118.4 L 550.0 118.4 L 585.0 134.7 L 620.0 151.0 L 655.0 167.3 L 690.0 178.4 L 725.0 196.9 L 760.0 215.0 L 760.0 215.0 L 60.0 215.0 Z" fill="url(#invGrad2)"/>
+          <path d="M 60.0 30.0 L 95.0 39.2 L 130.0 48.5 L 165.0 48.5 L 200.0 48.5 L 235.0 57.8 L 270.0 57.8 L 305.0 57.8 L 340.0 70.0 L 375.0 82.2 L 410.0 82.2 L 445.0 95.1 L 480.0 108.4 L 515.0 118.4 L 550.0 118.4 L 585.0 134.7 L 620.0 151.0 L 655.0 167.3 L 690.0 178.4 L 725.0 196.9 L 760.0 215.0" fill="none" stroke="#37c98c" stroke-width="2.5"/>
+          <!-- Fill execution points -->
+          <circle cx="95.0" cy="39.2" r="3.8" fill="#37c98c"/>
+          <circle cx="130.0" cy="48.5" r="3.8" fill="#37c98c"/>
+          <circle cx="235.0" cy="57.8" r="3.8" fill="#37c98c"/>
+          <circle cx="340.0" cy="70.0" r="4.2" fill="#37c98c"/>
+          <circle cx="375.0" cy="82.2" r="4.2" fill="#37c98c"/>
+          <circle cx="445.0" cy="95.1" r="4.2" fill="#37c98c"/>
+          <circle cx="480.0" cy="108.4" r="4.3" fill="#37c98c"/>
+          <circle cx="515.0" cy="118.4" r="3.9" fill="#37c98c"/>
+          <circle cx="585.0" cy="134.7" r="4.7" fill="#37c98c"/>
+          <circle cx="620.0" cy="151.0" r="4.7" fill="#37c98c"/>
+          <circle cx="655.0" cy="167.3" r="4.7" fill="#37c98c"/>
+          <circle cx="690.0" cy="178.4" r="4.0" fill="#37c98c"/>
+          <circle cx="725.0" cy="196.9" r="5.0" fill="#37c98c"/>
+          <!-- Legend -->
+          <rect x="520" y="10" width="12" height="12" fill="#37c98c" rx="2"/>
+          <text x="540" y="20" fill="var(--text)" font-family="var(--mono)" font-size="11">Inventory q_t/Q&#8320; (FIFO Sim Artifact)</text>
+          <line x1="520" y1="36" x2="532" y2="36" stroke="#e9b64b" stroke-width="2"/>
+          <text x="540" y="39" fill="var(--text)" font-family="var(--mono)" font-size="11">Midpoint Price Path</text>
+        </svg>
       </div>
     </div>
   </section>
