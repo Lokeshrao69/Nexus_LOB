@@ -307,27 +307,30 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
    are required. Paired rows match by family and episode seed; higher fill rate and lower drawdown
    count as improvements. Intervals contain their estimate, initial execution loss enters MDD,
    and undefined relative percentages are `None` / `n/a`, not NaN or a superiority claim.
-   *Report status:* The evaluation harness now computes these metrics, but the committed fairness report
-   (`docs/results/rl_fairness.md`) contains the Phase 3 study results and was not regenerated.
+   *Report status:* The evaluation study has been fully regenerated and committed with verified numbers
+   (600 iterations x 5 training seeds x 5 eval families x 20 episodes per seed) including `fill_rate`
+   and `mdd_ticks` alongside shortfall and slippage (`docs/results/rl_fairness.md` and `docs/results/rl_fairness.json`).
 10. ✅ **Empirical VWAP conditioning** — an explicit `VolumeProfile` overrides
     `env.volume_profile`; its next-step forecast volume, normalized against uniform participation,
     sets VWAP aggression. Profiles are estimates from prior sessions, never future tape prints.
     The environment still controls child size. Without either profile the legacy VWAP arithmetic
     is unchanged; `schedule_twap` retains its existing cumulative-profile support.
-11. 🟡 **Queue model status & simulation distinction** — `OrderLevelTracker` and `queue_dynamics.py`
-    implement offline FIFO queue tracking, fill timing, Kaplan–Meier survival, and logistic fill models
-    on historical ITCH tapes (E5). In contrast, the live execution simulation in `OrderBookEnv` currently
-    uses a synthetic uniform random queue degradation heuristic (`_queue_ahead_frac` returning `self._rng.random()`).
-    The RL agent does not train against or evaluate the empirical `OrderLevelTracker` queue model;
-    connecting empirical queue dynamics into the live simulation remains a future research roadmap item.
-12. 🟡 **Multi-day implementation ready; full statistical campaign not run** — all 15 dates
+11. ✅ **FIFO queue simulation & offline queue research** — `OrderBookEnv` provides an enhanced,
+    deterministic FIFO queue model (`queue_model="fifo"`) with multi-step resting order persistence,
+    exact queue-ahead depth tracking, and cancellation/partial-fill accounting, verified by 11 targeted unit tests.
+    Separately, `OrderLevelTracker` and `queue_dynamics.py` implement offline order-level FIFO queue tracking,
+    Kaplan–Meier fill survival, and logistic fill models on historical ITCH tapes (E5). Connecting empirical tape-fitted
+    fill probabilities directly into online RL training remains a future roadmap item.
+12. 🟡 **Multi-day batch tooling verified; full statistical campaign not run** — all 15 dates
     in `PUBLIC_SAMPLE_DAYS` are supported by `scripts/batch_research_itch.py`. The runner uses
     sequential staged downloads, validated source/slice hashes, resumable E1–E6 outputs tied to
-    a source-code fingerprint, and descriptive cross-day tables. Tests are network-free. A live
-    transport/resume smoke fetched exactly 1 MiB each for `12302019` and `01302020`; both contained
-    zero regular-session rows and are explicitly partial, not research evidence. Full days are
-    roughly 3.5 GB compressed each; completing all 15 remains bandwidth-dependent (historical
-    local throughput was about 300 KB/s). No full-day data or generated tape slices were committed.
+    a source-code fingerprint, and descriptive cross-day tables. Tests are network-free. 8 dates
+    on `emi.nasdaq.com` return HTTP 404 (retired by NASDAQ); 7 dates are accessible. A 1 MiB transport smoke
+    verified the download, parse, and slice pipeline across all 7 accessible dates, but covers only
+    pre-market hours (0 regular-session rows) and is strictly transport validation, not empirical evidence.
+    Empirical full-day evidence remains established on `12302019` (1.48M regular session rows for AAPL, 2.83M for QQQ);
+    running the remaining full days (~3.5 GB compressed each) remains bandwidth-dependent (~300 KB/s).
+    No raw tape files or generated tape slices were committed.
 13. ⏳ **Remaining Project Work (Person A):**
     - Verify GPU risk engine on a CUDA machine (`nexus_risk` + `risk_bench` with `nvcc`).
     - Hardware benchmarks for zero-copy shmem ring throughput.

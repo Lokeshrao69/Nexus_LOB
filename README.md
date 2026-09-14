@@ -68,7 +68,7 @@ Pure-NumPy stack (no torch), byte-reproducible:
 | **Real NASDAQ ITCH tape** | `scripts/fetch_itch.py`, `scripts/run_research.py` | public `emi.nasdaq.com` day → per-symbol slice → E1–E6 (12/30/2019 verified; 15-date catalogue; batch research tooling) |
 | Regime design doc | `HIGHVOL_PLAN.md` | the high-vol regime (historical; its headline is retired above) |
 
-**Tests (all green):** **261 passed** (14 skipped on Windows without engine; 275 collected; 274 passed on Linux with engine) — contract smoke, ITCH, replay, env,
+**Tests (all green):** **272 passed** (14 skipped on Windows without engine; 286 collected; 285 passed on Linux with engine) — contract smoke, ITCH, replay, env,
 baselines, PPO + GRPO agents, risk parity (3× bit-for-bit), the high-vol regime,
 dashboard codec/hub, risk↔env penalty, research spine leak locks, cost model /
 backtest, empirical volume profiler, E7 metrics hand tests, offline queue tracker + Kaplan–Meier + logistic calibration, adverse selection,

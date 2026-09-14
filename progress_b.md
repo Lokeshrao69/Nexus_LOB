@@ -29,17 +29,15 @@ external contributor trailers.
   the observed estimate. MDD includes the initial zero-to-first-step loss.
   **Compatibility:** `pct_vs_baseline` is `None` for nonpositive/near-zero baselines
   and renders as `n/a`; incomplete families and invalid pairings raise `ValueError`.
-  *Report status:* `evaluate.py` and `test_e7_metrics.py` now compute `fill_rate` and `mdd_ticks`,
-  but the committed fairness report (`docs/results/rl_fairness.md`) contains the Phase 3 study results
-  and was not regenerated.
-- **Queue model status & simulation distinction:** `OrderLevelTracker` and
-  `queue_dynamics.py` implement offline FIFO queue tracking, fill timing, Kaplan–Meier
-  survival, and logistic fill models on historical ITCH tapes (E5). In contrast,
-  the live execution simulation in `OrderBookEnv` currently uses a synthetic uniform
-  random queue degradation heuristic (`_queue_ahead_frac` returning `self._rng.random()`).
-  The RL agent does not train against or evaluate the empirical `OrderLevelTracker`
-  queue model; connecting empirical queue dynamics into the live simulation remains
-  a future research roadmap item.
+  *Report status:* The evaluation study was fully regenerated and committed with verified numbers
+  (600 iterations x 5 training seeds x 5 eval families x 20 episodes per seed) including `fill_rate`
+  and `mdd_ticks` alongside shortfall and slippage (`docs/results/rl_fairness.md` and `docs/results/rl_fairness.json`).
+- **Queue model status & simulation distinction:** `OrderBookEnv` provides an enhanced,
+  deterministic FIFO queue model (`queue_model="fifo"`) with multi-step resting order persistence,
+  exact queue-ahead depth tracking, and cancellation/partial-fill accounting, verified by 11 targeted unit tests.
+  Separately, `OrderLevelTracker` and `queue_dynamics.py` implement offline order-level FIFO queue tracking,
+  Kaplan–Meier fill survival, and logistic fill models on historical ITCH tapes (E5). Connecting empirical tape-fitted
+  fill probabilities directly into online RL training remains a future roadmap item.
 - **Multi-day runner:** `batch_research_itch.py` accepts `--days` (catalogued dates
   or `all`), `--symbols` (default `AAPL,QQQ`), `--max-gz-bytes`, `--out-dir`
   (default `data/itch`), `--results-dir` (default `docs/results/multi_day`), and

@@ -230,9 +230,9 @@ def main(argv: list[str] | None = None) -> int:
     res = run(args)
     res["config"]["wall_seconds"] = round(time.time() - t0, 1)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(res, indent=1) + "\n")
+    args.out.write_text(json.dumps(res, indent=1) + "\n", encoding="utf-8")
     md = args.out.with_suffix(".md")
-    md.write_text(render_markdown(res))
+    md.write_text(render_markdown(res), encoding="utf-8")
     print(f"\nwrote {args.out} and {md} ({time.time() - t0:.0f}s)")
     return 0
 
