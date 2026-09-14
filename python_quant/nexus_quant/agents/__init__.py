@@ -18,6 +18,7 @@ from .evaluate import (
     EvalSummary,
     Policy,
     evaluate_policy,
+    evaluate_regime_ci,
     format_table,
     strategy_table,
 )
@@ -46,6 +47,7 @@ __all__ = [
     "collect_rollouts",
     "compute_gae",
     "evaluate_policy",
+    "evaluate_regime_ci",
     "format_table",
     "strategy_table",
     "train_grpo",

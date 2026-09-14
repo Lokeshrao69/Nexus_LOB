@@ -4,7 +4,10 @@
 > **single authority for Phase 3 scope** — read it whenever a stale plan file says
 > otherwise. Roadmap/experiment-registry authority: `plan_2.md` (read that FIRST each
 > session); plain-language status: `PROGRESS.md`; systems handoff: `CLAUDE.md`.
-> Status: **in force 2026-09-13** · branch: `feature/part2-phase3-queue-rl`.
+> Status: **COMPLETE 2026-09-14** — WS-1/WS-2 merged to `main` (PRs #18/#20);
+> WS-3/WS-4/WS-5 on `feature/part2-phase3-rl-fairness` (open PR against `main`).
+> Branch of record below is historical (`feature/part2-phase3-queue-rl` was merged
+> and deleted on the remote).
 >
 > **Previous working-plan text that predates this refresh is SUPERSEDED:**
 > a prior plan (and `plan_2.md` running log / `PROGRESS.md` / `progress_b.md` /

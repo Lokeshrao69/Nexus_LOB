@@ -7,16 +7,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
+import pytest
 
 from nexus_quant.agents import (
     PPOConfig,
     PPOPolicy,
     evaluate_policy,
+    evaluate_regime_ci,
     format_table,
     strategy_table,
     train_ppo,
 )
 from nexus_quant.agents.evaluate import _baseline_summary
+from nexus_quant.baselines import policy_action
 from nexus_quant.agents.mlp import MLP, Adam
 from nexus_quant.agents.ppo import collect_rollouts, compute_gae, ppo_update
 from nexus_quant.envs.order_book_env import OrderBookEnv
@@ -249,3 +252,89 @@ def test_agent_vs_baselines_runs_with_zero_env_kw():
     assert {r["name"] for r in rows} == {"twap", "vwap", "pov", "passive"}
     for r in rows:
         assert np.isfinite(r["shortfall_bps_mean"])
+
+
+# ----------------------------------------------------------------------
+#  Phase 3 — fair per-regime evaluation + strengthened baselines
+# ----------------------------------------------------------------------
+
+def test_evaluate_regime_ci_shape_and_reproducibility():
+    regimes = {
+        "calm": OrderBookEnv(inventory=400, horizon=6, seed=0),
+        "drift_tick": OrderBookEnv(inventory=400, horizon=6, seed=0, drift_ticks=0.05),
+    }
+    p = PPOPolicy(obs_dim=44, seed=2)
+    kw = dict(seeds=5, baselines=("twap", "vwap", "apov"), seed0=7, n_boot=100)
+    r1 = evaluate_regime_ci(p, regimes, **kw)
+    r2 = evaluate_regime_ci(p, regimes, **kw)
+    assert r1 == r2  # fully deterministic
+    for name, r in r1.items():
+        assert r["metric"] == "shortfall_bps" and r["n"] == 5
+        assert r["mean"] is not None and np.isfinite(r["mean"])
+        assert set(r["strategies"]) == {"agent", "twap", "vwap", "apov"}
+        for s, d in r["strategies"].items():
+            assert d["n"] == 5
+            assert np.isfinite(d["mean"]) and d["vwap_slip_bps"] >= 0.0
+            assert 0.0 <= d["completion"] <= 1.0 and d["leftover"] >= 0
+            assert set(d["ci95"]) == {"lo", "hi", "mean", "se"}
+        assert len(r["rows"]) == 5 * 4  # 5 seeds x (agent + 3 baselines)
+    assert {row["seed"] for row in r1["calm"]["rows"]} == {7, 8, 9, 10, 11}
+
+
+def test_fair_toggle_raises_on_vol_feature_and_false_escapes():
+    env_true = OrderBookEnv(inventory=100, horizon=4, seed=0, vol_feature=True)
+    with pytest.raises(ValueError):
+        evaluate_regime_ci(None, {"reg": env_true}, seeds=5, baselines=("twap",))
+    # fair=False is the documented escape hatch for a flag-trained agent
+    res = evaluate_regime_ci(
+        None, {"reg": env_true}, seeds=5, baselines=("twap",), fair=False
+    )
+    assert "twap" in res["reg"]["strategies"]
+
+
+def test_evaluate_regime_ci_validates_seeds_and_regimes():
+    env = OrderBookEnv(inventory=100, horizon=4, seed=0)
+    with pytest.raises(ValueError):
+        evaluate_regime_ci(None, {"reg": env}, seeds=3, baselines=("twap",))
+    with pytest.raises(ValueError):
+        evaluate_regime_ci(None, {}, seeds=5, baselines=("twap",))
+
+
+def test_evaluate_regime_ci_baselines_only():
+    res = evaluate_regime_ci(
+        None, {"calm": OrderBookEnv(inventory=400, horizon=6, seed=0)},
+        seeds=5, baselines=("twap", "pov", "isaware"), seed0=3, n_boot=50,
+    )
+    r = res["calm"]
+    assert r["mean"] is None and r["ci95"] is None
+    assert "agent" not in r["strategies"]
+    assert set(r["strategies"]) == {"twap", "pov", "isaware"}
+
+
+def test_adaptive_baselines_in_range_and_deterministic():
+    env = OrderBookEnv(inventory=400, horizon=12, seed=3)
+    from nexus_quant.baselines import run_episode
+
+    for name in ("apov", "stwap", "isaware"):
+        env.reset(seed=3)
+        while True:
+            a = policy_action(name, env)
+            assert -1.0 <= a <= 1.0, (name, a)
+            _obs, _r, term, trunc, _info = env.step(a)
+            if term or trunc:
+                break
+        e2 = OrderBookEnv(inventory=400, horizon=12, seed=3)
+        r1 = run_episode(e2, name, seed=3)
+        e3 = OrderBookEnv(inventory=400, horizon=12, seed=3)
+        r2 = run_episode(e3, name, seed=3)
+        assert r1.shortfall_bps == r2.shortfall_bps  # same seed -> same episode
+        assert np.isfinite(r1.reward) and r1.leftover >= 0
+
+
+def test_strategy_table_opt_in_adaptive_baselines():
+    rows = strategy_table(
+        n_episodes=3, seed=4, baselines=("twap", "apov", "stwap", "isaware")
+    )
+    assert {r["name"] for r in rows} == {"twap", "apov", "stwap", "isaware"}
+    for r in rows:
+        assert np.isfinite(r["shortfall_bps_mean"]) and np.isfinite(r["reward_mean"])

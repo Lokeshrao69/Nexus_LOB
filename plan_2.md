@@ -298,3 +298,30 @@ Exact shipped API: **`docs/work_package_b_phases_2_4.md §2.2`** (frozen). Signa
     `test_future_mutation_changes_only_label` hand-case/label-flake vs current walk
     semantics), present before this change and untouched by it. `queue_dynamics.py`,
     `research/__init__.py`, `test_compute_metrics.py` ruff-clean.
+- **2026-09-14 (final) — Phase 3 completed: WS-1/WS-2 merged to `main` (PRs #18/#20);
+  WS-3/WS-4/WS-5 on `feature/part2-phase3-rl-fairness`.**
+  - **WS-1 + WS-2 (branch `feature/part2-phase3-queue-rl`)** — the WS-1 failures noted
+    above were fixed in `de49a37` ("unblock CI"): `queue_ahead_walk` hand cases now
+    genuinely exercise the walk, the leak-lock selects a victim whose fill the rewrite
+    actually flips, and `hac_se` aligns to the standard ddof=0 Newey–West (author's own
+    lag=1 hand value `sqrt(2/9)`). Suite **143 passed / 1 skipped**, ruff clean; merged to
+    `main` via PR #18 (phase-2 exec realism underlier) + PR #20 (E5/E6 substrate: flow
+    tape, queue tracker, KM, logistic fill model, adverse selection). `main` @ `216b098`.
+    WS-2 additive seam: `FillRecord.level_size_at_fill`/`ofi` captured from the take's
+    own flow (`ofi(pre-event view, post-event view)` in `_execute`); `_prev_view` is
+    captured only on EXECUTE events so replay cost is unchanged.
+  - **WS-3/WS-4/WS-5 (new branch `feature/part2-phase3-rl-fairness`)** — fair RL eval
+    (`evaluate_regime_ci`: env-instance-or-factory regimes, same-seed episodes, fair
+    `vol_feature` toggle with raise, arrival-IS + market-VWAP slippage, iid-bootstrap CIs,
+    seeds≥5 enforced), strengthened baselines (`apov` adaptive-POV / `stwap` schedule-TWAP /
+    `isaware` IS-aware; strategy_table default untouched), and WS-5 wiring +
+    `queue_adverse_vignette.py`. Vignette (E5 slope + E6 drift null) honest on both arms:
+    rw ⇒ CI straddles 0, drift ⇒ ask `p_adverse=1.00`, bid `0.00`. **Honest synthetic
+    limitation recorded:** `ahead_at_fill==0` for every synthetic fill (generator takes
+    the queue front), so E6 queue-position conditioning collapses to a single tercile —
+    needs the Phase-4 tape. Tests: `test_adverse_selection.py` (8),
+    `test_ppo_agent.py` +6. **Latent bug found (not fixed): `research_vignette.py` path
+    insert `parent.parent/"python_quant"` is off-by-one — `ModuleNotFoundError` when run
+    from repo root; logged as a negative result in `docs/RESEARCH.md`.
+  - **Next:** PR + real merge commit for `feature/part2-phase3-rl-fairness`; then Phase 4
+    (real NASDAQ tape).

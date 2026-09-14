@@ -20,8 +20,10 @@ from typing import Literal, Protocol
 import numpy as np
 
 from ..envs.order_book_env import OrderBookEnv
+from ..execution.metrics import completion_rate, max_drawdown, vwap_slippage
+from ..research import bootstrap_ci
 
-BaselineId = Literal["twap", "vwap", "pov", "passive"]
+BaselineId = Literal["twap", "vwap", "pov", "passive", "apov", "stwap", "isaware"]
 
 
 class Policy(Protocol):
@@ -173,3 +175,141 @@ def format_table(rows: list[dict]) -> str:
             f"{r['vs_vwap_pct']:>9.1f}%{r['leftover_mean']:>10.2f}"
         )
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — fair per-regime evaluation (plan_2.md §6 / plan.md WS-3)
+# ---------------------------------------------------------------------------
+_Regime = OrderBookEnv | Callable[[], OrderBookEnv]
+_AgentAct = Callable[[OrderBookEnv, np.ndarray], float]
+
+
+def _fresh_env(reg: _Regime, seed: int) -> OrderBookEnv:
+    """Instance → same env (reset-per-episode re-seeds it); callable → factory."""
+    return reg if isinstance(reg, OrderBookEnv) else reg()
+
+
+def _regime_episode(env: OrderBookEnv, act: _AgentAct, seed: int) -> dict:
+    """One full episode under ``act`` (NOT ``baselines.run_episode`` — that
+    exposes neither ``fills`` nor ``info["market_vwap"]``, and the agent needs
+    obs anyway). Marks to market each step so MDD is over the filled path."""
+    obs, _ = env.reset(seed=seed)
+    obs = np.asarray(obs, dtype=np.float64)
+    total = 0.0
+    mtm: list[float] = []
+    while True:
+        a = act(env, obs)
+        obs, r, term, trunc, info = env.step(a)
+        obs = np.asarray(obs, dtype=np.float64)
+        total += float(r)
+        mtm.append(float(info.get("pnl_ticks", 0.0)))
+        if term or trunc:
+            return {
+                "reward": total,
+                "shortfall_bps": float(info["shortfall_bps"]),
+                "vwap_slip_bps": float(vwap_slippage(env.fills, info.get("market_vwap", 0.0))),
+                "completion": float(completion_rate(env.fills, env.inventory0, env.inventory)),
+                "mdd_ticks": float(max_drawdown(mtm)),
+                "leftover": int(env.inventory),
+            }
+
+
+def _summarize_rows(rows: list[dict], *, seeds: int, n_boot: int, seed: int) -> dict:
+    """Mean + iid-bootstrap-95%-CI across *independent* seeds, and the
+    secondary metrics averaged over the same episodes."""
+    values = np.asarray([r["shortfall_bps"] for r in rows], dtype=np.float64)
+    return {
+        "mean": float(np.mean(values)),
+        "ci95": bootstrap_ci(values, n_boot=n_boot, kind="iid", seed=seed),
+        "n": seeds,
+        "vwap_slip_bps": float(np.mean([r["vwap_slip_bps"] for r in rows])),
+        "completion": float(np.mean([r["completion"] for r in rows])),
+        "mdd_ticks": float(np.mean([r["mdd_ticks"] for r in rows])),
+        "leftover": float(np.mean([r["leftover"] for r in rows])),
+    }
+
+
+def evaluate_regime_ci(
+    policy: Policy | None = None,
+    regimes: dict[str, _Regime] | None = None,
+    *,
+    seeds: int = 5,
+    baselines: tuple[str, ...] = (
+        "twap", "vwap", "pov", "passive", "apov", "stwap", "isaware",
+    ),
+    fair: bool = True,
+    seed0: int = 0x51ED,
+    n_boot: int = 2000,
+) -> dict[str, dict]:
+    """Per-regime comparison of the agent vs baselines with honest CIs.
+
+    Every strategy runs the *same* seeded episodes in each regime (episode
+    ``s`` = ``seed0 + s``), so differences are the policy, not the tape. CIs
+    are iid bootstraps over the independent seeds — wide by design at
+    ``seeds = 5``; the docstring contract: headline use needs ``seeds >= 20``.
+
+    ``regimes`` maps a name to an env **instance** (re-used, ``reset`` re-seeds
+    it deterministically) or a zero-arg **factory** (freshened per episode).
+    ``fair=True`` (default) refuses any regime env with ``vol_feature=True`` —
+    the "remove the feature" branch of plan_2.md §6 item 3; ``fair=False`` is
+    the escape hatch for a flag-trained agent and is never the headline.
+
+    Reports BOTH the arrival-IS ``shortfall_bps`` (continuity with the Part-1
+    metric) and ``vwap_slip_bps`` vs **market** VWAP (plan_2.md §6 item 5).
+
+    Returns per regime:
+    ``{"mean", "ci95", "n", "metric": "shortfall_bps", "strategies": {name:
+    {"mean","ci95","n","vwap_slip_bps","completion","mdd_ticks","leftover"}},
+    "rows": [{"strategy", "seed", ...metrics...}]}`` where ``mean``/``ci95``
+    are the agent's.
+    """
+    from ..baselines import policy_action  # lazy (matches _baseline_summary)
+
+    if not regimes:
+        raise ValueError("evaluate_regime_ci needs at least one regime")
+    if seeds < 5:
+        raise ValueError("evaluate_regime_ci needs seeds >= 5 for defensible CIs")
+    if fair:
+        for rname, reg in regimes.items():
+            probe = reg if isinstance(reg, OrderBookEnv) else reg()
+            if probe.vol_feature:
+                raise ValueError(
+                    f"regime {rname!r} has vol_feature=True; build regimes with "
+                    "vol_feature=False so baselines see the same state (fair mode)"
+                )
+
+    def agent_act(env: OrderBookEnv, obs: np.ndarray) -> float:
+        return policy.act(obs, deterministic=True)  # type: ignore[misc]
+
+    def baseline_act(name: str) -> _AgentAct:
+        def act(env: OrderBookEnv, _obs: np.ndarray) -> float:
+            return policy_action(name, env)
+        return act
+
+    out: dict[str, dict] = {}
+    for rname, reg in regimes.items():
+        strategies: dict[str, dict] = {}
+        rows: list[dict] = []
+        names = (["agent"] if policy is not None else []) + [str(n) for n in baselines]
+        for s in range(seeds):
+            seed = seed0 + s
+            for name in names:
+                env = _fresh_env(reg, seed)
+                act: _AgentAct = agent_act if name == "agent" else baseline_act(name)
+                row = _regime_episode(env, act, seed)
+                rows.append({"strategy": name, "seed": seed, **row})
+        for name in names:
+            strategies[name] = _summarize_rows(
+                [r for r in rows if r["strategy"] == name],
+                seeds=seeds, n_boot=n_boot, seed=seed0,
+            )
+        ag = strategies.get("agent")
+        out[rname] = {
+            "metric": "shortfall_bps",
+            "mean": ag["mean"] if ag else None,
+            "ci95": ag["ci95"] if ag else None,
+            "n": seeds,
+            "strategies": strategies,
+            "rows": rows,
+        }
+    return out
