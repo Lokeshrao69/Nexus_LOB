@@ -1,8 +1,3 @@
-> **HISTORICAL (2026-09-07).** Design + result record of the tuned Part-1
-> "+50.4% vs VWAP" headline and its tuning levers. Phase 3 fair-re-verifies or
-> re-characterizes this claim — see `plan_2.md` §1b/§6 and the current Phase-3
-> plan `plan.md`. Do not quote +50.4% (or its levers) as the current project result.
-
 # High-Volatility Regime — Implementation Plan
 
 **Date:** 2026-09-07 · **Owner:** Person A (doing Person B's quant work) · **Target:** ~14% lower slippage vs VWAP

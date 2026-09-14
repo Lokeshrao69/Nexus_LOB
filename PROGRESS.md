@@ -1,11 +1,21 @@
 # Nexus-LOB — Progress Report
 
-**Status date:** 2026-09-13 · **Branch:** `feature/part2-phase3-queue-rl` · **Milestone:** Part 1 (systems half) complete; Part 2 (quant research layer) — Phases 0–2 landed, **Phase 3 in progress** (queue dynamics E5, adverse selection E6, fair RL rework — per-regime ≥5-seed eval using the existing env vol-regime knobs). This file is a plain-language
+**Status date:** 2026-09-13 · **Branch:** `main` (+ Person B branch `hoplite/kranioi-5b44d8a8` for Part 2 Phases 3–5, PR pending) · **Milestone:** C++ matching engine + pybind seam, Person B's ITCH/env/baselines/PPO agent, Person A's Monte-Carlo VaR/CVaR risk engine (CPU-validated, CUDA blocked), **and now the Part 2 quant research layer complete through Phase 5: a real NASDAQ ITCH day parsed/replayed/diff-tested against the C++ engine, E1–E6 microstructure results with CIs (`docs/RESEARCH.md`), and the RL slippage headline re-verified fairly and retired (`docs/results/rl_fairness.md`)**. This file is a plain-language
 snapshot for anyone (Person A or Person B) picking the project up; the authoritative,
-constantly-updated handoff is `CLAUDE.md`, the research roadmap is `plan_2.md`, and the
-**approved Phase-3 working plan is `plan.md`**.
+constantly-updated handoff doc is `CLAUDE.md`.
 
-> TL;DR: the cross-language state contract is frozen, the C++ matching engine is
+> **2026-09-13 — Person B, Part 2 (plain language):** we downloaded a real NASDAQ order-by-order
+> tape (2019-12-30, AAPL + QQQ — 268 M messages), ran it through our parser and book with zero
+> decode errors, and confirmed the C++ engine and the Python oracle produce the identical ladder
+> on real bytes. On that tape the top-of-book imbalance genuinely predicts the next few mid
+> moves (rank IC 0.14→0.46 as the horizon grows, tight CIs), passive limit orders that do get
+> filled are almost always run over by the price right after (96–99 %), and our fill-probability
+> model is calibrated. We also re-ran the PPO-vs-VWAP comparison *fairly* (same information for
+> everyone, fees and queue on, five seeds, unseen regimes): the agent is **not** better than a
+> decent adaptive schedule except when liquidity dries up — so the old "+50 % lower slippage"
+> is retired. Full report: `docs/RESEARCH.md`; how to reproduce: `python_quant/scripts/run_all.py`.
+>
+> TL;DR (systems half): the cross-language state contract is frozen, the C++ matching engine is
 > built and passing its own tests (86/86), the Python bridge drives that real engine,
 > and the **shared-memory ring** that will feed the dashboard (subsystem 5's C++ core)
 > is built and demoed live. **Person B has also landed** the ITCH 5.0 parser, an
@@ -15,32 +25,6 @@ constantly-updated handoff is `CLAUDE.md`, the research roadmap is `plan_2.md`, 
 > (must build in WSL) and everything downstream (RL agent, GPU risk, the Python
 > dashboard grain on the ring). All Python is **authored, not yet run** (no interpreter
 > in this shell — see §7).
-
----
-
-## 0. Part 2 (research layer) — status as of 2026-09-13
-
-The systems half (Part 1) is done. The quant research layer turns Nexus-LOB into
-"systems + real market-microstructure research" (`plan_2.md` is the roadmap of record;
-`plan.md` is the approved Phase-3 build plan):
-
-| Phase | What | State |
-|---|---|---|
-| 0–1 | Repo hygiene, CI, research spine (features/labels/dataset/experiments/models), E1–E4 synthetic IC vignette | ✅ on `main` (PR #15); honest null IC on the random-walk tape |
-| 2 | Execution realism — cost model, market-VWAP metrics (the "self-VWAP" flaw fix), env cost/queue knobs, backtest harness | ✅ **verified green** on `feature/part2-phase3-queue-rl` (110 passed / 1 skipped) |
-| 3 | **Queue dynamics (E5) + adverse selection (E6) + fair RL rework** — order-level tracker + P(fill) KM/logistic models; post-fill drift; per-regime ≥5-seed eval with symmetric info; adaptive baselines | 🚧 **IN PROGRESS** — plan approved; `synthetic_flow.py` + `queue_dynamics.py` exploration already on the branch |
-| 4–5 | Real NASDAQ ITCH tape, research report, honest README | ⏭️ next |
-
-**Phase-3 plan (in force 2026-09-13, `plan.md`):** WS-1 E5 fill models
-(`fill_dataset` / `standing_order_lifetimes` / KM `fill_prob_survival` with cancel as a
-competing risk / NumPy-IRLS `LogisticFillModel` + calibration/Brier); WS-2 E6
-adverse (`post_fill_drift` / `P_adverse` / `adverse_groups`); WS-3 `evaluate_regime_ci`
-with a symmetric `vol_feature` toggle and market-VWAP slippage; WS-4 `apov` / `stwap`
-/ `isaware` baselines; WS-5 wiring + an honest E5/E6 vignette. **No `OrderBookEnv`
-changes in Phase 3** (the earlier WS-0 env drift/mean-revert knobs were dropped
-2026-09-13; regimes come from `HIGHVOL_PRESETS` and defaults, `vol_feature=False`
-in fair mode). Working tree is on the feature branch; updates land via feature PR
-with a real merge commit (never squash).
 
 ---
 
