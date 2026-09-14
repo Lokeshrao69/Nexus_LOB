@@ -9,6 +9,7 @@ Ground rules (plan_2.md §0) enforced here:
   * labels use prices strictly at ``t+h`` or later, never ``t``;
   * splits are walk-forward by calendar/sequence time, never shuffled CV.
 """
+from .adverse_selection import P_adverse, adverse_groups, drift_ticks, post_fill_drift
 from .dataset import event_frame, make_split
 from .experiments import (
     bootstrap_ci,
@@ -60,10 +61,12 @@ __all__ = [
     "FlowConfig",
     "LogisticFillModel",
     "OrderLife",
+    "P_adverse",
     "QueueTracker",
     "RestingOrder",
     "StepFlow",
     "SyntheticFlow",
+    "adverse_groups",
     "bootstrap_ci",
     "brier_score",
     "calibration_curve",
@@ -71,6 +74,7 @@ __all__ = [
     "decile_spread",
     "deep_imbalance",
     "diebold_mariano",
+    "drift_ticks",
     "event_frame",
     "fill_dataset",
     "fill_prob_survival",
@@ -87,6 +91,7 @@ __all__ = [
     "momentum",
     "normal_cdf",
     "ofi",
+    "post_fill_drift",
     "queue_ahead_walk",
     "rank_ic",
     "realized_vol",
