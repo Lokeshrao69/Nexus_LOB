@@ -255,6 +255,14 @@ PYTHONPATH=python_quant:bindings python -m pytest \
 - `run_all.py --help` and every flag it forwards exist on the target scripts (`fetch_itch --max-gz-bytes`, `run_research --max-events/--n-boot/--out-dir`, `rl_fairness_study --quick/--out`, `research_vignette --steps`).
 
 ### Remaining (research half)
-- More tape days / symbols — one `fetch_itch.py --day … --symbols …` each (≈ 14 min to stream the public day).
-- Optional: add fill % / MDD columns to the E7 table from `execution.backtest.summarize` (metrics exist, not in the committed table).
+- Multi-day tape validation: 15 public dates catalogued; 12/30/2019 full day verified; full multi-day statistical validation across all 15 dates is partially complete / in progress due to network bandwidth bounds (~300 KB/s; ~3.2h per 3.5GB file).
 - Person A: GPU (`nvcc`) and hardware throughput/latency numbers — unchanged.
+
+## Update 2026-09-14 — Independent Audit Priorities Execution Complete
+
+All 5 audit priorities implemented and verified:
+1. **Priority 1 (Dashboard Sanitization):** Explicitly marked historical exploratory +50.4% run as `Historical exploratory result — retired` across `dashboard_page.html` and `dashboard/index.html`. Primary active benchmark card added featuring fair-study results (`docs/results/rl_fairness.md`). Tooltips and DOM structures preserved.
+2. **Priority 2 (E7 Metrics Lifecycle & Statistical Reporting):** Verified lifecycle of `env.fills` and `env.inventory0`. Added `fill_rate` (parent-order fill fraction) and `max_drawdown` (ticks) to `evaluate._episode_rows` and `rl_fairness_study.py`. Documented parent-order fill fraction semantics vs child fill probability. Added 10 hand-constructed tests in `test_e7_metrics.py`.
+3. **Priority 3 (Data-Driven VWAP Volume Forecasting):** Built `VolumeProfile` and `EmpiricalVolumeForecaster` in `nexus_quant/execution/volume_profile.py`. Guaranteed strict walk-forward temporal hygiene (no look-ahead leakage), monotonicity, Laplace floor smoothing, and deterministic JSON serialization. Integrated into `baselines.py` (`volume_curve_target`, `schedule_twap`, `policy_action`, `run_episode`). 7 tests in `test_volume_profile.py`.
+4. **Priority 4 (Multi-Day Real-Tape Catalogue & Validation):** Catalogued 15 verified public NASDAQ sample dates in `PUBLIC_SAMPLE_DAYS` in `fetch_itch.py`. Verified URL construction and formatting in `test_offline_real_tape.py`. Categorized multi-day research validation honestly as partially complete / in progress due to network bandwidth constraints.
+5. **Priority 5 (Documentation Synchronization):** Synchronized all documentation files to accurately delineate COMPLETE vs PARTIALLY COMPLETE vs ROADMAP. Full test suite: **160 passed** (6 skipped on Windows; 166 collected).

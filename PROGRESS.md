@@ -288,7 +288,10 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
 5. ✅ **Risk ↔ Environment integration** — done (`risk.py`, `lambda_risk` in `OrderBookEnv`).
 6. ✅ **Interactive order-book dashboard** — done (`serve_dashboard.py`, shmem/file-ring decoding).
 7. ✅ **Part 2 Phases 0–5 quant research layer** — done (`docs/RESEARCH.md`, `run_all.py`, PR #19).
-8. ⚠️ **High-volatility headline (+50.4%)** — audited, re-verified, and retired under fair RL study (`docs/results/rl_fairness.md`).
-9. ⏳ **Remaining Project Work (Person A):**
-   - Verify GPU risk engine on a CUDA machine (`nexus_risk` + `risk_bench` with `nvcc`).
-   - Hardware benchmarks for zero-copy shmem ring throughput.
+8. ✅ **Dashboard Sanitization (Audit Priority 1)** — completed; retired +50.4% exploratory run labeled `Historical exploratory result — retired`, active fair study benchmark featured.
+9. ✅ **E7 Evaluation Metrics Completion (Audit Priority 2)** — completed; `fill_rate` (parent-order fill fraction) and `max_drawdown` (ticks) integrated into `evaluate._episode_rows` and `rl_fairness_study.py`; 10 hand-constructed tests in `test_e7_metrics.py`.
+10. ✅ **Empirical Volume Profiler (Audit Priority 3)** — completed; `VolumeProfile` + `EmpiricalVolumeForecaster` implemented in `nexus_quant/execution/volume_profile.py`, walk-forward leak-free, Laplace smoothing, integrated with `baselines.py` and schedule_twap; 7 tests in `test_volume_profile.py`.
+11. 🟡 **Multi-Day Real-Tape Validation (Audit Priority 4)** — partially complete / in progress; 12/30/2019 full day verified; 15 public NASDAQ sample dates catalogued in `fetch_itch.py` and tested in `test_offline_real_tape.py`; full multi-day E1–E6 downloads bounded by local network bandwidth (~300 KB/s; ~3.2h per 3.5GB file).
+12. ⏳ **Remaining Project Work (Person A):**
+    - Verify GPU risk engine on a CUDA machine (`nexus_risk` + `risk_bench` with `nvcc`).
+    - Hardware benchmarks for zero-copy shmem ring throughput.

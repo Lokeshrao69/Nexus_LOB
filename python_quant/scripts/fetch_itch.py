@@ -55,6 +55,25 @@ DEFAULT_BASE = "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/"
 DEFAULT_DAY = "12302019"  # smallest recent full day on the public server
 DEFAULT_SYMBOLS = ("QQQ", "AAPL")
 
+# 15 public TotalView-ITCH 5.0 sample days available on emi.nasdaq.com
+PUBLIC_SAMPLE_DAYS: tuple[str, ...] = (
+    "01302018",
+    "01302019",
+    "01302020",
+    "03272019",
+    "03292018",
+    "05302018",
+    "05302019",
+    "07302018",
+    "07302019",
+    "08302018",
+    "08302019",
+    "10302018",
+    "10302019",
+    "12282018",
+    "12302019",
+)
+
 # Message types carried over into every per-symbol slice.
 _ORDER_TYPES = frozenset(b"AFECXDUP")
 _SESSION_TYPE = ord("S")

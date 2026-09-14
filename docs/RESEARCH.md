@@ -244,3 +244,6 @@ Results land in `docs/results/` (`real_tape_<day>.md` + per-symbol JSON,
 3. IS vs **market** VWAP (never self-executed VWAP) with fees + queue on. ✅
 4. At least one negative/unstable result reported. ✅ (§8)
 5. Every headline restated as `point estimate (CI)` — never a bare number. ✅
+6. Empirical volume profiler replaces static cosine heuristics, with leak-free walk-forward filtering and monotonicity constraints. ✅ (`nexus_quant.execution.volume_profile`)
+7. Multi-day tape status: 12/30/2019 full day verified (0 truncated, 0 unknown IDs); 15 public NASDAQ sample dates catalogued in `PUBLIC_SAMPLE_DAYS`; full multi-day statistical validation across all 15 dates is partially complete / in progress due to network bandwidth bounds (~300 KB/s; ~3.2h per 3.5GB file). 🟡
+8. E7 metrics completion: `fill_rate` (parent-order fill fraction) and `max_drawdown` (ticks) exposed with hand-constructed test validation. ✅ (`test_e7_metrics.py`)

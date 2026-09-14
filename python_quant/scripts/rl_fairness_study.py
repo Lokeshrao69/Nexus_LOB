@@ -62,7 +62,7 @@ from nexus_quant.envs.regimes import (
 )
 
 MODES = ("novol", "volsym")
-METRICS = ("shortfall_bps", "vwap_slip_bps", "completion", "reward")
+METRICS = ("shortfall_bps", "vwap_slip_bps", "completion", "fill_rate", "mdd_ticks", "reward")
 
 
 def _train(mode: str, seed: int, iters: int, episodes: int, out_dir: Path) -> PPOPolicy:
@@ -174,8 +174,8 @@ def render_markdown(res: dict) -> str:
         title = ("nobody observes the regime flag (obs dim 44)" if mode == "novol"
                  else "regime flag visible to the agent AND every baseline (symmetric)")
         lines += [f"## Mode `{mode}` — {title}", ""]
-        lines += ["| regime | PPO shortfall (seed-mean ± seed-std) | best baseline | Δ vs best [95% CI] per training seed | sig better / worse | Δ vs VWAP (mean over seeds) | PPO completion | PPO slip vs market VWAP |",
-                  "|---|---|---|---|---|---|---|---|"]
+        lines += ["| regime | PPO shortfall (seed-mean ± seed-std) | best baseline | Δ vs best [95% CI] per training seed | sig better / worse | Δ vs VWAP (mean over seeds) | PPO completion | PPO fill rate | PPO max DD (ticks) | PPO slip vs market VWAP |",
+                  "|---|---|---|---|---|---|---|---|---|---|"]
         for r, pm in mr["per_metric"]["shortfall_bps"].items():
             pr = mr["paired"][r]
             deltas = " ".join(f"{d['mean']:+.2f} [{d['lo']:+.2f},{d['hi']:+.2f}]" for d in pr["vs_best"])
@@ -184,11 +184,14 @@ def render_markdown(res: dict) -> str:
             dv = np.mean([d["mean"] for d in pr["vs_vwap"]])
             pv = np.mean([d["pct_vs_baseline"] for d in pr["vs_vwap"]])
             comp = mr["per_metric"]["completion"][r]["ppo_pooled_mean"]
+            fr = mr["per_metric"]["fill_rate"][r]["ppo_pooled_mean"]
+            mdd = mr["per_metric"]["mdd_ticks"][r]["ppo_pooled_mean"]
+            mdd_std = mr["per_metric"]["mdd_ticks"][r]["ppo_seed_std"]
             mv = mr["per_metric"]["vwap_slip_bps"][r]["ppo_pooled_mean"]
             lines.append(
                 f"| {r} | {pm['ppo_pooled_mean']:.3f} ± {pm['ppo_seed_std']:.3f} | "
                 f"{pr['best_baseline']} {pr['best_baseline_mean']:.3f} | {deltas} | {sig_b} / {sig_w} | "
-                f"{dv:+.3f} bps ({pv:+.1f}%) | {comp:.3f} | {mv:+.3f} |"
+                f"{dv:+.3f} bps ({pv:+.1f}%) | {comp:.3f} | {fr:.3f} | {mdd:.2f} ± {mdd_std:.2f} | {mv:+.3f} |"
             )
         lines += ["", "Baselines (shortfall_bps, mean [95% CI]):", ""]
         regimes = list(mr["per_metric"]["shortfall_bps"].keys())

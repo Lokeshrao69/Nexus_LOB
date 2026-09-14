@@ -109,12 +109,19 @@ def arrival_slippage(
 
 
 def fill_rate(fills: Sequence[object], target_qty: int) -> float:
-    """Fraction of ``target_qty`` that actually filled (0..1)."""
+    """Fraction of parent-order ``target_qty`` that actually filled in [0, 1].
+
+    Measures the aggregate Parent Order Fill Fraction (filled_qty / target_qty),
+    NOT child limit-order execution probability.
+    When inventory is strictly conserved (inventory = inventory0 - sum(fills)),
+    this is mathematically equivalent to (1.0 - leftover / target_qty).
+    Returns 0.0 for target_qty <= 0 or empty fills. Clamped to [0.0, 1.0].
+    """
     px_sz = _fills_as(fills)
     qty = sum(sz for _, sz in px_sz)
     if target_qty <= 0:
         return 0.0
-    return min(1.0, qty / target_qty)
+    return float(min(1.0, max(0.0, qty / target_qty)))
 
 
 def completion_rate(fills: Sequence[object], target_qty: int, leftover: int) -> float:
@@ -134,7 +141,12 @@ def inv_risk(sigma: float, inv: float, t_fraction: float) -> float:
 
 
 def max_drawdown(pnl_path: Sequence[float]) -> float:
-    """Largest peak-to-trough drawdown of a cumulative-PnL path (positive)."""
+    """Largest peak-to-trough drawdown of a cumulative PnL path in ticks (>= 0.0).
+
+    Computes max_{t} (max_{s <= t} pnl[s] - pnl[t]) over the marked-to-market
+    PnL path. Returns 0.0 for empty or single-element paths, or strictly
+    increasing paths where no drawdown occurs.
+    """
     path = [float(p) for p in pnl_path]
     if not path:
         return 0.0
@@ -143,4 +155,4 @@ def max_drawdown(pnl_path: Sequence[float]) -> float:
     for p in path:
         peak = max(peak, p)
         mdd = max(mdd, peak - p)
-    return mdd
+    return float(max(0.0, mdd))

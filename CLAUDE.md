@@ -342,11 +342,11 @@ All 12 original plan items are complete. Remaining work is **polish & measuremen
 |---|---|---|
 | CUDA kernel compile + ~40× speedup measurement | Person A | Yes — no `nvcc`/toolkit on this machine |
 | Throughput/latency on real hardware (>500k ord/s, sub-µs) | Person A | Yes — Windows sandbox throttles; needs Linux/real box |
-| ~~Reconcile two dashboard pages~~ — both now on `main` (combined desk + verification console) | Both | ✅ 2026-09-12 |
-| Execution timeline + inventory chart in dashboard | Person B | No |
-| ~~Final README.md polish + write-up~~ — README status/headline table rewritten with measured numbers; `docs/RESEARCH.md` full report | Both | ✅ 2026-09-13 |
-| **Part 2 quant research layer** (plan_2.md): ~~Phase 0–1 spine~~ ✅ · ~~Phase 2 execution realism~~ ✅ · ~~Phase 3 queue/adverse-selection + RL fairness~~ ✅ · ~~Phase 4 real ITCH tape~~ ✅ · ~~Phase 5 report + `run_all.py`~~ ✅ (2026-09-13, Person B branch `feature/person-b-part2`, PR #19 on `Lokeshrao69/Nexus_LOB`) | Person B | No — review/merge PR #19 |
-| More real tape days / symbols (each day ≈ 14 min stream via `fetch_itch.py`) | Person B | No |
+| Reconcile & sanitize dashboard — retired +50.4% labeled, active fair benchmark featured | Person B | ✅ 2026-09-14 |
+| E7 execution metrics (`fill_rate` parent-order fill fraction, `max_drawdown` ticks) | Person B | ✅ 2026-09-14 |
+| Empirical volume profiler (`VolumeProfile` + `EmpiricalVolumeForecaster` in `volume_profile.py`) | Person B | ✅ 2026-09-14 |
+| Multi-day NASDAQ ITCH tape (15 public dates catalogued; full batch bounded by ~300 KB/s network) | Person B | 🟡 Partially complete / in progress |
+| Part 2 quant research layer (Phases 0–5 complete, PR #19 on `Lokeshrao69/Nexus_LOB`) | Person B | ✅ 2026-09-14 (160 tests passing) |
 
 ## 8. Environment reality (IMPORTANT — read before running anything)
 

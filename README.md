@@ -62,16 +62,16 @@ Pure-NumPy stack (no torch), byte-reproducible:
 | Train+eval CLI | `scripts/train_eval_agent.py` | `--highvol`, `--eval-only`, regime flags |
 | **Fair RL re-verification** | `scripts/rl_fairness_study.py` → `docs/results/rl_fairness.md` | 5 train seeds × 5 eval families × 6 regimes × 2 info modes, fees+queue on |
 | Research spine (Part 2) | `nexus_quant/research/{features,labels,dataset,experiments,models}.py` | leak-locked features, walk-forward splits, rank IC / block bootstrap / DM |
-| Execution realism (Part 2) | `nexus_quant/execution/{cost_model,metrics,backtest}.py` | fees/rebates/impact, IS vs **market** VWAP, MDD |
+| Execution realism (Part 2) | `nexus_quant/execution/{cost_model,metrics,backtest,volume_profile}.py` | fees/rebates/impact, IS vs **market** VWAP, fill rate / MDD, empirical volume profiler |
 | Order-level queue + fill models (E5) | `nexus_quant/research/queue_dynamics.py` | `OrderLevelTracker`, Kaplan–Meier P(fill), logistic fill model + calibration |
 | Adverse selection (E6) | `nexus_quant/research/adverse_selection.py` | post-fill drift, Newey–West t, pre-fill matched control |
-| **Real NASDAQ ITCH tape** | `scripts/fetch_itch.py`, `scripts/run_research.py` | public `emi.nasdaq.com` day → per-symbol slice → E1–E6 (`docs/results/real_tape_12302019.md`) |
+| **Real NASDAQ ITCH tape** | `scripts/fetch_itch.py`, `scripts/run_research.py` | public `emi.nasdaq.com` day → per-symbol slice → E1–E6 (12/30/2019 verified; 15-date catalogue; bandwidth bounds noted) |
 | Regime design doc | `HIGHVOL_PLAN.md` | the high-vol regime (historical; its headline is retired above) |
 
-**Tests (all green):** **152 passed** — contract smoke, ITCH, replay, env,
+**Tests (all green):** **160 passed** (6 skipped on Windows; 166 collected) — contract smoke, ITCH, replay, env,
 baselines, PPO + GRPO agents, risk parity (3× bit-for-bit), the high-vol regime,
 dashboard codec/hub, risk↔env penalty, research spine leak locks, cost model /
-backtest, queue tracker + Kaplan–Meier + logistic calibration, adverse selection,
+backtest, empirical volume profiler, E7 metrics hand tests, queue tracker + Kaplan–Meier + logistic calibration, adverse selection,
 regimes / fair baselines / CI harness, and the real-tape slicer (the real-tape
 smoke runs whenever `data/itch/<day>/<SYMBOL>.itch` is present).
 

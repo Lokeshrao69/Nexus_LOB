@@ -263,7 +263,7 @@
         <div class="statline">
           <div class="stat"><b>14/14</b><span>test suites</span></div>
           <div class="stat"><b>4.71M</b><span>engine checks</span></div>
-          <div class="stat"><b>+50.4%</b><span>vs VWAP slippage</span></div>
+          <div class="stat"><b>6</b><span>eval regimes</span></div>
           <div class="stat"><b>448 B</b><span>ABI lock intact</span></div>
         </div>
       </div>
@@ -271,7 +271,7 @@
         <div class="ledger">
           <div class="row"><span class="k">C++ matching engine</span><span class="v nums ok">PASS 86 + 4.67M checks</span></div>
           <div class="row"><span class="k">Shared-memory ring</span><span class="v nums ok">PASS 30,011 checks</span></div>
-          <div class="row"><span class="k">RL execution agent (PPO)</span><span class="v nums ok">12/12 + headline</span></div>
+          <div class="row"><span class="k">RL execution agent (PPO)</span><span class="v nums ok">PASS 12 + Fair study</span></div>
           <div class="row"><span class="k">ITCH replay + env</span><span class="v nums ok">PASS 22 tests</span></div>
           <div class="row"><span class="k">CPU risk engine</span><span class="v nums ok">PASS 9 + 3 parity</span></div>
           <div class="row"><span class="k">Pybind seam (Engine vs oracle)</span><span class="v nums ok">PASS 8</span></div>
@@ -289,10 +289,10 @@
       <span class="lbl">engine throughput</span>
       <span class="val nums">0</span><span class="delta ok">allocs / op</span>
       <span class="foot">hot path, both workloads &mdash; IdMap proved it</span></div>
-    <div class="kpi" data-flag="ok"><div class="corner"></div>
+    <div class="kpi" data-flag="warn"><div class="corner"></div>
       <span class="lbl">RL headline</span>
-      <span class="val nums">+50.4%</span><span class="delta ok">lower slippage</span>
-      <span class="foot">PPO 1.401 vs VWAP 2.827 bps, high-vol</span></div>
+      <span class="val nums">Fair RL</span><span class="delta warn">regime-dependent</span>
+      <span class="foot">Retired naive +50.4%; fair study: ~0 bps highvol, +0.4..1.4 bps shock</span></div>
     <div class="kpi" data-flag="ok"><div class="corner"></div>
       <span class="lbl">CPU risk</span>
       <span class="val nums">55M</span><span class="delta ok">path-steps / s</span>
@@ -314,14 +314,16 @@
   <!-- ============ chart ============ -->
   <section class="section">
     <h3>Execution slippage by strategy</h3>
-    <p class="desc">Measured live this session &mdash; 100 seeded episodes, high-volatility regime. The PPO agent times
-      fills around adverse mid-moves to undercut every baseline on implementation shortfall.</p>
+    <p class="desc">Historical exploratory run (2026-09-07) &mdash; 100 seeded episodes, high-volatility regime.
+      <span class="cell-pill warn">Historical exploratory result &mdash; retired</span>
+      The naive +50.4% claim resulted from asymmetric regime visibility, training-set evaluation, and simple heuristic baselines.
+      See the Fair Re-Verification benchmark below.</p>
     <div class="chartcard">
       <div class="cap">
-        <h4>Implementation shortfall</h4><span class="sub">bps &middot; lower is better &middot; high-vol regime</span>
+        <h4>Implementation shortfall (exploratory run)</h4><span class="sub">bps &middot; lower is better &middot; <span class="cell-pill warn">Historical exploratory result &mdash; retired</span></span>
       </div>
       <div class="legend">
-        <span class="li"><span class="sw hero"></span>PPO agent (learned)</span>
+        <span class="li"><span class="sw hero"></span>PPO agent (historical, retired)</span>
         <span class="li"><span class="sw field"></span>baselines</span>
         <span class="li"><span class="sw" style="background:transparent;border-top:2px dashed var(--warn)"></span>VWAP reference</span>
       </div>
@@ -330,11 +332,36 @@
         <table>
           <thead><tr><th>strategy</th><th>reward</th><th>shortfall (bps)</th><th>vs VWAP</th><th>leftover</th></tr></thead>
           <tbody>
-            <tr class="herorow"><td class="strategy hero">PPO (learned)</td><td class="nums">-5.04</td><td class="nums">1.401</td><td class="pos nums">+50.4%</td><td class="nums">26.3</td></tr>
+            <tr class="herorow"><td class="strategy hero">PPO (historical, retired)</td><td class="nums">-5.04</td><td class="nums">1.401</td><td class="pos nums">+50.4%*</td><td class="nums">26.3</td></tr>
             <tr><td class="strategy">POV</td><td class="nums">-9.32</td><td class="nums">2.519</td><td class="pos nums">+10.9%</td><td class="nums">45.0</td></tr>
             <tr><td class="strategy">TWAP</td><td class="nums">-8.60</td><td class="nums">2.659</td><td class="pos nums">+5.9%</td><td class="nums">39.6</td></tr>
             <tr><td class="strategy">Passive</td><td class="nums">-12.81</td><td class="nums">2.679</td><td class="pos nums">+5.3%</td><td class="nums">287.8</td></tr>
             <tr><td class="strategy">VWAP (baseline)</td><td class="nums">-7.40</td><td class="nums">2.827</td><td class="nums">0.0%</td><td class="nums">24.3</td></tr>
+          </tbody>
+        </table>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:8px;line-height:1.4;">
+          *<strong>Retired claim:</strong> Re-evaluation under symmetric information, hold-out regimes, and queue/fee costs (Phase 3) established that PPO's edge is strictly regime-dependent and does not outperform adaptive baselines in calm/lowvol markets.
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Fair RL Benchmark -->
+    <div class="chartcard" style="margin-top:16px;">
+      <div class="cap">
+        <h4>Fair RL Re-Verification (Active Research Benchmark)</h4>
+        <span class="sub">5 seeds &times; 5 eval families &times; 20 eps &middot; symmetric info &middot; queue + fees ON &middot; docs/results/rl_fairness.md</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>regime</th><th>PPO shortfall (bps)</th><th>best baseline</th><th>&Delta; vs best [95% CI]</th><th>status</th><th>PPO vs market VWAP</th><th>completion</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="strategy">highvol (train)</td><td class="nums">2.597 &plusmn; 0.079</td><td>adaptive_pov 2.650</td><td class="nums">+0.05 [-0.20, +0.30]</td><td><span class="cell-pill">~0 bps (parity)</span></td><td class="nums">+1.211 bps</td><td class="nums">0.981</td></tr>
+            <tr><td class="strategy">calm (holdout)</td><td class="nums">1.605 &plusmn; 0.018</td><td>twap 1.471</td><td class="nums">-0.13 [-0.21, -0.08]</td><td><span class="cell-pill warn">PPO worse (0/5)</span></td><td class="nums">+1.038 bps</td><td class="nums">1.000</td></tr>
+            <tr><td class="strategy">lowvol (holdout)</td><td class="nums">0.957 &plusmn; 0.014</td><td>adaptive_pov 0.896</td><td class="nums">-0.06 [-0.09, -0.03]</td><td><span class="cell-pill warn">PPO worse (0/5)</span></td><td class="nums">+0.792 bps</td><td class="nums">1.000</td></tr>
+            <tr><td class="strategy">trending (holdout)</td><td class="nums">2.893 &plusmn; 0.131</td><td>adaptive_pov 2.909</td><td class="nums">-0.01 [-0.30, +0.27]</td><td><span class="cell-pill">parity</span></td><td class="nums">+0.559 bps</td><td class="nums">0.978</td></tr>
+            <tr class="herorow"><td class="strategy hero">liquidity_shock</td><td class="nums">3.048 &plusmn; 0.312</td><td>adaptive_pov 3.742</td><td class="nums pos">+0.69 [+0.35, +1.03]</td><td><span class="cell-pill ok">PPO better (5/5)</span></td><td class="nums">+1.610 bps</td><td class="nums">0.942</td></tr>
           </tbody>
         </table>
       </div>
@@ -425,9 +452,9 @@
           <div class="testrow"><span class="name">Replay <code>test_replay.py</code></span><span class="caret">&#9656;</span><span class="res ok">5 / 5</span>
             <span class="cmd">python -m pytest python_quant/tests/test_replay.py
 &#8594; 5 passed</span></div>
-          <div class="testrow"><span class="name">Headline eval (live)</span><span class="caret">&#9656;</span><span class="res ok">+50.4% vs VWAP</span>
+          <div class="testrow"><span class="name">Headline eval (historical, retired)</span><span class="caret">&#9656;</span><span class="res warn">retired (+50.4%)</span>
             <span class="cmd">python python_quant/scripts/train_eval_agent.py --highvol --vol-feature --eval-only python_quant/artifacts/policy_ppo_highvol.npz
-&#8594; ppo 1.401 vs vwap 2.827 bps = +50.4% (100 seeded episodes)</span></div>
+&#8594; Historical exploratory: ppo 1.401 vs vwap 2.827 bps = +50.4% (retired under fair protocol)</span></div>
         </div>
       </div>
     </article>
@@ -573,7 +600,7 @@
         <span class="ln dim">&#8594; CPU: var=0.324574 cvar=0.389231, 915.0 ms (55M path-steps/s)</span>
         <span class="ln warn">&#8594; GPU: not compiled (no CUDA toolkit) — speedup measured on a CUDA box</span>
         <span class="ln cmdline"><span class="c">python python_quant/scripts/train_eval_agent.py --highvol --vol-feature --eval-only python_quant/artifacts/policy_ppo_highvol.npz</span></span>
-        <span class="ln ok">&#8594; agent shortfall 1.401 bps vs VWAP 2.827 bps = +50.4%</span>
+        <span class="ln ok">&#8594; agent shortfall 1.401 bps vs VWAP 2.827 bps = +50.4% (historical exploratory result &mdash; retired under fair protocol)</span>
       </div>
     </div>
   </section>
@@ -591,7 +618,7 @@
   /* ---------- chart ---------- */
   (function(){
     var data=[
-      {name:'PPO',    val:1.401, vs:'+50.4%', rw:-5.04, left:'26.3', hero:true},
+      {name:'PPO (ret.)', val:1.401, vs:'+50.4%*', rw:-5.04, left:'26.3', hero:true, retired:true},
       {name:'POV',    val:2.519, vs:'+10.9%', rw:-9.32, left:'45.0'},
       {name:'TWAP',   val:2.659, vs:'+5.9%',  rw:-8.60, left:'39.6'},
       {name:'Passive',val:2.679, vs:'+5.3%',  rw:-12.81,left:'287.8'},
@@ -632,11 +659,12 @@
       var d=data[+r.getAttribute('data-i')];
       r.addEventListener('mousemove',function(e){
         var rect=svg.getBoundingClientRect();
+        var retNote = d.retired ? '<div style="color:var(--warn);font-size:10px;margin-top:2px;">*Historical exploratory &mdash; retired under fair protocol</div>' : '';
         tip.innerHTML='<b>'+d.name+'</b>'+
           '<span class="tt">shortfall <span>'+d.val.toFixed(3)+' bps</span></span>'+
           '<span class="tt">vs VWAP <span>'+d.vs+'</span></span>'+
           '<span class="tt">reward <span>'+d.rw+'</span></span>'+
-          '<span class="tt">leftover <span>'+d.left+'</span></span>';
+          '<span class="tt">leftover <span>'+d.left+'</span></span>'+retNote;
         tip.style.opacity=1;
         var tx=e.clientX-rect.left+14, ty=e.clientY-rect.top-10;
         tip.style.left=tx+'px'; tip.style.top=ty+'px';

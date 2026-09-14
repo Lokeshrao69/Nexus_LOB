@@ -141,6 +141,20 @@ def test_tape_url_and_manifest_shape() -> None:
     assert fetch.DEFAULT_SYMBOLS and fetch.DEFAULT_DAY == "12302019"
 
 
+def test_public_sample_days_catalogue() -> None:
+    fetch = _load_fetch_module()
+    days = fetch.PUBLIC_SAMPLE_DAYS
+    assert len(days) == 15
+    assert len(set(days)) == 15  # all unique
+    assert fetch.DEFAULT_DAY in days
+    assert "01302020" in days
+    for d in days:
+        assert len(d) == 8 and d.isdigit()
+        url = fetch.tape_url(d)
+        assert url.startswith("https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/")
+        assert url.endswith(f"{d}.NASDAQ_ITCH50.gz")
+
+
 @pytest.mark.skipif(not _TAPE.exists(), reason=f"real tape not fetched: {_TAPE} (run scripts/fetch_itch.py)")
 def test_real_tape_parses_clean() -> None:
     """Parser 0 truncated · replay integrity clean (bar the empty pre-open book) ·

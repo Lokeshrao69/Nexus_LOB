@@ -22,6 +22,7 @@ from math import pi, sin
 from typing import Literal
 
 from .envs.order_book_env import OrderBookEnv
+from .execution.volume_profile import VolumeProfile
 
 AgentId = Literal[
     "twap", "vwap", "pov", "passive",
@@ -40,19 +41,34 @@ def regime_indicator(env: OrderBookEnv) -> bool | None:
     return None
 
 
-def volume_curve_target(t_frac: float, *, u_weight: float = 0.6) -> float:
-    """Fraction of the parent order a U-shaped intraday volume curve has done
+def volume_curve_target(
+    t_frac: float,
+    *,
+    u_weight: float = 0.6,
+    profile: VolumeProfile | None = None,
+) -> float:
+    """Fraction of the parent order an intraday volume curve has done
     by ``t_frac`` of the horizon (0 → 0, 1 → 1).
 
-    Closed-form CDF of the density ``1 + w·cos(2πt)`` on [0, 1] (heavier at
-    the open and the close, integrates to 1). ``u_weight=0`` is a flat TWAP
-    schedule; ``|u_weight| < 1`` keeps the density positive.
+    If ``profile`` is provided (a VolumeProfile instance), evaluates the
+    empirical data-driven cumulative profile C(t).
+    Otherwise, falls back to the closed-form cosine CDF:
+    density ``1 + w·cos(2πt)`` on [0, 1] (heavier at the open and the close,
+    integrates to 1). ``u_weight=0`` is a flat TWAP schedule; ``|u_weight| < 1``
+    keeps the density positive.
     """
+    if profile is not None:
+        return profile.cumulative_fraction(t_frac)
     t = min(1.0, max(0.0, float(t_frac)))
     return t + u_weight * sin(2.0 * pi * t) / (2.0 * pi)
 
 
-def policy_action(name: AgentId, env: OrderBookEnv) -> float:
+def policy_action(
+    name: AgentId,
+    env: OrderBookEnv,
+    *,
+    volume_profile: VolumeProfile | None = None,
+) -> float:
     s = env.book.view()
     spr = 2
     if int(s["bid_px"][0]) and int(s["ask_px"][0]):
@@ -71,17 +87,27 @@ def policy_action(name: AgentId, env: OrderBookEnv) -> float:
     if name == "passive":
         return -1.0 if t_frac > 0.92 else 0.7
     if name in FAIR_BASELINES:
-        return _fair_action(name, env, s, spr, t_frac, last_sz)
+        return _fair_action(name, env, s, spr, t_frac, last_sz, volume_profile=volume_profile)
     raise ValueError(name)
 
 
-def _fair_action(name: str, env: OrderBookEnv, s, spr: int, t_frac: float, last_sz: int) -> float:
+def _fair_action(
+    name: str,
+    env: OrderBookEnv,
+    s,
+    spr: int,
+    t_frac: float,
+    last_sz: int,
+    *,
+    volume_profile: VolumeProfile | None = None,
+) -> float:
     inv_frac = env.inventory / max(1, env.inventory0)
     done_frac = 1.0 - inv_frac
     volatile = regime_indicator(env)
     if name == "schedule_twap":
-        # U-shaped volume curve; behind schedule -> cross, ahead -> rest at touch
-        target = volume_curve_target((env.t + 1) / env.horizon, u_weight=0.6)
+        # Volume curve; behind schedule -> cross, ahead -> rest at touch
+        prof = volume_profile or getattr(env, "volume_profile", None)
+        target = volume_curve_target((env.t + 1) / env.horizon, u_weight=0.6, profile=prof)
         behind = target - done_frac
         if t_frac > 0.9 or behind > 0.08:
             return -1.0
@@ -136,10 +162,13 @@ def run_episode(
     *,
     seed: int | None = None,
     policy: Callable[[OrderBookEnv], float] | None = None,
+    volume_profile: VolumeProfile | None = None,
 ) -> EpisodeResult:
+    if volume_profile is not None:
+        env.volume_profile = volume_profile  # type: ignore[attr-defined]
     env.reset(seed=seed)
     total = 0.0
-    act = policy or (lambda e: policy_action(name, e))
+    act = policy or (lambda e: policy_action(name, e, volume_profile=volume_profile))
     while True:
         a = act(env)
         _obs, r, term, trunc, info = env.step(a)

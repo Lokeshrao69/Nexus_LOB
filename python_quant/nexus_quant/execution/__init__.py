@@ -23,9 +23,12 @@ from .metrics import (
     max_drawdown,
     vwap_slippage,
 )
+from .volume_profile import EmpiricalVolumeForecaster, VolumeProfile
 
 __all__ = [
     "CostParams",
+    "EmpiricalVolumeForecaster",
+    "VolumeProfile",
     "arrival_slippage",
     "completion_rate",
     "execution_vwap",
