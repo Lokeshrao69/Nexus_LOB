@@ -68,7 +68,8 @@ Pure-NumPy stack (no torch), byte-reproducible:
 | Multi-day aggregation & ITCH | `nexus_quant/research/multi_day_aggregation.py` | cross-day means, between-day variance, bootstrap CIs, 12/30/2019 full-day verified |
 | Regime design doc | `HIGHVOL_PLAN.md` | the high-vol regime (historical; its headline is retired above) |
 
-**Tests (all green):** **322 passed** (14 skipped on Windows without engine; 336 collected; 335 passed on Linux with engine) — contract smoke, ITCH, replay, env,
+**Tests (all green):** **355 passed / 2 skipped** with the compiled engine present
+(347 in `python_quant`, 8 in `bindings`); 335 passed / 14 skipped without it — contract smoke, ITCH, replay, env,
 baselines, PPO + GRPO agents, risk parity (3× bit-for-bit), high-vol regime,
 dashboard codec/hub, risk↔env penalty, research spine leak locks, cost model /
 backtest, empirical volume profiler, E7 metrics hand tests, offline queue tracker + Kaplan–Meier + logistic calibration, adverse selection,
@@ -90,8 +91,8 @@ oracle draw *identical* paths → **bit-for-bit parity** (not MC tolerance).
 | pybind `compute_var_cvar` (CPU) | `bindings/pybind_wrapper.cpp` | ✅ |
 
 **Verified here (no GPU):** the risk parity oracle is **3/3 bit-for-bit** within
-the 152-test Python suite; CTest **5/5**. **Blocked:** the CUDA kernel and ~40×
-speedup need `nvcc`/toolkit (WSL/Linux or Windows CUDA).
+the Python suite (347 passed / 2 skipped with engine); CTest **5/5**. **Blocked:**
+the CUDA kernel and ~40× speedup need `nvcc`/toolkit (WSL/Linux or Windows CUDA).
 
 ---
 
@@ -111,7 +112,8 @@ every subsystem's tested health side by side.
 **The live pane** (refreshes every 400 ms): L2 depth ladder with size-proportional
 bid/ask bars · best bid / ask / mid / spread / volume tiles · mid & spread
 sparklines over the last 200 snapshots · snapshot-latency histogram (p50/p95) ·
-live VaR / CVaR tiles · side-colored trade ticker · integrity flags · pause/resume.
+live VaR / CVaR tiles · side-colored trade ticker · integrity flags · pause/resume ·
+live execution timeline + inventory chart (with `--live-exec`).
 
 **How it fetches data** — pull-polling, not a WebSocket. The page requests
 `/api/state`; the server builds one fresh snapshot per request, from whichever
@@ -123,11 +125,15 @@ feed is attached:
 * `--shm <name>` — reads the newest slot from a live C++ `ShmRing` in `/dev/shm`
   (POSIX-only → WSL/Linux).
 * `--ring <file>` — reads the last complete 448-B slot from a raw file ring.
+* `--live-exec` — overlay a real seeded `OrderBookEnv` episode (TWAP/FIFO,
+  `--exec-drift` for a price trend) as the execution timeline + inventory chart;
+  it animates against any feed source above.
 
 **Run it** (from anywhere the repo is checked out):
 
 ```bash
 python python_quant/scripts/serve_dashboard.py --synthetic   # → http://127.0.0.1:8765
+python python_quant/scripts/serve_dashboard.py --synthetic --live-exec  # + live execution panel
 ```
 
 Tests: `python -m pytest python_quant/tests/test_dashboard.py -v` (all green).
@@ -198,7 +204,7 @@ Finance Project-1/
 ├── python_quant/          # Person B — quant / RL
 │   ├── nexus_quant/       # book_state, itch_parser, replay, book_port, envs/, baselines, agents/, dashboard.py, dashboard_page.html
 │   ├── scripts/           # train_eval_agent.py, serve_dashboard.py
-│   ├── tests/             # 68 tests, all green
+│   ├── tests/             # 347 tests, all green (with engine)
 │   └── artifacts/         # policy_ppo.npz, policy_ppo_highvol.npz
 ├── bindings/              # pybind_wrapper.cpp, CONTRACT.md, tests/ (+ compiled .pyd)
 ├── CMakeLists.txt         # engine lib + pybind + CTest + CUDA hooks
@@ -214,7 +220,7 @@ Finance Project-1/
 ## Build & test
 
 ```bash
-# Tier 1 — pure-Python (152 tests; works on Windows, no C++ build needed)
+# Tier 1 — pure-Python (347 tests with engine / 335 without; Windows, no C++ build needed to run most)
 python -m pip install numpy gymnasium pytest
 python -m pytest python_quant/tests -v
 
