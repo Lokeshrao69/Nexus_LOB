@@ -39,6 +39,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
@@ -374,7 +376,51 @@ def _result_payload(rep: dict[str, Any], slice_path: Path | None = None) -> dict
     }
     if slice_path is not None:
         payload["session"] = session_evidence(slice_path, rep)
+    payload["conditions"] = market_conditions(rep)
     return payload
+
+
+def market_conditions(rep: dict[str, Any]) -> dict[str, Any]:
+    """Descriptive regular-session market-condition summary (no research claim).
+
+    Computed from the replay's own regular-session mid/spread series so that
+    sessions can be stratified by volatility / liquidity *after* selection:
+    open/close mid (ticks = $0.0001), session return, 5-minute realized
+    volatility (bps, annualised on a 6.5 h day), mean/median quoted spread in
+    bps and in ticks, event-rate, and the share of events with a 1-tick spread.
+    """
+    mids = np.asarray(rep["mids"], dtype=np.float64)
+    ts = np.asarray(rep["ts"], dtype=np.int64)
+    spread = np.asarray(rep["features"]["spread_bps"], dtype=np.float64)
+    ok = mids > 0
+    if ok.sum() < 2:
+        return {"n_rows": int(mids.size), "note": "fewer than two valid mids"}
+    m, t, spread = mids[ok], ts[ok], spread[ok]
+    # 5-minute bars on the tape clock; log returns of bar-close mids.
+    bar_ns = 5 * 60 * 10**9
+    bar_id = (t - run_research.REGULAR_OPEN_NS) // bar_ns
+    last_in_bar = np.flatnonzero(np.diff(bar_id) != 0)
+    closes = np.concatenate([m[last_in_bar], m[-1:]])
+    rets = np.diff(np.log(closes)) if closes.size > 1 else np.zeros(0)
+    n_bars_day = 6.5 * 12
+    rv_bps = float(np.std(rets, ddof=1) * np.sqrt(n_bars_day * 252) * 1e4) if rets.size > 1 else None
+    spread_ticks = spread * m / 1e4
+    return {
+        "n_rows": int(m.size),
+        "open_mid_ticks": float(m[0]),
+        "close_mid_ticks": float(m[-1]),
+        "open_to_close_return_bps": float((m[-1] / m[0] - 1.0) * 1e4),
+        "high_mid_ticks": float(m.max()),
+        "low_mid_ticks": float(m.min()),
+        "range_bps": float((m.max() - m.min()) / m[0] * 1e4),
+        "realized_vol_5min_annualised_bps": rv_bps,
+        "n_5min_bars": int(closes.size),
+        "mean_spread_bps": float(np.mean(spread)),
+        "median_spread_bps": float(np.median(spread)),
+        "mean_spread_ticks": float(np.mean(spread_ticks)),
+        "share_one_tick_spread": float(np.mean(np.abs(spread_ticks - 1.0) < 0.5)),
+        "events_per_second": float(m.size / max(1e-9, (t[-1] - t[0]) / 1e9)),
+    }
 
 
 def session_evidence(slice_path: Path, rep: dict[str, Any]) -> dict[str, Any]:

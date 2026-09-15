@@ -151,6 +151,16 @@ def test_small_deterministic_slice_runs_e1_to_e6_not_just_the_runner(
     assert outcome["exit_code"] == 0
     output = json.loads((results_dir / DAYS[0] / f"real_tape_{DAYS[0]}_AAPL.json").read_text())
     assert output["tape"]["regular_events"] == 610
+    # session evidence + descriptive market conditions ride along with every symbol result
+    session = output["session"]
+    assert session["system_events_ns"]["Q"] == 34_200_000_000_000 and "M" not in session["system_events_ns"]
+    assert session["regular_session_complete"] is False  # fixture has no end-of-market-hours event
+    assert session["first_regular_row_ns"] >= session["regular_open_ns"]
+    conditions = output["conditions"]
+    assert conditions["n_rows"] == 609 and conditions["open_mid_ticks"] > 0  # first row has an empty ask (mid 0) and is excluded
+    assert conditions["mean_spread_bps"] >= 0 and conditions["realized_vol_5min_annualised_bps"] is None
+    research = json.loads((results_dir / DAYS[0] / batch.RESEARCH_MANIFEST_NAME).read_text())
+    assert research["symbols"]["AAPL"]["regular_session_complete"] is False
     assert {row["horizon_h"] for row in output["ic"]["rows"]} == set(batch.HORIZONS)
     assert {row["feature"] for row in output["ic"]["rows"]} == {
         "lob_imbalance",
