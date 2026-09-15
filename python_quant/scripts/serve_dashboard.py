@@ -28,6 +28,8 @@ from nexus_quant.dashboard import (  # noqa: E402
     read_shm_ring_latest,
     serve,
 )
+from nexus_quant.envs.order_book_env import OrderBookEnv  # noqa: E402
+from nexus_quant.baselines import policy_action  # noqa: E402
 from nexus_quant.risk import compute_var_cvar  # noqa: E402
 
 _SEED = 0xC0FFEE
@@ -60,6 +62,82 @@ def _synthetic_view(rng: np.random.Generator, mid: int, seq: int,
     }
 
 
+class LiveEpisode:
+    """Drive a real, seeded ``OrderBookEnv`` execution episode as the live source.
+
+    The synthetic book walk gives the desk its L2 ladder + sparklines (a frozen
+    ``BookStateView`` shaped feed with no C++ build needed). The execution
+    episode does NOT replace that feed — instead it layers the *real* per-step
+    execution trajectory (inventory path, child fills, arrival mid) onto the
+    page through ``hub.exec_episode``, so the "execution timeline" chart is an
+    actual running episode, not a static sketch.
+    """
+
+    def __init__(self, *, inventory: int = 500, horizon: int = 20,
+                 strategy: str = "twap", queue_model: str = "fifo",
+                 drift_ticks: float = 2.0) -> None:
+        self.inventory = int(inventory)
+        self.horizon = int(horizon)
+        self.strategy = strategy
+        self.queue_model = queue_model
+        self.drift_ticks = float(drift_ticks)
+        self.env = OrderBookEnv(
+            inventory=self.inventory, horizon=self.horizon,
+            seed=_SEED, queue_model=queue_model,
+            drift_ticks=self.drift_ticks,
+        )
+        self.episode = 0
+        self._roll()
+
+    def _roll(self) -> None:
+        self.episode += 1
+        self.env.reset(seed=_SEED + self.episode * 7919)
+        self.arrival_mid = self.env.arrival_mid
+        self.steps: list[dict] = []
+        self.done = False
+        self.shortfall_bps = None
+        self.final = {}
+
+    def step(self) -> None:
+        """Advance one env step; record the trajectory; roll a new episode when done."""
+        if self.done:
+            self._roll()
+        a = policy_action(self.strategy, self.env)
+        _, reward, terminated, truncated, info = self.env.step(a)
+        step_t = max(0, int(self.env.t) - 1)     # t was advanced by step()
+        self.steps.append({
+            "t": step_t,
+            "mid": float(info["mid"]),
+            "inv": int(info["inventory"]),
+            "filled": int(info["filled"]),
+            "reward": float(reward),
+        })
+        if terminated or truncated:
+            self.done = True
+            self.shortfall_bps = round(float(info["shortfall_bps"]), 4)
+            self.final = {
+                "shortfall_bps": self.shortfall_bps,
+                "leftover": int(info["inventory"]),
+                "completion": round(1.0 - info["inventory"] / max(1, self.inventory), 4),
+                "t_used": int(self.env.t),
+            }
+
+    def as_json(self) -> dict:
+        return {
+            "episode": self.episode,
+            "strategy": self.strategy,
+            "queue_model": self.queue_model,
+            "drift_ticks": self.drift_ticks,
+            "inventory0": self.inventory,
+            "horizon": self.horizon,
+            "arrival_mid": int(self.arrival_mid),
+            "steps": self.steps,
+            "done": self.done,
+            "shortfall_bps": self.shortfall_bps,
+            "final": self.final,
+        }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
@@ -67,11 +145,18 @@ def main() -> None:
     ap.add_argument("--synthetic", action="store_true", default=True)
     ap.add_argument("--ring", type=str, default="")
     ap.add_argument("--shm", type=str, default="")
+    ap.add_argument("--live-exec", action="store_true", default=False,
+                    help="layer a real seeded OrderBookEnv execution episode "
+                         "(TWAP/FIFO) onto the desk as the execution timeline")
+    ap.add_argument("--exec-drift", type=float, default=2.0,
+                    help="trend target drift (ticks/step) for the live execution "
+                         "mid path; 0 = flat calm market")
     args = ap.parse_args()
 
     hub = SnapshotHub()
     rng = np.random.default_rng(_SEED)
     state = {"mid": 15_000, "seq": 0, "vol": 0, "last": (0, 0, 2), "n": 0}
+    exec_ep = (LiveEpisode(drift_ticks=args.exec_drift) if args.live_exec else None)
 
     def poll() -> None:
         t0 = time.perf_counter_ns()
@@ -100,6 +185,12 @@ def main() -> None:
             st["last"] = (px, sz, side)
         v = _synthetic_view(rng, mid_new, st["seq"], st["vol"], st["last"])
         hub.push(v, source="synthetic", feed_latency_ns=time.perf_counter_ns() - t0)
+        # Advance the live execution episode one step (real env: FIFO queue,
+        # TWAP policy). When it finishes, it rolls a fresh seeded episode, so
+        # the execution timeline on the desk never goes stale.
+        if exec_ep is not None:
+            exec_ep.step()
+            hub.exec_episode = exec_ep.as_json()
         if st["n"] % 8 == 0:
             r = compute_var_cvar(n_paths=256, steps=32, prefer_engine=False)
             hub.risk = {"var": r.var, "cvar": r.cvar}
