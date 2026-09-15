@@ -138,3 +138,80 @@ def test_panel_metric_catalogue_is_well_formed() -> None:
     for key in keys:
         assert key in row, key
         assert row[key] is None or math.isfinite(float(row[key]))
+
+
+def test_single_date_two_symbols_contributes_one_session_no_ci() -> None:
+    """A single calendar date with multiple symbols must NOT count as multiple independent sessions."""
+    rows = [
+        extract_session_metrics(_payload(0.10), day="20191230", symbol="AAPL"),
+        extract_session_metrics(_payload(0.20), day="20191230", symbol="QQQ"),
+    ]
+    panel = session_panel_statistics(rows, seed=42)
+    assert panel["n_days"] == 1
+    assert panel["n_sessions"] == 2
+    assert panel["bootstrap"]["kind"] == "date_cluster_bootstrap"
+    assert panel["bootstrap"]["unit"] == "trading_day"
+    assert "clustered" in panel["bootstrap"]["independence_assumption"]
+
+    entry = panel["metrics"]["ic_lob_imbalance_h5"]
+    m = entry["pooled"]
+    # With only 1 unique trading date, no cross-session CI can be constructed
+    assert m["ci95"] is None
+    assert m["se_mean"] == 0.0
+    assert m["t_stat_mean_zero"] is None
+    assert m["std_between_sessions"] == 0.0
+
+    # Per-symbol analysis is preserved
+    assert "AAPL" in entry["by_symbol"] and "QQQ" in entry["by_symbol"]
+    assert entry["by_symbol"]["AAPL"]["mean"] == pytest.approx(0.10)
+    assert entry["by_symbol"]["QQQ"]["mean"] == pytest.approx(0.20)
+    assert entry["by_symbol"]["AAPL"]["ci95"] is None
+    assert entry["by_symbol"]["QQQ"]["ci95"] is None
+
+
+
+def test_multi_date_multiple_symbols_resamples_dates_not_rows() -> None:
+    """Cluster bootstrap resamples dates, keeping all symbols for a chosen date together.
+
+    If every date has the exact same symbol pair (e.g. AAPL=0.10, QQQ=0.30, mean=0.20),
+    resampling whole dates yields identical mean=0.20 in every draw (CI width = 0).
+    Row-level resampling would unpair them and produce variance in the mean.
+    """
+    rows = []
+    for day in ("d1", "d2", "d3", "d4"):
+        rows.append(extract_session_metrics(_payload(0.10), day=day, symbol="AAPL"))
+        rows.append(extract_session_metrics(_payload(0.30), day=day, symbol="QQQ"))
+
+    panel = session_panel_statistics(rows, seed=123, n_boot=200)
+    m = panel["metrics"]["ic_lob_imbalance_h5"]["pooled"]
+    assert m["n_sessions"] == 8
+    assert m["n_days"] == 4
+    assert m["mean"] == pytest.approx(0.20)
+    # Between-session std across date means (each 0.20) must be 0
+    assert m["std_between_sessions"] == pytest.approx(0.0)
+    # Because all date means are 0.20, date-level bootstrap gives exact interval [0.20, 0.20]
+    assert m["ci95"] is not None
+    assert m["ci95"]["lo"] == pytest.approx(0.20)
+    assert m["ci95"]["hi"] == pytest.approx(0.20)
+
+
+def test_aggregate_multi_day_single_date_two_symbols_has_no_ci() -> None:
+    """aggregate_multi_day_results sets ci95=None when there is only 1 trading date."""
+    from nexus_quant.research.multi_day_aggregation import aggregate_multi_day_results
+    payload_aapl = dict(_payload(0.10))
+    payload_aapl["day"] = "20191230"
+    payload_aapl["symbol"] = "AAPL"
+    payload_aapl["coverage"] = {"kind": "full_day", "is_full_day": True}
+
+    payload_qqq = dict(_payload(0.20))
+    payload_qqq["day"] = "20191230"
+    payload_qqq["symbol"] = "QQQ"
+    payload_qqq["coverage"] = {"kind": "full_day", "is_full_day": True}
+
+    summary = aggregate_multi_day_results([payload_aapl, payload_qqq])
+    assert summary["n_days"] == 1
+    assert summary["symbols"] == ["AAPL", "QQQ"]
+    assert summary["rank_ic_by_horizon"][5]["n_days"] == 1
+    assert summary["rank_ic_by_horizon"][5]["n_symbol_sessions"] == 2
+    assert summary["rank_ic_by_horizon"][5]["ci95"] is None
+    assert "clustered" in summary["independence_assumption"]
