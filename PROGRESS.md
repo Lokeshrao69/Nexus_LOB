@@ -1,12 +1,13 @@
 # Nexus-LOB — Progress Report
 
-**Status date:** 2026-09-14 · **Branch:** `feature/person-b-part2` (PR #19 targeting `main` on `Lokeshrao69/Nexus_LOB`).
-This branch reconciles upstream Phase 3 (`origin/main`, PR #21) and completes the Person B quantitative layer, execution realism, and empirical research tooling.
+**Status date:** 2026-09-15 · **Branch:** `main`, up to date (Person B research layer merged via
+PR #19; live-execution dashboard panel merged via PR #23).
 
-**Current verification:** Python 3.12.3 on Linux / Python 3.10 on Windows, **336 tests collected** in
-`python_quant/tests` (**322 passed / 14 skipped** without engine; **335 passed / 1 skipped**
-with engine); **8 passed** in `bindings/tests`; **5/5 CTest** tests passed.
-Compileall, CI-scope Ruff (`python -m ruff check python_quant/nexus_quant/ bindings/`), and `git diff --check` pass with 0 errors.
+**Current verification:** **347 passed / 2 skipped** in `python_quant/tests` with the compiled
+engine (335 passed / 14 skipped without it); **8 passed** in `bindings/tests` (total
+**355 passed / 2 skipped**); **5/5 CTest** tests passed (abi 448 / lob 86 / ring 30,011 /
+risk 9 / id_map 4,676,294).
+Compileall, CI-scope Ruff (`ruff check python_quant/nexus_quant/ bindings/`), and `git diff --check` pass with 0 errors.
 Protected C++/CUDA/bindings sources and the 448-byte state ABI are unchanged.
 
 The empirical VWAP, E7 family-bootstrap, resumable batch, and Python adapter work
@@ -325,7 +326,7 @@ Current toolchain (updated 2026-09-04/09-14): `g++` (C++20 ✅), **real Python 3
 compile + parity **PASSED 2026-09-04**). CUDA still needs Linux or a Windows CUDA toolkit.
 
 - ✅ C++-only compile/run checks work here (engine tests above).
-- ✅ Pure-Python tests work here — **336 tests collected** in `python_quant/tests` (**322 passed / 14 skipped** without engine; **335 passed / 1 skipped** with engine); **8 passed** in `bindings/tests`.
+- ✅ Pure-Python tests work here — **347 passed / 2 skipped** in `python_quant/tests` with the engine built (335 passed / 14 skipped without it); **8 passed** in `bindings/tests` (total **355 / 2**).
 - ✅ Tier 2 (compile `nexus_engine`) **passed on Windows/MSVC** (parity + diff-test).
 - ⚠️ Keep `build/`, `data/`, venvs **out of the OneDrive-synced tree** — sync + build
   artifacts is a known breakage source (copy the repo off OneDrive if the build is slow/flaky).
