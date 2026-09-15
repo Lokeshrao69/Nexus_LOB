@@ -74,6 +74,35 @@ PUBLIC_SAMPLE_DAYS: tuple[str, ...] = (
     "12302019",
 )
 
+# Additional full-session TotalView-ITCH 5.0 tapes published under other names
+# on emi.nasdaq.com (verified 2026-09-15; see docs/results/multi_day/session_manifest.json).
+# Every entry was classified by streaming its GZIP prefix: 2-byte length-prefixed
+# ITCH 5.0 messages whose lengths match the spec, and whose complete stock
+# directory (`R` messages) matches Nasdaq's published stock-locate file for that
+# date pair-for-pair.  Only the trading-day key is different; the byte format
+# is identical to the ``<MMDDYYYY>.NASDAQ_ITCH50.gz`` tapes.
+_NASDAQ_ITCH_ROOT = "https://emi.nasdaq.com/ITCH/"
+EXTENDED_SAMPLE_TAPES: dict[str, str] = {
+    # trading day (MMDDYYYY) -> absolute URL
+    "12132018": _NASDAQ_ITCH_ROOT + "GIS/Nov%2018,%20Dec%2018,%20Jan%2019/S121318-v50.txt.gz",
+    "12142018": _NASDAQ_ITCH_ROOT + "GIS/Nov%2018,%20Dec%2018,%20Jan%2019/S121418-v50.txt.gz",
+    "12312018": _NASDAQ_ITCH_ROOT + "GIS/Nov%2018,%20Dec%2018,%20Jan%2019/S123118-v50.txt.gz",
+    # NASDAQ (not PSX) tape misfiled in the PSX directory; directory matches ndq_stocklocate_20190530
+    "05302019": _NASDAQ_ITCH_ROOT + "Nasdaq%20PSX%20ITCH/05302019.NASDAQ_ITCH50.gz",
+    "10182019": DEFAULT_BASE + "S101819-v50.txt.gz",
+    "07132021": DEFAULT_BASE + "S071321-v50.txt.gz",
+    "08132021": DEFAULT_BASE + "S081321-v50.txt.gz",
+    "11282025": DEFAULT_BASE + "S112825-v50.txt.gz",
+    "12082025": DEFAULT_BASE + "S120825-v50.txt.gz",
+    "12092025": DEFAULT_BASE + "S120925-v50.txt.gz",
+    "12102025": DEFAULT_BASE + "S121025-v50.txt.gz",
+    "12112025": DEFAULT_BASE + "S121125-v50.txt.gz",
+    "12122025": DEFAULT_BASE + "S121225-v50.txt.gz",
+    "05152026": DEFAULT_BASE + "itch50_05_15.gz",
+    "05182026": DEFAULT_BASE + "itch50_05_18.gz",
+    "06122026": DEFAULT_BASE + "S061226-v50.txt.gz",
+}
+
 # Message types carried over into every per-symbol slice.
 _ORDER_TYPES = frozenset(b"AFECXDUP")
 _SESSION_TYPE = ord("S")
@@ -81,6 +110,15 @@ _DIRECTORY_TYPE = ord("R")
 
 
 def tape_url(day: str, base: str = DEFAULT_BASE) -> str:
+    """Public URL of ``day``'s tape.
+
+    Catalogued ``PUBLIC_SAMPLE_DAYS`` keep the historical ``<day>.NASDAQ_ITCH50.gz``
+    naming under ``base``.  A day listed in ``EXTENDED_SAMPLE_TAPES`` resolves
+    to its verified absolute URL only when the default base is in use, so a
+    ``--base`` override (tests, mirrors) still controls every URL.
+    """
+    if base == DEFAULT_BASE and day in EXTENDED_SAMPLE_TAPES:
+        return EXTENDED_SAMPLE_TAPES[day]
     return f"{base}{day}.NASDAQ_ITCH50.gz"
 
 

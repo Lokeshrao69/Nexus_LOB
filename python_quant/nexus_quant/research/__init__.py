@@ -50,7 +50,10 @@ from .models import fit_ols_ic, zscore
 from .multi_day_aggregation import (
     aggregate_multi_day_results,
     extract_day_study_record,
+    extract_session_metrics,
     render_multi_day_aggregation_md,
+    render_session_panel_md,
+    session_panel_statistics,
 )
 from .queue_dynamics import (
     EmpiricalQueueHazard,
@@ -108,6 +111,7 @@ __all__ = [
     "drift_ticks",
     "event_frame",
     "extract_day_study_record",
+    "extract_session_metrics",
     "fill_dataset",
     "fill_prob_survival",
     "fills_from_tracker",
@@ -134,7 +138,9 @@ __all__ = [
     "rank_ic",
     "realized_vol",
     "render_multi_day_aggregation_md",
+    "render_session_panel_md",
     "run_experiment",
+    "session_panel_statistics",
     "spread_bps",
     "standing_order_lifetimes",
     "zscore",

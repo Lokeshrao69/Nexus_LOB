@@ -151,8 +151,40 @@ def test_public_sample_days_catalogue() -> None:
     for d in days:
         assert len(d) == 8 and d.isdigit()
         url = fetch.tape_url(d)
-        assert url.startswith("https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/")
+        assert url.startswith("https://emi.nasdaq.com/ITCH/")
         assert url.endswith(f"{d}.NASDAQ_ITCH50.gz")
+        if d == "05302019":
+            # Relocated on the public server (2026-09-15 audit): the NASDAQ tape for this
+            # catalogued day is only published inside the PSX directory; the historical
+            # `Nasdaq ITCH/` URL returns 404.
+            assert url == "https://emi.nasdaq.com/ITCH/Nasdaq%20PSX%20ITCH/05302019.NASDAQ_ITCH50.gz"
+        else:
+            assert url.startswith("https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/")
+    # A --base override (tests, mirrors) must keep controlling every URL, catalogued or not.
+    assert fetch.tape_url("05302019", "http://mirror/") == "http://mirror/05302019.NASDAQ_ITCH50.gz"
+    assert fetch.tape_url("10182019", "http://mirror/") == "http://mirror/10182019.NASDAQ_ITCH50.gz"
+
+
+def test_extended_sample_tapes_catalogue() -> None:
+    """Every extra verified tape is keyed by a real MMDDYYYY trading day and served from emi.nasdaq.com."""
+    import datetime as dt
+
+    fetch = _load_fetch_module()
+    extended = fetch.EXTENDED_SAMPLE_TAPES
+    assert len(extended) >= 16
+    assert len(set(extended.values())) == len(extended)  # one URL per day
+    for day, url in extended.items():
+        assert len(day) == 8 and day.isdigit()
+        dt.date(int(day[4:]), int(day[:2]), int(day[2:4]))  # valid calendar date
+        assert url.startswith("https://emi.nasdaq.com/ITCH/")
+        assert url.endswith(".gz")
+        assert fetch.tape_url(day) == url
+    # The only overlap with the historical catalogue is the relocated 05302019 tape.
+    assert set(extended) & set(fetch.PUBLIC_SAMPLE_DAYS) == {"05302019"}
+    # Filename shapes actually published by Nasdaq: S<MMDDYY>-v50.txt.gz, itch50_<MM>_<DD>.gz, <MMDDYYYY>.NASDAQ_ITCH50.gz
+    assert extended["10182019"].endswith("/S101819-v50.txt.gz")
+    assert extended["05152026"].endswith("/itch50_05_15.gz")
+    assert extended["12132018"].endswith("/S121318-v50.txt.gz")
 
 
 @pytest.mark.skipif(not _TAPE.exists(), reason=f"real tape not fetched: {_TAPE} (run scripts/fetch_itch.py)")

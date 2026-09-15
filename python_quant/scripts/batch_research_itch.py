@@ -58,18 +58,24 @@ N_BOOT = 200  # Matches run_research.py's default; this is not tuned per day.
 
 
 def parse_days(value: str) -> list[str]:
-    """Validate an explicit public sample-day list, or expand ``all``.
+    """Validate an explicit public sample-day list, or expand ``all`` / ``extended``.
 
-    Restricting dates to the curated public catalogue avoids accidental large
+    Restricting dates to the curated public catalogues avoids accidental large
     requests to an arbitrary URL and makes a batch reproducible from its CLI.
+    ``all`` is the historical 15-date catalogue; ``extended`` adds the verified
+    full-session tapes published under other filenames.
     """
     raw = value.strip()
     if raw.lower() == "all":
         return list(fetch_itch.PUBLIC_SAMPLE_DAYS)
+    if raw.lower() == "extended":
+        days = list(fetch_itch.PUBLIC_SAMPLE_DAYS)
+        days.extend(day for day in fetch_itch.EXTENDED_SAMPLE_TAPES if day not in days)
+        return days
     if not raw:
-        raise argparse.ArgumentTypeError("--days must be a comma-separated public sample date list or 'all'")
+        raise argparse.ArgumentTypeError("--days must be a comma-separated public sample date list, 'all' or 'extended'")
 
-    known = set(fetch_itch.PUBLIC_SAMPLE_DAYS)
+    known = set(fetch_itch.PUBLIC_SAMPLE_DAYS) | set(fetch_itch.EXTENDED_SAMPLE_TAPES)
     days: list[str] = []
     for item in raw.split(","):
         day = item.strip()
@@ -81,7 +87,8 @@ def parse_days(value: str) -> list[str]:
             raise argparse.ArgumentTypeError(f"invalid calendar date {day!r}") from exc
         if day not in known:
             raise argparse.ArgumentTypeError(
-                f"{day} is not in fetch_itch.PUBLIC_SAMPLE_DAYS; use --days all or a catalogued public day"
+                f"{day} is not in fetch_itch.PUBLIC_SAMPLE_DAYS or EXTENDED_SAMPLE_TAPES; "
+                "use --days all, --days extended, or a catalogued public day"
             )
         if day not in days:
             days.append(day)
@@ -339,13 +346,17 @@ def _research_paths(results_dir: Path, day: str) -> tuple[Path, Path, Path]:
     return day_dir, day_dir / RESEARCH_MANIFEST_NAME, day_dir / f"real_tape_{day}.md"
 
 
-def _result_payload(rep: dict[str, Any]) -> dict[str, Any]:
-    """Build the same E1–E6 result shape written by run_research.py."""
+def _result_payload(rep: dict[str, Any], slice_path: Path | None = None) -> dict[str, Any]:
+    """Build the same E1–E6 result shape written by run_research.py.
+
+    ``slice_path`` adds a ``session`` block (system-event clock and the span of
+    regular-session rows) so a day's completeness is auditable from its result.
+    """
     stats = rep["stats"]
     ic = run_research.ic_study(rep, horizons=HORIZONS, train=0.6, val=0.2, n_boot=N_BOOT)
     fill = run_research.fill_study(rep, horizons_events=FILL_HORIZONS)
     adverse = run_research.adverse_study(rep, horizons=ADVERSE_HORIZONS)
-    return {
+    payload = {
         "tape": {
             "messages": stats.messages,
             "events": stats.emitted,
@@ -360,6 +371,64 @@ def _result_payload(rep: dict[str, Any]) -> dict[str, Any]:
         "ic": ic,
         "fill": fill,
         "adverse": adverse,
+    }
+    if slice_path is not None:
+        payload["session"] = session_evidence(slice_path, rep)
+    return payload
+
+
+def session_evidence(slice_path: Path, rep: dict[str, Any]) -> dict[str, Any]:
+    """Regular-session coverage evidence for one symbol slice.
+
+    ITCH ``S`` (system event) messages are copied into every slice by
+    ``fetch_itch.py`` but are not replay events, so they are re-read here from
+    the framed bytes: ``Q`` = start of market hours, ``M`` = end of market
+    hours, ``C`` = end of messages.  The row span comes from the replay's own
+    regular-session timestamps.  ``regular_session_complete`` requires the
+    open and close system events *and* rows within one minute of both ends of
+    the 09:30–16:00 window; anything else is reported, never inferred.
+    """
+    system_events: dict[str, int] = {}
+    with slice_path.open("rb") as fh:
+        buf = bytearray()
+        while True:
+            block = fh.read(1 << 20)
+            if not block:
+                break
+            buf += block
+            i, n = 0, len(buf)
+            while i + 2 <= n:
+                ln = (buf[i] << 8) | buf[i + 1]
+                end = i + 2 + ln
+                if end > n:
+                    break
+                if buf[i + 2] == ord("S") and ln == 12:
+                    system_events.setdefault(chr(buf[i + 13]), int.from_bytes(buf[i + 7 : i + 13], "big"))
+                i = end
+            del buf[:i]
+    ts = rep["ts"]
+    first_row = int(ts[0]) if len(ts) else None
+    last_row = int(ts[-1]) if len(ts) else None
+    tolerance_ns = 60 * 10**9
+    complete = (
+        "Q" in system_events
+        and "M" in system_events
+        and first_row is not None
+        and last_row is not None
+        and first_row - run_research.REGULAR_OPEN_NS <= tolerance_ns
+        and run_research.REGULAR_CLOSE_NS - last_row <= tolerance_ns
+    )
+    return {
+        "system_events_ns": system_events,
+        "regular_open_ns": run_research.REGULAR_OPEN_NS,
+        "regular_close_ns": run_research.REGULAR_CLOSE_NS,
+        "first_regular_row_ns": first_row,
+        "last_regular_row_ns": last_row,
+        "regular_rows_span_hours": (
+            round((last_row - first_row) / 3.6e12, 4) if first_row is not None and last_row is not None else None
+        ),
+        "regular_session_complete": bool(complete),
+        "completeness_tolerance_s": tolerance_ns // 10**9,
     }
 
 
@@ -411,7 +480,7 @@ def run_day_research(
         log(f"== {day} {symbol}: E1–E6 ==")
         rep = run_research.replay_symbol(slice_path, log=log)
         try:
-            result = _result_payload(rep)
+            result = _result_payload(rep, slice_path)
         finally:
             # Replay data can be large.  Each day/symbol completes before the next begins.
             del rep
@@ -425,6 +494,7 @@ def run_day_research(
             "e1_e4_rows": len(result["ic"]["rows"]),
             "e5_orders": result["fill"]["n_orders_regular"],
             "e6_passive_fills": result["adverse"].get("n_fills", 0),
+            "regular_session_complete": result["session"]["regular_session_complete"],
         }
 
     _atomic_write_text(markdown_path, _day_markdown(day, per_symbol, coverage))
@@ -916,7 +986,7 @@ def run_batch(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--days", required=True, help="comma-separated PUBLIC_SAMPLE_DAYS dates, or 'all'")
+    parser.add_argument("--days", required=True, help="comma-separated catalogued dates, 'all' (15-date catalogue) or 'extended' (adds verified extra tapes)")
     parser.add_argument("--symbols", default="AAPL,QQQ", help="comma-separated tickers (default: AAPL,QQQ)")
     parser.add_argument("--max-gz-bytes", type=_positive_int, default=None, help="bounded GZIP prefix; always labelled partial")
     parser.add_argument("--out-dir", type=Path, default=Path("data/itch"), help="source slice root (default: data/itch)")
