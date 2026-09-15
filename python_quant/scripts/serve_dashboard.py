@@ -160,40 +160,44 @@ def main() -> None:
 
     def poll() -> None:
         t0 = time.perf_counter_ns()
+        pushed = False
         if args.ring:
             v = latest_from_file_ring(Path(args.ring))
             if v:
                 hub.push(v, source="file-ring")
-                return
-        if args.shm:
+                pushed = True
+        if not pushed and args.shm:
             v = read_shm_ring_latest(args.shm)
             if v:
                 hub.push(v, source="shm-ring")
-                return
-        # ----- synthetic walk -------------------------------------------------
-        st = state
-        st["n"] += 1
-        st["seq"] += 1
-        mid_new = int(np.clip(st["mid"] + int(rng.integers(-4, 5)), 1_000, 99_000))
-        st["mid"] = mid_new
-        # a ~40% chance a trade prints each tick
-        if rng.random() < 0.4:
-            side = int(rng.integers(0, 2))                     # 0=Bid aggressor, 1=Ask
-            px = mid_new + (0 if rng.random() < 0.6 else (-1 if side == 0 else 1))
-            sz = int(rng.integers(2, 60))
-            st["vol"] += sz
-            st["last"] = (px, sz, side)
-        v = _synthetic_view(rng, mid_new, st["seq"], st["vol"], st["last"])
-        hub.push(v, source="synthetic", feed_latency_ns=time.perf_counter_ns() - t0)
-        # Advance the live execution episode one step (real env: FIFO queue,
-        # TWAP policy). When it finishes, it rolls a fresh seeded episode, so
-        # the execution timeline on the desk never goes stale.
+                pushed = True
+        if not pushed:
+            # ----- synthetic walk ---------------------------------------------
+            st = state
+            st["n"] += 1
+            st["seq"] += 1
+            mid_new = int(np.clip(st["mid"] + int(rng.integers(-4, 5)), 1_000, 99_000))
+            st["mid"] = mid_new
+            # a ~40% chance a trade prints each tick
+            if rng.random() < 0.4:
+                side = int(rng.integers(0, 2))                     # 0=Bid aggressor, 1=Ask
+                px = mid_new + (0 if rng.random() < 0.6 else (-1 if side == 0 else 1))
+                sz = int(rng.integers(2, 60))
+                st["vol"] += sz
+                st["last"] = (px, sz, side)
+            v = _synthetic_view(rng, mid_new, st["seq"], st["vol"], st["last"])
+            hub.push(v, source="synthetic",
+                     feed_latency_ns=time.perf_counter_ns() - t0)
+            if st["n"] % 8 == 0:
+                r = compute_var_cvar(n_paths=256, steps=32, prefer_engine=False)
+                hub.risk = {"var": r.var, "cvar": r.cvar}
+        # Advance the live execution episode one step regardless of the feed
+        # source (real env: FIFO queue, TWAP policy), so the execution timeline
+        # animates against a shm/file ring too. When an episode finishes it rolls
+        # a fresh seeded one, so the chart never goes stale.
         if exec_ep is not None:
             exec_ep.step()
             hub.exec_episode = exec_ep.as_json()
-        if st["n"] % 8 == 0:
-            r = compute_var_cvar(n_paths=256, steps=32, prefer_engine=False)
-            hub.risk = {"var": r.var, "cvar": r.cvar}
 
     poll()
     httpd = serve(hub, args.host, args.port, poll)
