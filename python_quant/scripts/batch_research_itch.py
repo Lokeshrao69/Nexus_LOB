@@ -269,6 +269,11 @@ def validate_fetch_manifest(
     return (manifest if not errors else None), errors
 
 
+# Alias for explicit source manifest validation
+check_source_manifest = validate_fetch_manifest
+
+
+
 def _coverage(manifest: dict[str, Any]) -> dict[str, Any]:
     limited = bool(manifest["range_limited"])
     return {
@@ -670,6 +675,11 @@ def validate_research_manifest(
     elif not markdown_path.is_file() or not _is_sha256(markdown.get("sha256")) or _sha256(markdown_path) != markdown["sha256"]:
         errors.append("research markdown hash mismatch")
     return (result if not errors else None), errors
+
+
+# Alias for explicit research manifest validation
+check_completed_research = validate_research_manifest
+
 
 
 def _new_batch_manifest() -> dict[str, Any]:
