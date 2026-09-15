@@ -3,8 +3,9 @@
 
 Inputs (all produced by existing tools, none of which are modified here):
 
-* ``data/probe/fingerprints.json`` — the NASDAQ directory audit (GZIP-prefix
-  format check + stock-directory fingerprint against Nasdaq's daily locate file);
+* ``docs/results/multi_day/itch_directory_audit.json`` — the NASDAQ directory
+  audit written by ``audit_itch_directory.py`` (GZIP-prefix format check +
+  stock-directory fingerprint against Nasdaq's daily locate file);
 * ``data/itch/<day>/manifest.json`` — ``fetch_itch.py`` source manifests
   (bytes fetched, GZIP EOF reached, per-symbol slice hashes);
 * ``docs/results/multi_day/<day>/`` — ``batch_research_itch.py`` per-day
@@ -131,8 +132,17 @@ def _fingerprint_for(url: str, fingerprints: list[dict[str, Any]]) -> dict[str, 
     return None
 
 
+def _load_audit(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, dict):
+        return list(payload.get("candidates", []))
+    return list(payload) if isinstance(payload, list) else []
+
+
 def build_records(*, data_dir: Path, results_dir: Path, probe_path: Path) -> list[dict[str, Any]]:
-    fingerprints = json.loads(probe_path.read_text()) if probe_path.exists() else []
+    fingerprints = _load_audit(probe_path)
     current_fp = _pipeline_fingerprint()
     records: list[dict[str, Any]] = []
     for day, audit in DIRECTORY_AUDIT.items():
@@ -336,7 +346,11 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data-dir", type=Path, default=_ROOT / "data" / "itch")
     ap.add_argument("--results-dir", type=Path, default=_ROOT / "docs" / "results" / "multi_day")
-    ap.add_argument("--probe", type=Path, default=_ROOT / "data" / "probe" / "fingerprints.json")
+    ap.add_argument(
+        "--probe", type=Path, default=_ROOT / "docs" / "results" / "multi_day" / "itch_directory_audit.json",
+        help="output of audit_itch_directory.py",
+    )
+    ap.add_argument("--manifest-only", action="store_true", help="write the session manifest without regenerating the aggregation")
     ap.add_argument("--out-dir", type=Path, default=_ROOT / "docs" / "results")
     args = ap.parse_args(argv)
 
@@ -358,6 +372,9 @@ def main(argv: list[str] | None = None) -> int:
     (args.results_dir / "session_manifest.md").write_text(_render_manifest_md(records), encoding="utf-8")
     print(f"manifest: {manifest['n_included']}/{manifest['n_candidates']} candidates included; status counts {manifest['status_counts']}")
 
+    if args.manifest_only:
+        print("manifest only — aggregation not regenerated")
+        return 0
     if manifest["n_included"] == 0:
         print("no complete sessions — aggregation not regenerated")
         return 1

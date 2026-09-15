@@ -372,6 +372,13 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
     Verified across 10 unit tests in `test_multi_day_aggregation.py`. Summary report committed at `docs/results/multi_day_aggregation.md`
     covering verified full day `12302019` (3.69M regular events) and documenting all 13 other dates (7 permanently retired with HTTP 404,
     6 bandwidth-bound at ~238 KB/s needing >4h per tape); zero partial or smoke runs are misrepresented as completed empirical research.
+    **2026-09-15 update:** the NASDAQ directory audit (`scripts/audit_itch_directory.py`) found **23 parser-compatible full-session
+    tapes** (8 catalogued + 16 under other filenames, each pinned to its trading day by an exact stock-directory match against Nasdaq's
+    daily locate file); 20 were streamed to GZIP EOF in the cloud sandbox (gitignored `data/`). Session-panel statistics
+    (`session_panel_statistics`, 6 tests), per-symbol `session`/`conditions` evidence, `EXTENDED_SAMPLE_TAPES`, and
+    `scripts/build_session_manifest.py` landed. **The per-day E1–E6 analysis was paused before any new day completed**, so the
+    aggregation report still covers 12302019 only; `docs/results/multi_day/session_manifest.{json,md}` records every candidate
+    (0 included). See `progress_b.md` for the exact resume commands.
 13. ⏳ **Remaining Project Work (Person A):**
     - Verify GPU risk engine on a CUDA machine (`nexus_risk` + `risk_bench` with `nvcc`).
     - Hardware benchmarks for zero-copy shmem ring throughput.

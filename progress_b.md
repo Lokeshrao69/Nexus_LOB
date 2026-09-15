@@ -1,8 +1,62 @@
 # Person B Handoff: Python Quantitative Layer
 
-**Updated:** 2026-09-14
+**Updated:** 2026-09-15
 **Branch:** `feature/person-b-part2` (PR #19 on `Lokeshrao69/Nexus_LOB`).
 **Base:** `main` (`e9e88ee`).
+
+## 2026-09-15 — multi-day campaign: Phase 1 complete, tooling landed, analysis paused
+
+**What is true right now.** The public NASDAQ ITCH directory tree was audited end to
+end and **23 parser-compatible full-session TotalView-ITCH 5.0 tapes** were identified
+(8 from the original 15-date catalogue — 7 are HTTP 404 — plus 16 published under other
+filenames: `S<MMDDYY>-v50.txt.gz`, `itch50_MM_DD.gz`, `GIS/…`, and the NASDAQ tape
+misfiled in the PSX directory). Each was classified from a 4 MiB GZIP prefix: message
+lengths equal the parser's ITCH 5.0 spec table, AAPL/QQQ are in the stock directory, and
+the complete `R`-message directory matches Nasdaq's daily `ndq_stocklocate` file
+pair-for-pair (neighbouring dates share only ~15–20 % of pairs, so the date is pinned).
+Evidence: `docs/results/multi_day/itch_directory_audit.json`
+(`scripts/audit_itch_directory.py`). No `.md5sum` sidecar is retrievable (all 404), so
+provenance is the SHA-256 of received bytes plus GZIP EOF, per fetch manifest.
+
+**20 complete tapes (≈120 GB compressed) were streamed to GZIP EOF and sliced** for
+AAPL/QQQ in a cloud sandbox; the three 2026 tapes (13–18 GB each) were not downloaded.
+Slices live in gitignored `data/itch/<day>/` and are **not** in the repository. The
+per-day E1–E6 analysis was started on the frozen pipeline but **stopped before any day
+completed both symbols**; those partial outputs were discarded, not committed. The
+committed `docs/results/multi_day_aggregation.{json,md}` therefore still describe the
+single verified session (12302019). `docs/results/multi_day/session_manifest.{json,md}`
+records every candidate honestly: 7 `404/RETIRED`, 23 `OTHER` (20 downloaded, analysis
+`not_run`; 3 not downloaded), **0 included in aggregation**.
+
+**Tooling that landed (all unit-tested, CI-scope Ruff clean):**
+
+- `fetch_itch.EXTENDED_SAMPLE_TAPES` + `tape_url()` resolution for the 16 extra tapes
+  (a `--base` override still controls every URL); `batch_research_itch.py --days extended`.
+- Every per-symbol result now carries a `session` block (system-event clock, first/last
+  regular row, `regular_session_complete` = `Q`/`M` events present and rows within 60 s of
+  09:30/16:00) and a descriptive `conditions` block (open/close/range, 5-minute realized
+  vol, quoted spread, one-tick share, event rate) for post-hoc stratification.
+- `multi_day_aggregation.session_panel_statistics` / `extract_session_metrics` /
+  `render_session_panel_md`: one row per day × symbol, mean / median / between-session SD,
+  seeded session-bootstrap CIs, sample-weighted means, hypothesised-sign consistency,
+  per-session significance counts, leave-one-day-out influence, paired per-session
+  comparisons (E2 microprice−imbalance, E3 order-OFI−L2-OFI, E4 OLS−imbalance, E6
+  post−pre drift). `tests/test_session_panel.py` (6 tests).
+- `scripts/build_session_manifest.py`: auditable session manifest + regenerated
+  aggregation over sessions passing the pre-registered rule (unbounded fetch reached
+  EOF; both symbols sliced; E1–E6 completed under the current pipeline fingerprint;
+  regular session complete for every symbol). Selection never looks at results.
+- `experiments._rank`: the vectorized tie-aware Spearman rank (bit-identical output,
+  ~3× faster) was restored after a 2026-09-14 merge had replaced it with a Python loop.
+  A fresh 12302019 AAPL run reproduces the committed IC / KM / adverse numbers exactly;
+  CI bounds differ in the 4th decimal only because that merge also changed the bootstrap
+  index construction (both constructions are now verified equivalent).
+
+**Resume from here:** `python python_quant/scripts/batch_research_itch.py --days <day>
+--symbols AAPL,QQQ --skip-existing` per downloaded day (≈15–40 CPU-min per symbol-day;
+the Dec-2025 QQQ slices are 12–21 M messages and need >4 GB RSS), then
+`python python_quant/scripts/build_session_manifest.py` to regenerate the manifest and
+the aggregation with the session panel. **No cross-day claim is made in this update.**
 
 ## Current status — remaining Person-B implementation complete
 

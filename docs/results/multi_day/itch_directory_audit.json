@@ -1,0 +1,1266 @@
+{
+ "kind": "nexus-lob-itch-directory-audit",
+ "generated_at_unix": 1789475041,
+ "prefix_bytes": 4194304,
+ "method": "HEAD status; bounded Range GET of the gzip prefix; 2-byte length framing checked against nexus_quant.itch_parser.ITCH_LEN; full R-message stock directory matched pair-for-pair against Nasdaq's daily ndq_stocklocate file for the inferred date.",
+ "candidates": [
+  {
+   "day": "01302018",
+   "date_iso": "2018-01-30",
+   "name": "01302018.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/01302018.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 404,
+   "classification": "retired_http_error"
+  },
+  {
+   "day": "03292018",
+   "date_iso": "2018-03-29",
+   "name": "03292018.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/03292018.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 404,
+   "classification": "retired_http_error"
+  },
+  {
+   "day": "05302018",
+   "date_iso": "2018-05-30",
+   "name": "05302018.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/05302018.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 404,
+   "classification": "retired_http_error"
+  },
+  {
+   "day": "07302018",
+   "date_iso": "2018-07-30",
+   "name": "07302018.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/07302018.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 404,
+   "classification": "retired_http_error"
+  },
+  {
+   "day": "08302018",
+   "date_iso": "2018-08-30",
+   "name": "08302018.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/08302018.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 404,
+   "classification": "retired_http_error"
+  },
+  {
+   "day": "10302018",
+   "date_iso": "2018-10-30",
+   "name": "10302018.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/10302018.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 404,
+   "classification": "retired_http_error"
+  },
+  {
+   "day": "12132018",
+   "date_iso": "2018-12-13",
+   "name": "S121318-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/GIS/Nov%2018,%20Dec%2018,%20Jan%2019/S121318-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10624701,
+   "messages": 369347,
+   "types": {
+    "S": 2,
+    "R": 8756,
+    "H": 8756,
+    "Y": 8756,
+    "L": 194646,
+    "A": 64965,
+    "D": 61108,
+    "F": 48,
+    "U": 6127,
+    "E": 121,
+    "X": 16046,
+    "P": 16
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0416
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8756,
+   "AAPL_locate": 14,
+   "QQQ_locate": 6493,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8756,
+    "locate_file_size": 8756,
+    "matching_pairs": 8756,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "12142018",
+   "date_iso": "2018-12-14",
+   "name": "S121418-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/GIS/Nov%2018,%20Dec%2018,%20Jan%2019/S121418-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10259923,
+   "messages": 355714,
+   "types": {
+    "S": 2,
+    "R": 8755,
+    "H": 8753,
+    "Y": 8753,
+    "L": 194615,
+    "A": 58620,
+    "D": 54408,
+    "F": 46,
+    "P": 26,
+    "E": 189,
+    "U": 8719,
+    "X": 12828
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0417
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8755,
+   "AAPL_locate": 14,
+   "QQQ_locate": 6494,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8755,
+    "locate_file_size": 8755,
+    "matching_pairs": 8755,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "12282018",
+   "date_iso": "2018-12-28",
+   "name": "12282018.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/12282018.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 404,
+   "classification": "retired_http_error"
+  },
+  {
+   "day": "12312018",
+   "date_iso": "2018-12-31",
+   "name": "S123118-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/GIS/Nov%2018,%20Dec%2018,%20Jan%2019/S123118-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10371152,
+   "messages": 360279,
+   "types": {
+    "S": 2,
+    "R": 8721,
+    "H": 8722,
+    "Y": 8721,
+    "L": 194164,
+    "A": 60677,
+    "D": 56410,
+    "F": 53,
+    "U": 6996,
+    "P": 29,
+    "X": 15501,
+    "E": 283
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0634
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8721,
+   "AAPL_locate": 14,
+   "QQQ_locate": 6468,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8721,
+    "locate_file_size": 8721,
+    "matching_pairs": 8721,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "01302019",
+   "date_iso": "2019-01-30",
+   "name": "01302019.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/01302019.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10321933,
+   "messages": 359802,
+   "types": {
+    "S": 2,
+    "R": 8713,
+    "H": 8711,
+    "Y": 8711,
+    "L": 193665,
+    "A": 58215,
+    "D": 52670,
+    "F": 39,
+    "U": 5540,
+    "X": 23322,
+    "E": 196,
+    "P": 18
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0666
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8713,
+   "AAPL_locate": 14,
+   "QQQ_locate": 6449,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8713,
+    "locate_file_size": 8713,
+    "matching_pairs": 8713,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "03272019",
+   "date_iso": "2019-03-27",
+   "name": "03272019.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/03272019.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10485648,
+   "messages": 364330,
+   "types": {
+    "S": 2,
+    "R": 8712,
+    "H": 8711,
+    "Y": 8711,
+    "L": 193195,
+    "A": 59805,
+    "D": 56012,
+    "F": 20,
+    "X": 19689,
+    "E": 75,
+    "U": 9396,
+    "P": 2
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.042
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8712,
+   "AAPL_locate": 14,
+   "QQQ_locate": 6444,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8712,
+    "locate_file_size": 8712,
+    "matching_pairs": 8712,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "05302019",
+   "date_iso": "2019-05-30",
+   "name": "05302019.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20PSX%20ITCH/05302019.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10244255,
+   "messages": 357207,
+   "types": {
+    "S": 2,
+    "R": 8789,
+    "H": 8789,
+    "Y": 8789,
+    "L": 204753,
+    "A": 55697,
+    "F": 27,
+    "D": 48395,
+    "E": 187,
+    "U": 2918,
+    "X": 18835,
+    "P": 26
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0398
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8789,
+   "AAPL_locate": 14,
+   "QQQ_locate": 6489,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8789,
+    "locate_file_size": 8789,
+    "matching_pairs": 8789,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "07302019",
+   "date_iso": "2019-07-30",
+   "name": "07302019.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/07302019.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10242695,
+   "messages": 354965,
+   "types": {
+    "S": 2,
+    "R": 8849,
+    "H": 8849,
+    "Y": 8849,
+    "L": 210624,
+    "A": 56262,
+    "D": 46308,
+    "E": 147,
+    "U": 4666,
+    "F": 27,
+    "X": 10375,
+    "P": 7
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0474
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8849,
+   "AAPL_locate": 14,
+   "QQQ_locate": 6527,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8849,
+    "locate_file_size": 8849,
+    "matching_pairs": 8849,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "08302019",
+   "date_iso": "2019-08-30",
+   "name": "08302019.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/08302019.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10206784,
+   "messages": 354849,
+   "types": {
+    "S": 2,
+    "R": 8841,
+    "H": 8831,
+    "Y": 8831,
+    "L": 212624,
+    "A": 52349,
+    "D": 48225,
+    "F": 31,
+    "E": 291,
+    "U": 6185,
+    "X": 8623,
+    "P": 16
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0683
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8841,
+   "AAPL_locate": 14,
+   "QQQ_locate": 6520,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8841,
+    "locate_file_size": 8841,
+    "matching_pairs": 8841,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "10182019",
+   "date_iso": "2019-10-18",
+   "name": "S101819-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/S101819-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10214238,
+   "messages": 355642,
+   "types": {
+    "S": 2,
+    "R": 8886,
+    "H": 8876,
+    "Y": 8876,
+    "L": 214663,
+    "A": 50917,
+    "D": 47390,
+    "F": 31,
+    "X": 9876,
+    "U": 5980,
+    "E": 137,
+    "P": 8
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0618
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8886,
+   "AAPL_locate": 14,
+   "QQQ_locate": 6532,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8886,
+    "locate_file_size": 8886,
+    "matching_pairs": 8886,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "10302019",
+   "date_iso": "2019-10-30",
+   "name": "10302019.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/10302019.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10425431,
+   "messages": 363800,
+   "types": {
+    "S": 2,
+    "R": 8886,
+    "H": 8877,
+    "Y": 8877,
+    "L": 214617,
+    "A": 51392,
+    "D": 48172,
+    "F": 25,
+    "X": 16489,
+    "U": 6401,
+    "E": 51,
+    "P": 11
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0421
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8886,
+   "AAPL_locate": 13,
+   "QQQ_locate": 6537,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8886,
+    "locate_file_size": 8886,
+    "matching_pairs": 8886,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "12302019",
+   "date_iso": "2019-12-30",
+   "name": "12302019.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/12302019.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10190421,
+   "messages": 355980,
+   "types": {
+    "S": 2,
+    "R": 8906,
+    "H": 8897,
+    "Y": 8897,
+    "L": 215036,
+    "A": 48433,
+    "D": 43921,
+    "U": 4681,
+    "X": 17008,
+    "F": 43,
+    "E": 146,
+    "P": 10
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0756
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8906,
+   "AAPL_locate": 13,
+   "QQQ_locate": 6556,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8906,
+    "locate_file_size": 8906,
+    "matching_pairs": 8906,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "01302020",
+   "date_iso": "2020-01-30",
+   "name": "01302020.NASDAQ_ITCH50.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/01302020.NASDAQ_ITCH50.gz",
+   "in_original_catalogue": true,
+   "in_extended_catalogue": false,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10151243,
+   "messages": 354045,
+   "types": {
+    "S": 2,
+    "R": 8915,
+    "H": 8905,
+    "Y": 8906,
+    "L": 216704,
+    "A": 46694,
+    "E": 563,
+    "D": 40590,
+    "U": 5389,
+    "F": 35,
+    "X": 17254,
+    "P": 88
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0426
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 8915,
+   "AAPL_locate": 13,
+   "QQQ_locate": 6562,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 8915,
+    "locate_file_size": 8915,
+    "matching_pairs": 8915,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "07132021",
+   "date_iso": "2021-07-13",
+   "name": "S071321-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/S071321-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10047915,
+   "messages": 347051,
+   "types": {
+    "S": 2,
+    "R": 10935,
+    "H": 10925,
+    "Y": 10926,
+    "L": 253359,
+    "A": 36722,
+    "D": 16234,
+    "X": 5020,
+    "U": 1658,
+    "E": 876,
+    "F": 21,
+    "P": 373
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0309
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 10935,
+   "AAPL_locate": 21,
+   "QQQ_locate": 8118,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 10935,
+    "locate_file_size": 10935,
+    "matching_pairs": 10935,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "08132021",
+   "date_iso": "2021-08-13",
+   "name": "S081321-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/S081321-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10015648,
+   "messages": 344452,
+   "types": {
+    "S": 2,
+    "R": 11096,
+    "H": 11086,
+    "Y": 11087,
+    "L": 256280,
+    "A": 36245,
+    "D": 12528,
+    "X": 2113,
+    "F": 28,
+    "U": 3468,
+    "E": 386,
+    "P": 133
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.03
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 11096,
+   "AAPL_locate": 23,
+   "QQQ_locate": 8237,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 11096,
+    "locate_file_size": 11096,
+    "matching_pairs": 11096,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "11282025",
+   "date_iso": "2025-11-28",
+   "name": "S112825-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/S112825-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10009849,
+   "messages": 348762,
+   "types": {
+    "S": 2,
+    "R": 12076,
+    "H": 12067,
+    "Y": 12067,
+    "L": 270960,
+    "A": 26323,
+    "D": 13042,
+    "E": 318,
+    "X": 1707,
+    "P": 199,
+    "U": 1
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0248
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 12076,
+   "AAPL_locate": 24,
+   "QQQ_locate": 8829,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 12076,
+    "locate_file_size": 12076,
+    "matching_pairs": 12076,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "12082025",
+   "date_iso": "2025-12-08",
+   "name": "S120825-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/S120825-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 9993403,
+   "messages": 347384,
+   "types": {
+    "S": 2,
+    "R": 12102,
+    "H": 12093,
+    "Y": 12093,
+    "L": 271169,
+    "A": 25767,
+    "D": 11099,
+    "E": 175,
+    "U": 1673,
+    "X": 1130,
+    "P": 81
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0247
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 12102,
+   "AAPL_locate": 24,
+   "QQQ_locate": 8843,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 12102,
+    "locate_file_size": 12102,
+    "matching_pairs": 12102,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "12092025",
+   "date_iso": "2025-12-09",
+   "name": "S120925-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/S120925-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 9983972,
+   "messages": 346989,
+   "types": {
+    "S": 2,
+    "R": 12110,
+    "H": 12101,
+    "Y": 12101,
+    "L": 271111,
+    "A": 26142,
+    "D": 10663,
+    "E": 78,
+    "U": 1272,
+    "X": 1353,
+    "P": 56
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0235
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 12110,
+   "AAPL_locate": 24,
+   "QQQ_locate": 8852,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 12110,
+    "locate_file_size": 12110,
+    "matching_pairs": 12110,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "12102025",
+   "date_iso": "2025-12-10",
+   "name": "S121025-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/S121025-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 9874821,
+   "messages": 343331,
+   "types": {
+    "S": 2,
+    "R": 12114,
+    "H": 12105,
+    "Y": 12105,
+    "L": 271140,
+    "A": 24336,
+    "D": 8983,
+    "X": 1228,
+    "U": 1161,
+    "E": 96,
+    "P": 61
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0236
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 12114,
+   "AAPL_locate": 25,
+   "QQQ_locate": 8855,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 12114,
+    "locate_file_size": 12114,
+    "matching_pairs": 12114,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "12112025",
+   "date_iso": "2025-12-11",
+   "name": "S121125-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/S121125-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10001133,
+   "messages": 347944,
+   "types": {
+    "S": 2,
+    "R": 12138,
+    "H": 12123,
+    "Y": 12123,
+    "L": 271213,
+    "A": 25611,
+    "D": 11561,
+    "U": 1262,
+    "X": 1567,
+    "E": 174,
+    "P": 170
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.025
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 12138,
+   "AAPL_locate": 26,
+   "QQQ_locate": 8869,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 12138,
+    "locate_file_size": 12138,
+    "matching_pairs": 12138,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "12122025",
+   "date_iso": "2025-12-12",
+   "name": "S121225-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/S121225-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 9994878,
+   "messages": 347586,
+   "types": {
+    "S": 2,
+    "R": 12137,
+    "H": 12128,
+    "Y": 12128,
+    "L": 271529,
+    "A": 25722,
+    "D": 10781,
+    "E": 131,
+    "U": 1225,
+    "X": 1729,
+    "P": 74
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0248
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 12137,
+   "AAPL_locate": 26,
+   "QQQ_locate": 8866,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 12137,
+    "locate_file_size": 12137,
+    "matching_pairs": 12137,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "05152026",
+   "date_iso": "2026-05-15",
+   "name": "itch50_05_15.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/itch50_05_15.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 10005627,
+   "messages": 347523,
+   "types": {
+    "S": 2,
+    "R": 12654,
+    "H": 12646,
+    "Y": 12645,
+    "L": 268533,
+    "A": 26712,
+    "E": 559,
+    "D": 11138,
+    "U": 872,
+    "X": 1548,
+    "P": 214
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0231
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 12654,
+   "AAPL_locate": 32,
+   "QQQ_locate": 9206,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 12654,
+    "locate_file_size": 12654,
+    "matching_pairs": 12654,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "05182026",
+   "date_iso": "2026-05-18",
+   "name": "itch50_05_18.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/itch50_05_18.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 9993982,
+   "messages": 346939,
+   "types": {
+    "S": 2,
+    "R": 12655,
+    "H": 12646,
+    "Y": 12646,
+    "L": 268606,
+    "A": 26861,
+    "D": 10718,
+    "U": 1113,
+    "E": 218,
+    "X": 1310,
+    "P": 164
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0232
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 12655,
+   "AAPL_locate": 32,
+   "QQQ_locate": 9214,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 12655,
+    "locate_file_size": 12655,
+    "matching_pairs": 12655,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  },
+  {
+   "day": "06122026",
+   "date_iso": "2026-06-12",
+   "name": "S061226-v50.txt.gz",
+   "url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/S061226-v50.txt.gz",
+   "in_original_catalogue": false,
+   "in_extended_catalogue": true,
+   "http_status": 200,
+   "prefix_bytes": 4194304,
+   "gzip": true,
+   "raw_bytes": 9982803,
+   "messages": 346853,
+   "types": {
+    "S": 2,
+    "R": 12809,
+    "H": 12796,
+    "Y": 12800,
+    "L": 270640,
+    "A": 25254,
+    "D": 9467,
+    "U": 1006,
+    "E": 211,
+    "X": 1713,
+    "P": 153,
+    "F": 2
+   },
+   "spec_length_mismatches": {},
+   "unknown_types": {},
+   "system_events": [
+    [
+     "O",
+     3.0256
+    ],
+    [
+     "S",
+     4.0
+    ]
+   ],
+   "n_directory": 12809,
+   "AAPL_locate": 37,
+   "QQQ_locate": 9315,
+   "parser_compatible": true,
+   "locate_fingerprint": {
+    "status": "exact_match",
+    "tape_directory_size": 12809,
+    "locate_file_size": 12809,
+    "matching_pairs": 12809,
+    "only_in_tape": [],
+    "only_in_locate_file": []
+   },
+   "classification": "itch50_full_session_candidate"
+  }
+ ]
+}
