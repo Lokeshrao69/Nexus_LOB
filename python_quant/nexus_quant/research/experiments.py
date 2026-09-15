@@ -23,19 +23,20 @@ import numpy as np
 # signal metrics
 # ---------------------------------------------------------------------------
 def _rank(x: np.ndarray) -> np.ndarray:
-    """Average ranks (standard Spearman) — ties are common on integer-tick labels."""
+    """Average ranks (standard Spearman) — ties are common on integer-tick labels.
+
+    Vectorized: a tie block occupying sorted positions ``[i, j)`` gets rank
+    ``(i + j − 1) / 2`` for every member (identical to the scalar definition).
+    """
     n = x.size
     order = np.argsort(x, kind="mergesort")
+    xs = x[order]
+    new_block = np.concatenate(([True], xs[1:] != xs[:-1]))
+    starts = np.flatnonzero(new_block)
+    ends = np.concatenate((starts[1:], [n]))
+    block_rank = (starts + ends - 1) / 2.0
     ranks = np.empty(n, dtype=np.float64)
-    ranks[order] = np.arange(n, dtype=np.float64)
-    i = 0
-    while i < n:
-        j = i + 1
-        while j < n and x[order[j]] == x[order[i]]:
-            j += 1
-        if j - i > 1:
-            ranks[order[i:j]] = (i + j - 1) / 2.0
-        i = j
+    ranks[order] = block_rank[np.cumsum(new_block) - 1]
     return ranks
 
 

@@ -13,9 +13,9 @@ difference in results is the policy, not the tape.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 import numpy as np
 
@@ -23,7 +23,32 @@ from ..envs.order_book_env import OrderBookEnv
 from ..execution.metrics import completion_rate, max_drawdown, vwap_slippage
 from ..research import bootstrap_ci
 
-BaselineId = Literal["twap", "vwap", "pov", "passive", "apov", "stwap", "isaware"]
+BaselineId = Literal[
+    "twap",
+    "vwap",
+    "pov",
+    "passive",
+    "apov",
+    "stwap",
+    "isaware",
+    "schedule_twap",
+    "adaptive_pov",
+    "is_aware",
+]
+
+MetricDirection = Literal["lower", "higher"]
+
+# Positive paired deltas mean improvement, including higher fill fractions.
+_METRIC_DIRECTIONS: dict[str, MetricDirection] = {
+    "shortfall_bps": "lower",
+    "is_bps": "lower",
+    "vwap_slip_bps": "lower",
+    "leftover": "lower",
+    "mdd_ticks": "lower",
+    "reward": "higher",
+    "completion": "higher",
+    "fill_rate": "higher",
+}
 
 
 class Policy(Protocol):
@@ -165,6 +190,399 @@ def strategy_table(
     return out
 
 
+# ---------------------------------------------------------------------------
+# Phase 3 — per-regime, multi-seed, CI-reported evaluation (plan_2.md §6)
+# ---------------------------------------------------------------------------
+@dataclass
+class RegimeCI:
+    """Mean ± seed-family-bootstrap 95% CI for one strategy and regime."""
+
+    name: str
+    regime: str
+    metric: str
+    mean: float
+    ci95: tuple[float, float]
+    n_episodes: int
+    n_seeds: int
+    per_seed_mean: list[float]
+
+
+def _metric_value(row: Mapping[str, object], metric: str) -> float:
+    """Read one finite metric value with a useful error at the evaluation seam."""
+    try:
+        value = float(row[metric])
+    except KeyError as exc:
+        raise ValueError(f"episode row is missing metric {metric!r}") from exc
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"episode metric {metric!r} must be numeric") from exc
+    if not np.isfinite(value):
+        raise ValueError(f"episode metric {metric!r} must be finite")
+    return value
+
+
+def _integer_identifier(value: object, label: str) -> int:
+    """Normalize a JSON/NumPy integer identifier without silently truncating it."""
+    if isinstance(value, (bool, np.bool_)):
+        raise TypeError(f"{label} must be an integer")
+    if isinstance(value, (int, np.integer)):
+        return int(value)
+    try:
+        integer = int(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"{label} must be an integer") from exc
+    if isinstance(value, str):
+        return integer
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"{label} must be an integer") from exc
+    if not np.isfinite(numeric) or numeric != integer:
+        raise ValueError(f"{label} must be an integer")
+    return integer
+
+
+def _seed_family(row: Mapping[str, object]) -> int:
+    """Rows without family metadata belong to one unidentifiable cluster."""
+    return _integer_identifier(row.get("seed_family", 0), "seed_family")
+
+
+def _validate_equal_family_sizes(family_values: Sequence[np.ndarray]) -> None:
+    """A cluster mean is episode-weighted only when every family has equal size."""
+    sizes = [int(values.size) for values in family_values]
+    if not sizes or any(size == 0 for size in sizes):
+        raise ValueError("seed-family bootstrap needs at least one non-empty family")
+    if len(sizes) < 2:
+        raise ValueError("seed-family bootstrap needs at least 2 independent families")
+    if len(set(sizes)) != 1:
+        raise ValueError(
+            "seed-family bootstrap requires equal episode counts per family; "
+            f"got {sizes}"
+        )
+
+
+def _metric_families(
+    rows: Sequence[Mapping[str, object]], metric: str,
+) -> tuple[list[int], list[np.ndarray]]:
+    """Group finite metric rows into complete, equally-sized seed families."""
+    if len(rows) < 2:
+        raise ValueError("seed-family bootstrap needs at least 2 episode rows")
+    grouped: dict[int, list[float]] = {}
+    for row in rows:
+        grouped.setdefault(_seed_family(row), []).append(_metric_value(row, metric))
+    families = sorted(grouped)
+    values = [np.asarray(grouped[family], dtype=np.float64) for family in families]
+    _validate_equal_family_sizes(values)
+    return families, values
+
+
+def _family_bootstrap_statistics(
+    family_values: Sequence[np.ndarray], *, n_boot: int, seed: int = 0x51ED,
+) -> np.ndarray:
+    """Resample complete seed families and return bootstrap means.
+
+    Each draw contains one full copy of every selected family, never a moving
+    block from the flattened episode stream. Equal family sizes make the
+    family-sum calculation exactly the mean of those complete copies.
+    """
+    n_boot = _integer_identifier(n_boot, "n_boot")
+    if n_boot < 1:
+        raise ValueError("n_boot must be at least 1")
+    values = [np.asarray(family, dtype=np.float64) for family in family_values]
+    _validate_equal_family_sizes(values)
+    if not all(np.all(np.isfinite(family)) for family in values):
+        raise ValueError("seed-family bootstrap needs finite metric values")
+
+    family_size = values[0].size
+    family_sums = np.asarray([family.sum() for family in values], dtype=np.float64)
+    rng = np.random.default_rng(seed)
+    selected = rng.integers(0, len(values), size=(n_boot, len(values)))
+    return family_sums[selected].sum(axis=1) / (len(values) * family_size)
+
+
+def _family_bootstrap_ci(
+    family_values: Sequence[np.ndarray], *, estimate: float, n_boot: int,
+) -> tuple[float, float]:
+    """Deterministic percentile CI, bounded to include its observed estimate."""
+    stats = _family_bootstrap_statistics(family_values, n_boot=n_boot)
+    if not np.all(np.isfinite(stats)):
+        raise ValueError("seed-family bootstrap produced a non-finite statistic")
+    lo, hi = (float(v) for v in np.quantile(stats, (0.025, 0.975)))
+    lo, hi = min(lo, estimate), max(hi, estimate)
+    if not np.isfinite(estimate) or not np.isfinite(lo) or not np.isfinite(hi):
+        raise ValueError("seed-family bootstrap CI must be finite")
+    return min(lo, hi), max(lo, hi)
+
+
+def _metric_direction(metric: str) -> MetricDirection:
+    """Return the comparison direction rather than assuming every metric is loss."""
+    try:
+        return _METRIC_DIRECTIONS[metric]
+    except KeyError as exc:
+        supported = ", ".join(sorted(_METRIC_DIRECTIONS))
+        raise ValueError(
+            f"paired comparison has no direction for metric {metric!r}; "
+            f"supported metrics: {supported}"
+        ) from exc
+
+
+def _paired_metric_families(
+    agent_rows: Sequence[Mapping[str, object]],
+    baseline_rows: Sequence[Mapping[str, object]],
+    *,
+    metric: str,
+    direction: MetricDirection,
+) -> tuple[list[np.ndarray], np.ndarray]:
+    """Align rows by ``(seed_family, seed)`` before making paired differences."""
+    def keyed(rows: Sequence[Mapping[str, object]], label: str) -> dict[tuple[int, int], Mapping[str, object]]:
+        out: dict[tuple[int, int], Mapping[str, object]] = {}
+        for row in rows:
+            try:
+                seed = _integer_identifier(row["seed"], "seed")
+            except KeyError as exc:
+                raise ValueError(f"paired comparison needs a seed on every {label} row") from exc
+            key = (_seed_family(row), seed)
+            if key in out:
+                raise ValueError("paired comparison needs unique (seed_family, seed) rows")
+            out[key] = row
+        return out
+
+    agent_by_key = keyed(agent_rows, "agent")
+    baseline_by_key = keyed(baseline_rows, "baseline")
+    if agent_by_key.keys() != baseline_by_key.keys():
+        raise ValueError(
+            "paired comparison needs identical (seed_family, seed) rows for both strategies"
+        )
+    if len(agent_by_key) < 2:
+        raise ValueError("paired comparison needs at least 2 episode rows")
+
+    grouped: dict[int, list[float]] = {}
+    baseline_values: list[float] = []
+    for family, seed in sorted(agent_by_key):
+        agent_value = _metric_value(agent_by_key[(family, seed)], metric)
+        baseline_value = _metric_value(baseline_by_key[(family, seed)], metric)
+        delta = baseline_value - agent_value if direction == "lower" else agent_value - baseline_value
+        grouped.setdefault(family, []).append(delta)
+        baseline_values.append(baseline_value)
+    families = [np.asarray(grouped[family], dtype=np.float64) for family in sorted(grouped)]
+    _validate_equal_family_sizes(families)
+    return families, np.asarray(baseline_values, dtype=np.float64)
+
+
+def _percent_vs_baseline(delta_mean: float, baseline_values: np.ndarray) -> float | None:
+    """Relative improvement when its denominator has a meaningful positive scale.
+
+    ``None`` deliberately replaces the old NaN for a zero, negative, or
+    near-zero baseline: an unbounded percentage would fabricate a superiority
+    claim. Consumers that serialized the former float must treat this one field
+    as optional.
+    """
+    baseline_mean = float(np.mean(baseline_values))
+    if baseline_mean <= 1e-12:
+        return None
+    pct = delta_mean / baseline_mean * 100.0
+    return float(pct) if np.isfinite(pct) else None
+
+
+def _episode_rows(
+    env: OrderBookEnv,
+    act_fn: Callable[[OrderBookEnv, np.ndarray], float],
+    seeds: Sequence[int],
+) -> list[dict]:
+    """Full episodes for every seed; one row per episode with the honest metric set."""
+    from ..execution.metrics import (
+        fill_rate,
+        implementation_shortfall,
+        max_drawdown,
+        vwap_slippage,
+    )
+
+    rows: list[dict] = []
+    for sd in seeds:
+        obs, _ = env.reset(seed=int(sd))
+        obs = np.asarray(obs, dtype=np.float64)
+        total = 0.0
+        mtm_path: list[float] = [0.0]
+        while True:
+            a = act_fn(env, obs)
+            obs, r, term, trunc, info = env.step(a)
+            obs = np.asarray(obs, dtype=np.float64)
+            total += float(r)
+            mtm_path.append(float(info.get("pnl_ticks", 0.0)))
+            if term or trunc:
+                break
+        market_vwap = float(info.get("market_vwap", 0.0) or 0.0)
+        rows.append(
+            {
+                "seed": int(sd),
+                "reward": total,
+                "shortfall_bps": float(info["shortfall_bps"]),
+                "is_bps": implementation_shortfall(env.fills, env.arrival_mid, side=1),
+                "vwap_slip_bps": vwap_slippage(env.fills, market_vwap, side=1),
+                "leftover": int(env.inventory),
+                "completion": 1.0 - env.inventory / max(1, env.inventory0),
+                "fill_rate": fill_rate(env.fills, env.inventory0),
+                "mdd_ticks": max_drawdown(mtm_path),
+            }
+        )
+    return rows
+
+
+def _policy_act(policy: Policy, deterministic: bool) -> Callable[[OrderBookEnv, np.ndarray], float]:
+    return lambda _env, ob: policy.act(ob, deterministic=deterministic)
+
+
+def _baseline_act(name: str) -> Callable[[OrderBookEnv, np.ndarray], float]:
+    from ..baselines import policy_action
+
+    return lambda env, _ob: policy_action(name, env)  # type: ignore[arg-type]
+
+
+def run_regime_episodes(
+    policy: Policy | None,
+    regimes: Mapping[str, Callable[[], OrderBookEnv]],
+    *,
+    seeds: int = 5,
+    episodes_per_seed: int = 20,
+    seed0: int = 0x5EED,
+    baselines: Sequence[str] = (),
+    agent_name: str = "ppo",
+    deterministic: bool = True,
+) -> dict[str, dict[str, list[dict]]]:
+    """Run every strategy over identical seeded episodes in every regime.
+
+    Seed family ``k`` (``k < seeds``) covers episode seeds ``seed0 + k·10_000 +
+    i`` for ``i < episodes_per_seed``; the agent AND every named baseline see
+    the same tapes, so a difference between two strategies is never a
+    difference in the flow. Returns ``{regime: {strategy: [row, ...]}}`` with
+    one row per episode (``seed, reward, shortfall_bps, is_bps, vwap_slip_bps,
+    leftover, completion, fill_rate, mdd_ticks``), ordered by seed family then
+    episode.
+    """
+    strategies: list[tuple[str, Callable[[OrderBookEnv, np.ndarray], float]]] = []
+    if policy is not None:
+        strategies.append((agent_name, _policy_act(policy, deterministic)))
+    for b in baselines:
+        strategies.append((str(b), _baseline_act(str(b))))
+    if not strategies:
+        raise ValueError("need a policy and/or at least one baseline")
+    seed_families = [
+        [int(seed0) + k * 10_000 + i for i in range(episodes_per_seed)] for k in range(int(seeds))
+    ]
+    out: dict[str, dict[str, list[dict]]] = {}
+    for regime, factory in regimes.items():
+        out[regime] = {}
+        for name, act in strategies:
+            env = factory() if callable(factory) else factory
+            rows: list[dict] = []
+            for k, fam in enumerate(seed_families):
+                for r in _episode_rows(env, act, fam):
+                    r["seed_family"] = k
+                    rows.append(r)
+            out[regime][name] = rows
+    return out
+
+
+def ci_from_rows(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    metric: str,
+    name: str,
+    regime: str,
+    n_boot: int = 2000,
+) -> RegimeCI:
+    """Mean ± seed-family-bootstrap 95% CI of ``metric`` over episode rows.
+
+    Entire seed families are sampled with replacement, so a bootstrap draw
+    cannot cut through a family as a moving block over flattened rows could.
+    At least two independent families with equal episode counts are required;
+    one family cannot identify between-family uncertainty. Rows without
+    ``seed_family`` remain one family, not independent episode observations.
+    """
+    fams, family_values = _metric_families(rows, metric)
+    vals = np.concatenate(family_values)
+    mean = float(np.mean(vals))
+    lo, hi = _family_bootstrap_ci(family_values, estimate=mean, n_boot=n_boot)
+    return RegimeCI(
+        name=name, regime=regime, metric=metric, mean=mean,
+        ci95=(lo, hi), n_episodes=len(vals), n_seeds=len(fams),
+        per_seed_mean=[float(np.mean(values)) for values in family_values],
+    )
+
+
+def paired_difference_ci(
+    policy: Policy,
+    baseline: str,
+    regimes: Mapping[str, Callable[[], OrderBookEnv]],
+    *,
+    seeds: int = 5,
+    episodes_per_seed: int = 20,
+    seed0: int = 0x5EED,
+    metric: str = "shortfall_bps",
+    n_boot: int = 2000,
+    episodes: Mapping[str, Mapping[str, Sequence[Mapping[str, object]]]] | None = None,
+    agent_name: str = "ppo",
+) -> dict[str, dict[str, float | None]]:
+    """Per-regime CI of the **paired** per-episode difference ``baseline − agent``.
+
+    Positive = the agent is better: lower for execution costs / drawdown /
+    leftovers, higher for reward / completion / ``fill_rate``. Rows are aligned
+    by both ``seed_family`` and ``seed`` before their difference is formed, and
+    bootstrap draws resample complete paired families. This is the number a
+    README line may quote: it uses identical seeded episodes for both sides, so
+    tape noise cancels and the CI reflects policy differences only. Pass
+    ``episodes`` (from ``run_regime_episodes``, containing both ``agent_name``
+    and ``baseline``) to avoid re-running.
+
+    ``pct_vs_baseline`` is ``None`` rather than NaN when the baseline mean is
+    zero, negative, or near zero: a relative percentage has no meaningful
+    denominator in that case. Consumers must treat this formerly numeric field
+    as optional; positive, well-scaled baselines retain the prior calculation.
+    Returns ``{regime: {"mean", "lo", "hi", "n", "frac_agent_better",
+    "pct_vs_baseline"}}``.
+    """
+    if episodes is None:
+        episodes = run_regime_episodes(
+            policy, regimes, seeds=seeds, episodes_per_seed=episodes_per_seed, seed0=seed0,
+            baselines=(baseline,), agent_name=agent_name,
+        )
+    direction = _metric_direction(metric)
+    out: dict[str, dict[str, float | None]] = {}
+    for regime in regimes:
+        ra = episodes[regime][agent_name]
+        rb = episodes[regime][baseline]
+        families, baseline_values = _paired_metric_families(
+            ra, rb, metric=metric, direction=direction,
+        )
+        diffs = np.concatenate(families)
+        mean = float(np.mean(diffs))
+        lo, hi = _family_bootstrap_ci(families, estimate=mean, n_boot=n_boot)
+        out[regime] = {
+            "mean": mean,
+            "lo": lo,
+            "hi": hi,
+            "n": float(len(diffs)),
+            "frac_agent_better": float(np.mean(diffs > 0.0)),
+            "pct_vs_baseline": _percent_vs_baseline(mean, baseline_values),
+        }
+    return out
+
+
+def format_regime_table(result: Mapping[str, Mapping[str, RegimeCI]]) -> str:
+    """Monospace table: one block per regime, ``mean [lo, hi]`` per strategy."""
+    lines: list[str] = []
+    for regime, strategies in result.items():
+        any_ci = next(iter(strategies.values()))
+        lines.append(
+            f"--- regime {regime} · {any_ci.metric} · {any_ci.n_seeds} seeds × "
+            f"{any_ci.n_episodes // max(1, any_ci.n_seeds)} episodes ---"
+        )
+        lines.append(f"{'strategy':<15}{'mean':>9}{'ci95_lo':>10}{'ci95_hi':>10}{'per-seed means':>34}")
+        for name, ci in strategies.items():
+            seeds = " ".join(f"{v:6.2f}" for v in ci.per_seed_mean)
+            lines.append(f"{name:<15}{ci.mean:>9.3f}{ci.ci95[0]:>10.3f}{ci.ci95[1]:>10.3f}  {seeds:>32}")
+    return "\n".join(lines)
+
+
 def format_table(rows: list[dict]) -> str:
     """Render ``strategy_table`` output as a monospace summary line per row."""
     header = f"{'strategy':<10}{'reward':>10}{'shortfall_bps':>14}{'vs_vwap%':>10}{'leftover':>10}"
@@ -231,42 +649,57 @@ def _summarize_rows(rows: list[dict], *, seeds: int, n_boot: int, seed: int) -> 
 
 def evaluate_regime_ci(
     policy: Policy | None = None,
-    regimes: dict[str, _Regime] | None = None,
+    regimes: Mapping[str, Any] | None = None,
     *,
     seeds: int = 5,
-    baselines: tuple[str, ...] = (
-        "twap", "vwap", "pov", "passive", "apov", "stwap", "isaware",
-    ),
+    episodes_per_seed: int | None = None,
+    seed0: int | None = None,
+    metric: str = "shortfall_bps",
+    baselines: Sequence[str] | tuple[str, ...] | None = None,
+    agent_name: str = "ppo",
     fair: bool = True,
-    seed0: int = 0x51ED,
     n_boot: int = 2000,
-) -> dict[str, dict]:
+    deterministic: bool = True,
+) -> dict[str, Any]:
     """Per-regime comparison of the agent vs baselines with honest CIs.
 
-    Every strategy runs the *same* seeded episodes in each regime (episode
-    ``s`` = ``seed0 + s``), so differences are the policy, not the tape. CIs
-    are iid bootstraps over the independent seeds — wide by design at
-    ``seeds = 5``; the docstring contract: headline use needs ``seeds >= 20``.
-
-    ``regimes`` maps a name to an env **instance** (re-used, ``reset`` re-seeds
-    it deterministically) or a zero-arg **factory** (freshened per episode).
-    ``fair=True`` (default) refuses any regime env with ``vol_feature=True`` —
-    the "remove the feature" branch of plan_2.md §6 item 3; ``fair=False`` is
-    the escape hatch for a flag-trained agent and is never the headline.
-
-    Reports BOTH the arrival-IS ``shortfall_bps`` (continuity with the Part-1
-    metric) and ``vwap_slip_bps`` vs **market** VWAP (plan_2.md §6 item 5).
-
-    Returns per regime:
-    ``{"mean", "ci95", "n", "metric": "shortfall_bps", "strategies": {name:
-    {"mean","ci95","n","vwap_slip_bps","completion","mdd_ticks","leftover"}},
-    "rows": [{"strategy", "seed", ...metrics...}]}`` where ``mean``/``ci95``
-    are the agent's.
+    Supports both:
+    1. The Phase 3 benchmark harness (``episodes_per_seed is None``, seeds >= 5,
+       evaluating arrival-IS and market-VWAP slippage across seeded episodes).
+    2. The seed-family bootstrap harness (``episodes_per_seed >= 1``, resampling
+       whole seed families into ``RegimeCI`` dataclasses).
     """
-    from ..baselines import policy_action  # lazy (matches _baseline_summary)
-
     if not regimes:
         raise ValueError("evaluate_regime_ci needs at least one regime")
+
+    actual_seed0 = (
+        (0x5EED if episodes_per_seed is not None else 0x51ED)
+        if seed0 is None
+        else int(seed0)
+    )
+
+    if episodes_per_seed is not None:
+        # Multi-episode seed-family evaluation harness (returns {regime: {strategy: RegimeCI}})
+        episodes = run_regime_episodes(
+            policy,
+            regimes,
+            seeds=seeds,
+            episodes_per_seed=episodes_per_seed,
+            seed0=actual_seed0,
+            baselines=baselines or (),
+            agent_name=agent_name,
+            deterministic=deterministic,
+        )
+        return {
+            regime: {
+                name: ci_from_rows(rows, metric=metric, name=name, regime=regime, n_boot=n_boot)
+                for name, rows in strategies.items()
+            }
+            for regime, strategies in episodes.items()
+        }
+
+    from ..baselines import policy_action  # lazy (matches _baseline_summary)
+
     if seeds < 5:
         raise ValueError("evaluate_regime_ci needs seeds >= 5 for defensible CIs")
     if fair:
@@ -286,13 +719,18 @@ def evaluate_regime_ci(
             return policy_action(name, env)
         return act
 
+    chosen_baselines = (
+        ("twap", "vwap", "pov", "passive", "apov", "stwap", "isaware")
+        if baselines is None
+        else baselines
+    )
     out: dict[str, dict] = {}
     for rname, reg in regimes.items():
         strategies: dict[str, dict] = {}
         rows: list[dict] = []
-        names = (["agent"] if policy is not None else []) + [str(n) for n in baselines]
+        names = (["agent"] if policy is not None else []) + [str(n) for n in chosen_baselines]
         for s in range(seeds):
-            seed = seed0 + s
+            seed = actual_seed0 + s
             for name in names:
                 env = _fresh_env(reg, seed)
                 act: _AgentAct = agent_act if name == "agent" else baseline_act(name)
@@ -301,7 +739,7 @@ def evaluate_regime_ci(
         for name in names:
             strategies[name] = _summarize_rows(
                 [r for r in rows if r["strategy"] == name],
-                seeds=seeds, n_boot=n_boot, seed=seed0,
+                seeds=seeds, n_boot=n_boot, seed=actual_seed0,
             )
         ag = strategies.get("agent")
         out[rname] = {

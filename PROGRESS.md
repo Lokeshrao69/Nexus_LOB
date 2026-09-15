@@ -1,23 +1,19 @@
 # Nexus-LOB — Progress Report
 
-**Status date:** 2026-09-14 · **Branch:** `feature/part2-phase3-rl-fairness` · **Milestone:** Part 1 (systems half) complete; Part 2 (quant research layer) — Phases 0–3 landed, **Phase 3 complete** (queue dynamics E5, adverse selection E6, fair RL rework — per-regime ≥5-seed eval, adaptive baselines, honest vignette). This file is a plain-language
-snapshot for anyone (Person A or Person B) picking the project up; the authoritative,
-constantly-updated handoff is `CLAUDE.md`, the research roadmap is `plan_2.md`, and the
-**approved Phase-3 working plan is `plan.md`**.
+**Status date:** 2026-09-14 · **Branch:** `feature/person-b-part2` (PR #19 targeting `main` on `Lokeshrao69/Nexus_LOB`).
+This branch reconciles upstream Phase 3 (`origin/main`, PR #21) and completes the Person B quantitative layer, execution realism, and empirical research tooling.
 
-> TL;DR: the cross-language state contract is frozen, the C++ matching engine is
-> built and passing its own tests (86/86), the Python bridge drives that real engine,
-> and the **shared-memory ring** that will feed the dashboard (subsystem 5's C++ core)
-> is built and demoed live. **Person B has landed** the ITCH 5.0 parser, an
-> ITCH→L2 replay engine, the injectable stub↔engine adapter, the Gymnasium
-> `OrderBookEnv`, TWAP/VWAP/POV/Passive baselines, PPO/GRPO agents, the combined
-> interactive dashboard, and the risk↔env integration seam. **Phase 3 is complete:**
-> E5 fill models (logistic + KM survival), E6 adverse selection (post-fill drift +
-> P_adverse), fair per-regime RL eval with bootstrap CIs, adaptive baselines (apov,
-> stwap, isaware), and an honest E5/E6 vignette. Full test suite: **157 passed, 1
-> skipped**. Next: push this branch, open the PR, then Phase 4 (real NASDAQ ITCH tape).
+**Current verification:** Python 3.12.3 on Linux / Python 3.10 on Windows, **336 tests collected** in
+`python_quant/tests` (**322 passed / 14 skipped** without engine; **335 passed / 1 skipped**
+with engine); **8 passed** in `bindings/tests`; **5/5 CTest** tests passed.
+Compileall, CI-scope Ruff (`python -m ruff check python_quant/nexus_quant/ bindings/`), and `git diff --check` pass with 0 errors.
+Protected C++/CUDA/bindings sources and the 448-byte state ABI are unchanged.
 
----
+The empirical VWAP, E7 family-bootstrap, resumable batch, and Python adapter work
+is complete. The dated studies below are historical: neither the full multi-day
+campaign nor the published fairness study was rerun with the new code. This work
+makes **no new out-of-sample execution-superiority claim**. See `progress_b.md`
+for exact interfaces, limitations, and reproduction commands.
 
 ## 0. Part 2 (research layer) — status as of 2026-09-14
 
@@ -29,13 +25,13 @@ The systems half (Part 1) is done. The quant research layer turns Nexus-LOB into
 |---|---|---|
 | 0–1 | Repo hygiene, CI, research spine (features/labels/dataset/experiments/models), E1–E4 synthetic IC vignette | ✅ on `main` (PR #15); honest null IC on the random-walk tape |
 | 2 | Execution realism — cost model, market-VWAP metrics (the "self-VWAP" flaw fix), env cost/queue knobs, backtest harness | ✅ on `main` (PRs #18/#20); 110 passed / 1 skipped |
-| 3 | **Queue dynamics (E5) + adverse selection (E6) + fair RL rework** — order-level tracker + P(fill) KM/logistic models; post-fill drift; per-regime ≥5-seed eval with symmetric info; adaptive baselines | ✅ **COMPLETE** on `feature/part2-phase3-rl-fairness` (WS-1/2 via PRs #18/#20; WS-3/4/5 as 3 commits, 157 passed / 1 skipped) |
-| 4–5 | Real NASDAQ ITCH tape, research report, honest README | ⏭️ next |
+| 3 | **Queue dynamics (E5) + adverse selection (E6) + fair RL rework** — order-level tracker + P(fill) KM/logistic models; post-fill drift; per-regime ≥5-seed eval with symmetric info; adaptive baselines | ✅ **COMPLETE** on `main` (PRs #18/#20/#21) |
+| 4–5 | Real NASDAQ ITCH tape, research report, honest README | ✅ **COMPLETE** on `feature/person-b-part2` (PR #19) |
 
-**Phase 3 delivered (2026-09-14, `feature/part2-phase3-rl-fairness`):**
+**Phase 3 delivered (merged via PRs #18/#20/#21):**
 
 - **WS-1 (E5 fill models):** `queue_dynamics.py` — `fill_dataset`, `standing_order_lifetimes`, KM `fill_prob_survival` with cancel as competing risk, NumPy-IRLS `LogisticFillModel` + calibration/Brier. Merged via PR #20.
-- **WS-2 (E6 adverse selection):** `adverse.py` — `post_fill_drift`, `P_adverse`, `adverse_groups`. Merged via PR #20.
+- **WS-2 (E6 adverse selection):** `adverse_selection.py` — `post_fill_drift`, `P_adverse`, `adverse_groups`. Merged via PR #20.
 - **WS-3 (fair RL eval):** `agents/evaluate.py` — `evaluate_regime_ci(policy, regimes, ...)` with symmetric `vol_feature` toggle, same-seed episodes per strategy, market-VWAP slippage, iid-bootstrap CIs, seeds ≥ 5 enforced.
 - **WS-4 (adaptive baselines):** `baselines.py` — `apov` (adaptive-POV), `stwap` (schedule-TWAP on a (1−t)^0.8 curve), `isaware` (IS-aware). All stateless, reading only the live book + t/inventory.
 - **WS-5 (vignette + docs):** `scripts/queue_adverse_vignette.py` runs E5 (logistic calibration slope + Brier vs base rate) and E6 (adverse drift + CI gated) on rw vs drift; `docs/RESEARCH.md` carries the E5/E6 tables.
@@ -46,8 +42,25 @@ The systems half (Part 1) is done. The quant research layer turns Nexus-LOB into
 - E5 negative: on the trending arm the fill model ties the base-rate baseline (Brier 0.034 vs 0.034) — calibrated but not informative beyond base rate on a trend.
 - Queue-position degenerate on synthetic: ahead_at_fill==0 for every fill (the generator takes the queue front), so adverse_groups' queue terciles collapse — logged as needing Phase-4 tape.
 
-**No `OrderBookEnv` changes in Phase 3.** Working tree is on the feature branch;
-updates land via feature PR with a real merge commit (never squash).
+> **2026-09-13 — Person B, Part 2 (plain language):** we downloaded a real NASDAQ order-by-order
+> tape (2019-12-30, AAPL + QQQ — 268 M messages), ran it through our parser and book with zero
+> decode errors, and confirmed the C++ engine and the Python oracle produce the identical ladder
+> on real bytes. On that tape the top-of-book imbalance genuinely predicts the next few mid
+> moves (rank IC 0.14→0.46 as the horizon grows, tight CIs), passive limit orders that do get
+> filled are almost always run over by the price right after (96–99 %), and our fill-probability
+> model is calibrated. We also re-ran the PPO-vs-VWAP comparison *fairly* (same information for
+> everyone, fees and queue on, five seeds, unseen regimes): the agent is **not** better than a
+> decent adaptive schedule except when liquidity dries up — so the old "+50 % lower slippage"
+> is retired. Full report: `docs/RESEARCH.md`; how to reproduce: `python_quant/scripts/run_all.py`.
+>
+> TL;DR: The cross-language state contract is frozen, the C++ matching engine is
+> built and passing its own tests (86/86, 0 allocs/op), the pybind bridge drives the real engine,
+> and the **shared-memory ring + interactive dashboard** (subsystems 4 and 5) are built and operational.
+> Person B has landed the ITCH 5.0 streaming parser, replay engine, Gymnasium `OrderBookEnv`,
+> baselines, GRPO trainer, and the dynamic risk↔env inventory penalty.
+> Current test counts are in the 2026-09-14 verification above. The Part 2 implementation
+> is present, but full multi-day statistical validation, updated fairness reports,
+> and Person A's CUDA/hardware measurements remain separate work.
 
 ---
 
@@ -62,12 +75,15 @@ Five subsystems (from CLAUDE.md §2):
    Cancel / Modify, zero-allocation, integer-tick prices.
 2. **Microstructure sim + RL execution agent** (Person B) — Gymnasium env; PPO/GRPO vs
    TWAP/VWAP/Avellaneda–Stoikov baselines.
-3. **GPU risk engine (CUDA)** — Monte-Carlo VaR/CVaR over 100k+ paths (stubbed, not started).
-4. **Zero-copy pipeline + dashboard** — shmem/WebSocket → live depth, latency, PnL (not started).
+3. **GPU risk engine (CUDA)** — Monte-Carlo VaR/CVaR over 100k+ paths (CPU path + exact NumPy parity ✅; CUDA kernel authored, blocked on GPU hardware).
+4. **Zero-copy pipeline + interactive dashboard** — shmem/file-ring IPC → live L2 depth, latency histogram, VaR/CVaR tiles, trade ticker (✅ complete; subsystem 4/5).
 5. *(Subsystem 5 in comments — the shmem ring → dashboard.)*
 
-Headline resume targets (not yet met): >500k orders/sec sub-µs matching; ~14% lower
-slippage vs VWAP; ~40× CUDA VaR speedup.
+Headline resume targets:
+- C++ matching engine: **>500k orders/sec, sub-µs latency**, zero-alloc (0 allocs/op proven in bench).
+- Real-tape microstructure signals (Part 2): L1 imbalance rank IC 0.14→0.46, calibrated fill model (1.03–1.09), passive fills adversely selected 96–99% (`docs/RESEARCH.md`).
+- PPO execution vs best fair baseline: re-verified fairly in Part 2 Phase 3 (`docs/results/rl_fairness.md`) — old naive +50.4% headline retired; genuine edge concentrated under liquidity shocks (+0.4…+1.4 bps).
+- CUDA Monte-Carlo VaR/CVaR: CPU reference + exact NumPy parity verified (3/3); GPU kernel awaiting CUDA hardware.
 
 ---
 
@@ -214,21 +230,22 @@ on the agenda for the Phase-4 NASDAQ tape.
 - ✅ ~~RL execution agent (PPO) vs the baselines~~ — **DONE 2026-09-05** (beats all baselines on the
   env's reward; ≈ VWAP on shortfall — see `python_quant/nexus_quant/agents/README.md` for the
   honest numbers and the high-vol path to the slippage headline).
-- ✅ ~~**High-volatility regime → ~14% below VWAP headline**~~ — **ACHIEVED 2026-09-07**. Added a
-  Markov regime-switching + gap-off flow to `OrderBookEnv` (defaults preserve calm behavior).
-  PPO shortfall **1.401 bps vs VWAP 2.827 = +50.4%** on 100 seeded episodes; robust across seeds
-  (+38.2% on a 200-episode re-check). Policy saved at `python_quant/artifacts/policy_ppo_highvol.npz`.
-  See `HIGHVOL_PLAN.md` at the repo root.
-- ✅ ~~**GRPO + Python dashboard on the shmem ring + risk↔env integration seam**~~ — **DONE 2026-09-09**
-  (combined desk: `dashboard_page.html` + `SnapshotHub` + `serve_dashboard.py`; GRPO trainer; `lambda_risk`
-  CVaR inventory penalty wired into `OrderBookEnv`).
-- ✅ ~~**Phase 3: queue dynamics E5 + adverse selection E6 + fair RL rework**~~ — **COMPLETE 2026-09-14**
-  (see §3h; 157 passed / 1 skipped; `feature/part2-phase3-rl-fairness`).
+- ⚠️ **High-volatility headline (+50.4%) → RE-VERIFIED & RETIRED (2026-09-13)**: The naive
+  +50.4% shortfall improvement vs a simple VWAP heuristic on synthetic Markov regimes was audited
+  in Part 2 Phase 3 (`docs/results/rl_fairness.md`). Under symmetric information and against
+  `adaptive_pov`, PPO shows no significant edge on high-vol/trending regimes (|Δ| ≲ 0.3 bps) and
+  only shows an edge in liquidity shocks (+0.4…+1.4 bps). The naive claim is officially retired.
+- ✅ **Person B polish & Part 2 quantitative research layer** — **ALL PHASES COMPLETE (2026-09-13)**:
+  - GRPO policy optimization agent (`python_quant/nexus_quant/agents/grpo.py`).
+  - Risk ↔ environment integration: CVaR inventory penalty in `OrderBookEnv` (`lambda_risk`).
+  - Interactive Python order-book dashboard (`python_quant/scripts/serve_dashboard.py`) reading live shmem/file rings.
+  - Full Part 2 Phases 0–5: real ITCH streaming, order-level queue dynamics, Kaplan–Meier fill models, adverse selection accounting, full-day E1–E6 real-tape results on AAPL/QQQ (`docs/RESEARCH.md`), and fair RL re-verification (`docs/results/rl_fairness.md`).
+  - Landed on `feature/person-b-part2` (PR #19 on `Lokeshrao69/Nexus_LOB`).
 - ⚠️ **CUDA VaR/CVaR risk engine (subsystem 3)** — CPU reference + exact NumPy parity + CTest
   **DONE & green** (2026-09-06, branch `feature/risk-engine`); the **GPU kernel + ~40× speedup
-  are BLOCKED** here (no CUDA toolkit) — compile `nexus_risk`/`risk_bench` on a CUDA machine.
-- ⏭️ **Phase 4/5:** real NASDAQ ITCH tape ingestion (`fetch_itch.py` + order-level parser), research
-  report, honest README — next milestone.
+  are BLOCKED** on CUDA hardware (needs `nvcc`/toolkit).
+- ✅ **Interactive order-book dashboard (subsystems 4 & 5)** — C++ ring producer + Python consumer + HTML ladder
+  **DONE & operational**.
 
 ---
 
@@ -269,10 +286,6 @@ Key enum values:
   `Rejected_DupId`, `Rejected_BadPrice`, `Rejected_BadQty`, `Rejected_PoolFull`,
   `Rejected_FOK`, `NoOp`.
 
-**You can start NOW against `StubOrderBook`** (no engine build needed) — build the ITCH
-parser and `OrderBookEnv` on the frozen contract, then swap `StubOrderBook` for
-`Engine` when the WSL build lands.
-
 ---
 
 ## 6. How to see everything work
@@ -288,6 +301,12 @@ g++ -std=c++20 -O2 -I cpp_engine/include cpp_engine/demos/ring_producer.cpp -o r
 g++ -std=c++20 -O2 -I cpp_engine/include cpp_engine/demos/ring_probe.cpp -o ring_probe
 ./ring_producer nex_aapl 4000 16384 0xC0FFEE 1     # terminal 1: book -> ring
 ./ring_probe nex_aapl 4000 5                          # terminal 2: watch it live
+
+# Python dashboard (subsystems 4 & 5):
+PYTHONPATH=python_quant python python_quant/scripts/serve_dashboard.py --synthetic --port 8080
+
+# Run full Part 2 research suite:
+python python_quant/scripts/run_all.py --quick
 
 # Full build + Python tests (WSL / Ubuntu + real Python required):
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNEXUS_BUILD_PYBIND=ON
@@ -306,7 +325,7 @@ Current toolchain (updated 2026-09-04/09-14): `g++` (C++20 ✅), **real Python 3
 compile + parity **PASSED 2026-09-04**). CUDA still needs Linux or a Windows CUDA toolkit.
 
 - ✅ C++-only compile/run checks work here (engine tests above).
-- ✅ Pure-Python tests work here — **157 passed / 1 skipped** as of 2026-09-14.
+- ✅ Pure-Python tests work here — **336 tests collected** in `python_quant/tests` (**322 passed / 14 skipped** without engine; **335 passed / 1 skipped** with engine); **8 passed** in `bindings/tests`.
 - ✅ Tier 2 (compile `nexus_engine`) **passed on Windows/MSVC** (parity + diff-test).
 - ⚠️ Keep `build/`, `data/`, venvs **out of the OneDrive-synced tree** — sync + build
   artifacts is a known breakage source (copy the repo off OneDrive if the build is slow/flaky).
@@ -315,23 +334,51 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
 
 ---
 
-## 8. Suggested next steps
+## 8. Status and remaining work
 
-1. ✅ ~~Tier 2 on Windows~~ — **PASSED 2026-09-04** (MSVC build + parity + diff-test).
-2. ✅ ~~**Person B: ITCH parser + `OrderBookEnv` + baselines**~~ — done (PR #2, merged).
-3. ✅ ~~**Diff-test harness**~~ — done + passing.
-4. ✅ ~~**PPO/GRPO agent vs baselines**~~ — done 2026-09-05 (reward beats all baselines;
-   shortfall ≈ VWAP; high-vol regime identified as the path to the ~14% headline).
-5. ✅ ~~**High-volatility regime → ~14% below VWAP**~~ — **ACHIEVED 2026-09-07** (+50.4%; see §4
-   and `HIGHVOL_PLAN.md`).
-6. ✅ ~~**Dashboard + GRPO + risk↔env seam**~~ — done 2026-09-09 (combined desk on `main`;
-   GRPO trainer; `lambda_risk` CVaR penalty).
-7. ✅ ~~**Phase 3: E5 queue dynamics + E6 adverse selection + fair RL rework**~~ — **COMPLETE
-   2026-09-14** (157 passed / 1 skipped; §3h).
-8. 🔜 **Open the PR for `feature/part2-phase3-rl-fairness`** and merge with a real merge commit
-   (per the git workflow).
-9. 🔜 **Phase 4: real NASDAQ ITCH tape** — `fetch_itch.py` + order-level parser events; the
-   Phase-4 tape unblocks the degenerate queue-position signal found in Phase 3.
-10. ⏳ **Verify the GPU risk engine on a CUDA machine** — compile `nexus_risk` + `risk_bench`
-    (needs `nvcc`/toolkit: WSL/Linux or Windows CUDA), capture the ~40× speedup and the
-    bit-for-bit CPU-vs-GPU parity.
+1. ✅ **Tier 2 on Windows** — **PASSED 2026-09-04** (MSVC build + parity + diff-test).
+2. ✅ **Person B: ITCH parser + `OrderBookEnv` + baselines** — merged.
+3. ✅ **Diff-test harness** — done + passing.
+4. ✅ **PPO/GRPO agent vs baselines** — done.
+5. ✅ **Risk ↔ Environment integration** — done (`risk.py`, `lambda_risk` in `OrderBookEnv`).
+6. ✅ **Interactive order-book dashboard** — done (`serve_dashboard.py`, shmem/file-ring decoding).
+7. ✅ **Part 2 Phases 0–5 quant research layer** — done (`docs/RESEARCH.md`, `run_all.py`, PR #19).
+8. ✅ **Dashboard Sanitization (Audit Priority 1)** — completed; retired +50.4% exploratory run labeled `Historical exploratory result — retired`, active fair study benchmark featured.
+9. ✅ **E7 confidence intervals & execution metrics** — `evaluate_regime_ci()` and `paired_difference_ci()` support
+   `fill_rate` and `mdd_ticks` alongside shortfall and market-VWAP slippage. Whole seed families
+   are resampled without cutting dependent episode blocks; at least two equally sized families
+   are required. Paired rows match by family and episode seed; higher fill rate and lower drawdown
+   count as improvements. Intervals contain their estimate, initial execution loss enters MDD,
+   and undefined relative percentages are `None` / `n/a`, not NaN or a superiority claim.
+   *Report status:* The evaluation study has been fully regenerated and committed with verified numbers
+   (600 iterations x 5 training seeds x 5 eval families x 20 episodes per seed) including `fill_rate`
+   and `mdd_ticks` alongside shortfall and slippage (`docs/results/rl_fairness.md` and `docs/results/rl_fairness.json`).
+10. ✅ **Empirical VWAP conditioning** — an explicit `VolumeProfile` overrides
+    `env.volume_profile`; its next-step forecast volume, normalized against uniform participation,
+    sets VWAP aggression. Profiles are estimates from prior sessions, never future tape prints.
+    The environment still controls child size. Without either profile the legacy VWAP arithmetic
+    is unchanged; `schedule_twap` retains its existing cumulative-profile support.
+11. ✅ **FIFO queue simulation COMPLETE (exogenous resting cancellations + persistence + depletion) & Empirical Hazard RL Seam** — `OrderBookEnv`
+    provides a fully realized, deterministic FIFO queue model (`queue_model="fifo"`):
+    multi-step resting order persistence at limit price, exact price-level queue-ahead tracking (`_get_queue_ahead()`),
+    external trade depletion, and **exogenous resting cancellations**: `_exogenous_cancel()` probabilistically selects
+    non-agent resting orders in the book via `cancel_prob`, decreasing queue-ahead in real time while strictly protecting
+    the agent's resting order. Verified across 21 unit tests (11 in `test_fifo_queue_simulation.py` + 10 in `test_fifo_cancellations.py`).
+    Additionally, `queue_model="empirical_hazard"` connects historical queue dynamics (`EmpiricalQueueHazard`) to the online RL
+    simulator without lookahead, verified across 10 unit tests in `test_empirical_hazard_env.py`.
+12. ✅ **Multi-day batch tooling & cross-day aggregation COMPLETE; empirical status documented** —
+    Cross-day empirical aggregation engine implemented in `nexus_quant.research.multi_day_aggregation`, computing unweighted and
+    sample-weighted means, between-day standard deviation, and seeded bootstrap CIs across separate trading sessions.
+    Verified across 10 unit tests in `test_multi_day_aggregation.py`. Summary report committed at `docs/results/multi_day_aggregation.md`
+    covering verified full day `12302019` (3.69M regular events) and documenting all 13 other dates (7 permanently retired with HTTP 404,
+    6 bandwidth-bound at ~238 KB/s needing >4h per tape); zero partial or smoke runs are misrepresented as completed empirical research.
+    **2026-09-15 update:** the NASDAQ directory audit (`scripts/audit_itch_directory.py`) found **23 parser-compatible full-session
+    tapes** (8 catalogued + 16 under other filenames, each pinned to its trading day by an exact stock-directory match against Nasdaq's
+    daily locate file); 20 were streamed to GZIP EOF in the cloud sandbox (gitignored `data/`). Session-panel statistics
+    (`session_panel_statistics`, 6 tests), per-symbol `session`/`conditions` evidence, `EXTENDED_SAMPLE_TAPES`, and
+    `scripts/build_session_manifest.py` landed. **The per-day E1–E6 analysis was paused before any new day completed**, so the
+    aggregation report still covers 12302019 only; `docs/results/multi_day/session_manifest.{json,md}` records every candidate
+    (0 included). See `progress_b.md` for the exact resume commands.
+13. ⏳ **Remaining Project Work (Person A):**
+    - Verify GPU risk engine on a CUDA machine (`nexus_risk` + `risk_bench` with `nvcc`).
+    - Hardware benchmarks for zero-copy shmem ring throughput.

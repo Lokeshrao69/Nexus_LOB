@@ -5,8 +5,7 @@
 > **§7 Next steps** so the next session resumes without re-deriving everything.
 > **Part 2 (quant research layer) plan of record: `plan_2.md`** — read that FIRST
 > for the research half; this file stays the systems-half handoff.
-> Last updated: **2026-09-12**.
-> Last updated: **2026-09-09**.
+> Last updated: **2026-09-14** (Person-B follow-up: empirical VWAP, E7 family CIs, resumable batches, and Linux adapter verification; see `progress_b.md`).
 
 ---
 
@@ -25,7 +24,12 @@ Headline resume metrics (status):
 - C++20 matching engine: **>500k orders/sec, sub-microsecond latency**, zero-alloc —
   **0 allocs/op proven**; throughput/latency to re-measure on real hardware.
 - PPO/GRPO execution agent: **~14% lower slippage vs VWAP** —
-  **+50.4% achieved** (high-vol regime, 2026-09-07).
+  **retired 2026-09-13**: the +50.4% (2026-09-07) did not survive a fair re-verification
+  (symmetric info, fees+queue, 5 seeds, hold-out regimes, paired CIs vs `adaptive_pov`) —
+  no significant edge except under liquidity shocks. See `docs/results/rl_fairness.md`.
+- **Real-tape microstructure research (Part 2):** E1–E6 on NASDAQ ITCH 2019-12-30 AAPL/QQQ —
+  L1 imbalance rank IC 0.14–0.46 with tight CIs, calibrated fill model (slope 1.03–1.09),
+  passive fills adversely selected 96–99%. `docs/RESEARCH.md`.
 - CUDA Monte-Carlo VaR/CVaR: **~40× speedup** vs CPU —
   CPU ✅ exact parity; GPU kernel authored, **blocked** (no CUDA toolkit).
 
@@ -68,8 +72,8 @@ Finance Project-1/            # repo root (branch: main)
 │   │   ├── dashboard_page.html # combined interactive desk page
 │   │   ├── envs/order_book_env.py  # Gymnasium execution env (44-dim, high-vol regime)
 │   │   └── agents/            # mlp.py, ppo.py, grpo.py, evaluate.py
-│   ├── scripts/               # train_eval_agent.py, serve_dashboard.py
-│   ├── tests/                 # 68 tests, all green (+ 1 shm skip on Windows)
+│   ├── scripts/               # train_eval_agent.py, serve_dashboard.py, run_all.py, run_research.py
+│   ├── tests/                 # 152 tests, all green in CI (143 passed / 6 skipped on Windows without ITCH file / .pyd)
 │   └── artifacts/             # policy_ppo.npz, policy_ppo_highvol.npz
 ├── bindings/                  # pybind_wrapper.cpp, CONTRACT.md, tests/ (+ compiled .pyd)
 ├── dashboard/                 # static verification console (dashboard/index.html)
@@ -115,7 +119,42 @@ training · W7-8 profiling, dashboard, benchmarks, write-up.
   valid only until the next mutating engine call); `snapshot()` = owning copy (safe to
   retain, telemetry/tests/cross-thread).
 
-## 6. Status — what's DONE (verified 2026-08-30)
+## 6. Status — latest verification 2026-09-14; dated implementation history below
+
+**Person-B follow-up:** canonical branch `feature/person-b-part2` targeting `main` in PR #19.
+
+- Empirical `vwap` now uses the forecast volume over the next episode step. Explicit
+  profiles override `env.volume_profile`; no-profile legacy actions are unchanged.
+  Only prior-session forecasts are appropriate; child sizing remains the env's job.
+- E7 `fill_rate` / `mdd_ticks` CIs resample complete seed families, with correct
+  paired-metric direction and seed alignment. At least two equal-sized families
+  are required; initial loss is included in drawdown. Undefined percentages are
+  `None` and render as `n/a`. Existing published fairness results were not regenerated.
+- **Queue model status:** `OrderLevelTracker` and `queue_dynamics.py` implement offline FIFO queue
+  tracking, fill timing, Kaplan–Meier survival, and logistic fill models on historical ITCH tapes (E5).
+  `OrderBookEnv` execution simulation uses a synthetic uniform random queue degradation heuristic
+  (`_queue_ahead_frac` returning `self._rng.random()`); the RL agent does not train against the empirical
+  tracker. Connecting the empirical queue model to the simulation remains a separate future task.
+- **E7 report status:** `evaluate.py` and `test_e7_metrics.py` now compute `fill_rate` and `mdd_ticks`,
+  but the committed fairness report (`docs/results/rl_fairness.md`) contains the Phase 3 study results and
+  predates this integration (it was not regenerated).
+- **Multi-day research status:** `batch_research_itch.py` supports all 15 catalogued dates, byte-limited smoke
+  downloads, verified manifests, resumable per-day E1–E6, source-code fingerprints,
+  and descriptive cross-day tables. The full 15-day empirical campaign has not yet been executed
+  (roughly 3.5 GB compressed per full day, bandwidth-dependent); only single-day results (`12302019`) are committed.
+- Python adapters now preserve injected stub/reset semantics and reconcile native
+  fills, rejection results, partial-modify FIFO priority, order counts, and cancelled
+  handles. Linux pybind and the no-engine path are both tested. C++/CUDA/bindings
+  sources and all frozen state fields remain unchanged.
+
+**Verified:** Python suite **274 passed / 1 local-tape skip**; binding suite
+**8 passed**; native CTest **5/5**; compileall, CI-scope Ruff, and diff whitespace
+checks pass. Without engine import: **262 passed / 13 skipped**. A live two-date
+transport/resume smoke fetched exactly 1 MiB per date, with no regular-session
+rows; those prefixes provide no execution or full-day statistical evidence.
+
+No new out-of-sample execution-superiority claim is made. Reproduction and
+compatibility details are in the current update at the top of `progress_b.md`.
 
 **Phase 1 — C++ matching engine implemented & tested; pybind `Engine` wired to it.**
 
@@ -245,13 +284,16 @@ did not beat TWAP on this *gentle-walk* sim — the env's bid-cap fill mechanics
 headline is a **high-vol/gap-off flow regime** (and/or a schedule-constrained
 post-at-touch objective).
 
-**Headline achieved (high-vol regime, 2026-09-07):** added a Markov
-regime-switching + gap-off flow to `OrderBookEnv` (new constructor params;
-defaults preserve the calm behavior byte-for-byte). See `HIGHVOL_PLAN.md`.
-Training `--highvol --vol-feature --iters 2000` → PPO shortfall **1.401 bps vs
-VWAP 2.827** = **+50.4%** lower slippage (100 seeded episodes); robust across
-seeds (+38.2% on a 200-episode re-check). The ~14% resume headline is
-comfortably exceeded. Saved policy: `python_quant/artifacts/policy_ppo_highvol.npz`.
+**Headline achieved (high-vol regime, 2026-09-07; re-verified & retired 2026-09-13):**
+added a Markov regime-switching + gap-off flow to `OrderBookEnv` (new constructor params;
+defaults preserve calm behavior). In initial testing, `--highvol --vol-feature --iters 2000`
+showed PPO shortfall **1.401 bps vs VWAP 2.827 (+50.4%)** on 100 seeded episodes.
+However, under the rigorous Part 2 Phase 3 fair RL re-verification protocol (`plan_2.md` §6,
+`docs/results/rl_fairness.md`), this naive +50.4% headline was audited and officially retired:
+against `adaptive_pov` with symmetric information and fees+queue enabled, PPO demonstrates
+no statistically significant edge on high-vol/trending regimes (|Δ| ≲ 0.3 bps), and only
+outperforms during liquidity shocks (+0.4…+1.4 bps).
+Policy preserved at: `python_quant/artifacts/policy_ppo_highvol.npz`.
 Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
 
 **Phase 1e — Person B: combined interactive desk (subsystem 4/5, 2026-09-09).**
@@ -279,6 +321,12 @@ the C++ `compute_var_cvar`) to compute CVaR and applies it as a dynamic holding 
 This is the Person A ↔ Person B integration seam.
 
 ## 7. Next steps (ordered; low-risk foundations first)
+
+**Current Person-B next steps:** run the full 15-day tape campaign when bandwidth
+permits, then regenerate and review statistical reports under the current code.
+Re-run the fair seeded evaluation before replacing its historical CIs; this
+follow-up changed the resampling unit and corrected initial drawdown accounting.
+The original implementation checklist below is retained as dated history.
 
 1. ~~**`.gitignore`**~~ — ✅ done 2026-08-24.
 2. ~~**`bindings/CONTRACT.md`**~~ — ✅ done 2026-08-24 (full spec, offsets verified).
@@ -314,8 +362,9 @@ This is the Person A ↔ Person B integration seam.
    speedup remain **blocked**: no CUDA toolkit on this machine — compile
    `nexus_risk` + `risk_bench` on WSL/Linux or a Windows CUDA toolkit and
    capture the CPU-vs-GPU number.
-10. ~~**Person B — high-volatility regime → ~14% below VWAP**~~ — ✅ **ACHIEVED
-    2026-09-07** (+50.4% on shortfall vs VWAP; see `HIGHVOL_PLAN.md` + Phase 1c).
+10. ~~**Person B — high-volatility regime → ~14% below VWAP**~~ — ⚠️ **RE-VERIFIED
+    & RETIRED 2026-09-13** (initial +50.4% shortfall vs VWAP in `HIGHVOL_PLAN.md`;
+    superseded by fair RL study in `docs/results/rl_fairness.md` showing edge only in liquidity shocks).
 11. ~~**Person B — GRPO + Python dashboard on the shmem ring (subsystem 4/5)**~~ — ✅ **DONE
     2026-09-09** as the combined desk: `dashboard_page.html` + `SnapshotHub` + `serve_dashboard.py`
     (see Phase 1e). GRPO trainer also landed. Remaining polish: the static `dashboard/index.html`
@@ -334,14 +383,23 @@ All 12 original plan items are complete. Remaining work is **polish & measuremen
 |---|---|---|
 | CUDA kernel compile + ~40× speedup measurement | Person A | Yes — no `nvcc`/toolkit on this machine |
 | Throughput/latency on real hardware (>500k ord/s, sub-µs) | Person A | Yes — Windows sandbox throttles; needs Linux/real box |
-| ~~Reconcile two dashboard pages~~ — both now on `main` (combined desk + verification console) | Both | ✅ 2026-09-12 |
-| Execution timeline + inventory chart in dashboard | Person B | No |
-| Final README.md polish + write-up | Both | No |
+| Reconcile & sanitize dashboard — retired +50.4% labeled, active fair benchmark featured | Person B | ✅ 2026-09-14 |
+| E7 `fill_rate` / `mdd_ticks`, whole-family CIs, paired metric direction | Person B | ✅ 2026-09-14; published study not rerun |
+| Empirical volume profiler and VWAP baseline conditioning | Person B | ✅ 2026-09-14; no-profile legacy actions preserved |
+| Multi-day NASDAQ ITCH: 15 dates catalogued, resumable batch harness ready | Person B | 🟡 Full statistical campaign not run; ~3.5 GB/day, bandwidth-dependent |
+| Part 2 quant research layer (Phases 0–5 complete, PR #19 on `Lokeshrao69/Nexus_LOB`) | Person B | ✅ 2026-09-14 (160 tests passing) |
 
 ## 8. Environment reality (IMPORTANT — read before running anything)
 
-This Claude session runs on **Windows 11 + Git Bash / MSYS2** (NOT WSL). The repo
-lives on a **OneDrive** path (`C:\Users\pekka\OneDrive\Documents\Finance Project-1`).
+**Current follow-up verification (2026-09-14):** Linux, Python 3.12.3, GCC 13.3,
+pybind11 2.13.6. The unchanged native engine was built with portable CPU flags and
+CUDA disabled. Build products stayed in ignored `build/` and the private venv,
+not in the protected source directories. CUDA performance was not measured.
+
+**Historical Windows reference:** the original sessions used **Windows 11 + Git
+Bash / MSYS2** (not WSL), with the repo on a **OneDrive** path
+(`C:\Users\pekka\OneDrive\Documents\Finance Project-1`). The notes below describe
+that environment, not the current Linux workspace.
 
 **Branch state (2026-09-12):** `main` holds all merged work (PRs #1–#9) AND the reconciled
 dashboard — `python_quant/nexus_quant/dashboard_page.html` (combined desk, served at `/`) +
@@ -419,4 +477,10 @@ g++ -std=c++20 -O2 -Wall -Wextra -I cpp_engine/include \
 PYTHONPATH=python_quant python python_quant/scripts/train_eval_agent.py \
     --highvol --vol-feature --iters 2000 --eval-every 400 --eval-episodes 40 \
     --out python_quant/artifacts/policy_ppo_highvol.npz --table-episodes 100
+
+# Part 2 research layer (Person B) — real NASDAQ ITCH day + fair RL re-verification:
+python python_quant/scripts/run_all.py --quick          # smoke of every stage (minutes)
+python python_quant/scripts/fetch_itch.py --day 12302019 --symbols AAPL,QQQ    # ~14 min, data/ gitignored
+python python_quant/scripts/run_research.py --day 12302019 --symbols AAPL,QQQ  # E1–E6 → docs/results/
+python python_quant/scripts/rl_fairness_study.py                               # E7 → docs/results/rl_fairness.md
 ```

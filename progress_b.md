@@ -1,14 +1,188 @@
-> **HISTORICAL HANDOFF (2026-09-04/09-07) — SUPERSEDED.** This snapshot long
-> predates Phases 0–2 (research spine, execution realism) and even the PPO/GRPO
-> agent; much of what it lists as "not implemented" or "authored, not run" is merged
-> and green today. Do NOT use it for current status. Systems handoff: `CLAUDE.md`;
-> research roadmap: `plan_2.md`; current Phase-3 detailed plan: `plan.md`.
-
 # Person B Handoff: Python Quantitative Layer
 
-**Updated:** 2026-09-04
-**Checkout:** `C:\Users\Shrikar\nexus\parent-transfer`
-**Branch:** `main` at `d40bf59` (tracking `origin/main`)
+**Updated:** 2026-09-15
+**Branch:** `feature/person-b-part2` (PR #19 on `Lokeshrao69/Nexus_LOB`).
+**Base:** `main` (`e9e88ee`).
+
+## 2026-09-15 — multi-day campaign: Phase 1 complete, tooling landed, analysis paused
+
+**What is true right now.** The public NASDAQ ITCH directory tree was audited end to
+end and **23 parser-compatible full-session TotalView-ITCH 5.0 tapes** were identified
+(8 from the original 15-date catalogue — 7 are HTTP 404 — plus 16 published under other
+filenames: `S<MMDDYY>-v50.txt.gz`, `itch50_MM_DD.gz`, `GIS/…`, and the NASDAQ tape
+misfiled in the PSX directory). Each was classified from a 4 MiB GZIP prefix: message
+lengths equal the parser's ITCH 5.0 spec table, AAPL/QQQ are in the stock directory, and
+the complete `R`-message directory matches Nasdaq's daily `ndq_stocklocate` file
+pair-for-pair (neighbouring dates share only ~15–20 % of pairs, so the date is pinned).
+Evidence: `docs/results/multi_day/itch_directory_audit.json`
+(`scripts/audit_itch_directory.py`). No `.md5sum` sidecar is retrievable (all 404), so
+provenance is the SHA-256 of received bytes plus GZIP EOF, per fetch manifest.
+
+**20 complete tapes (≈120 GB compressed) were streamed to GZIP EOF and sliced** for
+AAPL/QQQ in a cloud sandbox; the three 2026 tapes (13–18 GB each) were not downloaded.
+Slices live in gitignored `data/itch/<day>/` and are **not** in the repository. The
+per-day E1–E6 analysis was started on the frozen pipeline but **stopped before any day
+completed both symbols**; those partial outputs were discarded, not committed. The
+committed `docs/results/multi_day_aggregation.{json,md}` therefore still describe the
+single verified session (12302019). `docs/results/multi_day/session_manifest.{json,md}`
+records every candidate honestly: 7 `404/RETIRED`, 23 `OTHER` (20 downloaded, analysis
+`not_run`; 3 not downloaded), **0 included in aggregation**.
+
+**Tooling that landed (all unit-tested, CI-scope Ruff clean):**
+
+- `fetch_itch.EXTENDED_SAMPLE_TAPES` + `tape_url()` resolution for the 16 extra tapes
+  (a `--base` override still controls every URL); `batch_research_itch.py --days extended`.
+- Every per-symbol result now carries a `session` block (system-event clock, first/last
+  regular row, `regular_session_complete` = `Q`/`M` events present and rows within 60 s of
+  09:30/16:00) and a descriptive `conditions` block (open/close/range, 5-minute realized
+  vol, quoted spread, one-tick share, event rate) for post-hoc stratification.
+- `multi_day_aggregation.session_panel_statistics` / `extract_session_metrics` /
+  `render_session_panel_md`: one row per day × symbol, mean / median / between-session SD,
+  seeded session-bootstrap CIs, sample-weighted means, hypothesised-sign consistency,
+  per-session significance counts, leave-one-day-out influence, paired per-session
+  comparisons (E2 microprice−imbalance, E3 order-OFI−L2-OFI, E4 OLS−imbalance, E6
+  post−pre drift). `tests/test_session_panel.py` (6 tests).
+- `scripts/build_session_manifest.py`: auditable session manifest + regenerated
+  aggregation over sessions passing the pre-registered rule (unbounded fetch reached
+  EOF; both symbols sliced; E1–E6 completed under the current pipeline fingerprint;
+  regular session complete for every symbol). Selection never looks at results.
+- `experiments._rank`: the vectorized tie-aware Spearman rank (bit-identical output,
+  ~3× faster) was restored after a 2026-09-14 merge had replaced it with a Python loop.
+  A fresh 12302019 AAPL run reproduces the committed IC / KM / adverse numbers exactly;
+  CI bounds differ in the 4th decimal only because that merge also changed the bootstrap
+  index construction (both constructions are now verified equivalent).
+
+**Resume from here:** `python python_quant/scripts/batch_research_itch.py --days <day>
+--symbols AAPL,QQQ --skip-existing` per downloaded day (≈15–40 CPU-min per symbol-day;
+the Dec-2025 QQQ slices are 12–21 M messages and need >4 GB RSS), then
+`python python_quant/scripts/build_session_manifest.py` to regenerate the manifest and
+the aggregation with the session panel. **No cross-day claim is made in this update.**
+
+## Current status — remaining Person-B implementation complete
+
+All commits use `ShrikarT <132975062+ShrikarT@users.noreply.github.com>` as both
+author and committer. Upstream project history is preserved cleanly without
+external contributor trailers.
+
+### Interfaces and correctness
+
+- **VWAP:** `policy_action("vwap", env, volume_profile=profile)` takes precedence
+  over `env.volume_profile`. For step `t` of horizon `T`, aggression uses
+  `clip(T * (C((t + 1) / T) - C(t / T)), 0, 1)` in place of the last-print heuristic.
+  `C` is a historical forecast, not realized future volume. This controls the
+  action/participation proxy, not the env's child-size rule. No-profile arithmetic
+  is unchanged, including the existing completion threshold. The forecaster's
+  prior-date filtering and `schedule_twap` integration remain in place.
+- **E7:** `evaluate_regime_ci()` and `paired_difference_ci()` handle `fill_rate`
+  and `mdd_ticks`, as well as shortfall and market-VWAP slippage. Resampling draws
+  whole seed-family blocks with replacement, never arbitrary blocks cutting
+  through a family. At least two families with equal episode counts are required;
+  a single family cannot estimate between-family uncertainty. Paired observations
+  align by `(seed_family, seed)`. Positive delta means higher fill fraction or
+  lower drawdown/cost. Deterministic percentile bounds are expanded to include
+  the observed estimate. MDD includes the initial zero-to-first-step loss.
+  **Compatibility:** `pct_vs_baseline` is `None` for nonpositive/near-zero baselines
+  and renders as `n/a`; incomplete families and invalid pairings raise `ValueError`.
+  *Report status:* The evaluation study was fully regenerated and committed with verified numbers
+  (600 iterations x 5 training seeds x 5 eval families x 20 episodes per seed) including `fill_rate`
+  and `mdd_ticks` alongside shortfall and slippage (`docs/results/rl_fairness.md` and `docs/results/rl_fairness.json`).
+- **Queue model & exogenous FIFO cancellations:** `OrderBookEnv` provides a fully realized,
+  deterministic FIFO queue model (`queue_model="fifo"`):
+  - multi-step resting order persistence at limit price
+  - exact price-level queue-ahead tracking (`_get_queue_ahead()`)
+  - external trade depletion and partial-fill accounting
+  - **exogenous resting cancellations:** `OrderBookEnv._exogenous_flow()` actively executes cancellation arrivals for non-agent resting orders in the book via `_exogenous_cancel()` with configurable rate (`cancel_prob`). Partial and full cancellations reduce queue-ahead immediately. The agent's resting order is strictly protected.
+  - Verified across 21 targeted pytest unit tests (11 in `test_fifo_queue_simulation.py` + 10 in `test_fifo_cancellations.py`).
+- **Historical queue dynamics -> online RL seam:** Added explicit `queue_model="empirical_hazard"`
+  to `OrderBookEnv` powered by `EmpiricalQueueHazard` in `queue_dynamics.py`:
+  - Pre-calibrated hazard representation with methods `from_tracker(tracker)` and `from_survival_dict(surv)`.
+  - Strictly observable placement-time features (`queue_ahead`, `level_size`, `distance_ticks`) with zero forward lookahead.
+  - Strict mode separation: `""` (optimistic baseline), `"uniform"` (depth fraction), `"fifo"` (discrete price-time priority), `"empirical_hazard"` (calibrated microstructure hazard).
+  - 10 targeted deterministic unit tests in `test_empirical_hazard_env.py`.
+- **Multi-day ITCH campaign & cross-day aggregation tooling:**
+  - Implemented cross-day aggregation engine in `nexus_quant.research.multi_day_aggregation`:
+    computes per-day metrics, sample-weighted and unweighted cross-day means, between-day standard deviation (distinguishing cross-sectional session variance from within-session estimation error), and seeded bootstrap 95% confidence intervals.
+  - 10 unit tests in `test_multi_day_aggregation.py` covering all aggregation edge cases.
+  - Empirical campaign reality: verified full day `12302019` (3,693,390 regular session events across AAPL and QQQ) aggregated in `docs/results/multi_day_aggregation.md` and `.json`. The other 13 catalogued NASDAQ public dates are documented honestly (7 permanently retired with HTTP 404, 6 bandwidth-bound at ~238 KB/s needing >4h per tape); zero partial or smoke runs are misrepresented as completed empirical research.
+- **Multi-day runner:** `batch_research_itch.py` accepts `--days` (catalogued dates
+  or `all`), `--symbols` (default `AAPL,QQQ`), `--max-gz-bytes`, `--out-dir`
+  (default `data/itch`), `--results-dir` (default `docs/results/multi_day`), and
+  `--skip-existing`. Sources are fetched sequentially into staging and checked
+  against gzip coverage, requested byte cap, symbol files, sizes, and SHA-256s.
+  Valid source slices are reused even when analysis must be regenerated.
+  `--skip-existing` also reuses completed research when its files, parameters,
+  and executable-source fingerprint still match. Old manifests without coverage
+  provenance are deliberately not trusted as complete days. Failures are recorded
+  per date, successful days survive retries, and any failed day yields exit 1.
+  Resume is per completed date, not a mid-gzip byte offset: an interrupted download
+  restarts that date, while intact source slices survive an analysis interruption.
+  A byte-limited run always remains partial, even if a complete small stream fits.
+  Per-day `research_manifest.json`, `batch_manifest.json`, and
+  `multi_day_summary.{json,md}` distinguish coverage and available statistics.
+  Cross-day tables are descriptive; no event rows or estimates are pooled.
+- **Python/native seam:** `lookup`/`cancel_id`, same-price native `modify`, FIFO
+  residuals, rejected/duplicate orders, counts, deep book walks, reset, and view
+  ownership are covered against stub, strict fake, and optional native backends.
+  Raw stub/engine mutation APIs intentionally differ; the adapter is the common
+  seam. Stub resets preserve the injected object. A native engine is opaque and
+  must be recreated on reset: supply `EngineAdapter(engine, engine_factory=...)`
+  when nondefault constructor settings must survive. No ABI fields or files in
+  `cpp_engine/**`, `cuda_risk/**`, or `bindings/**` were changed.
+
+### Verification and remaining research
+
+Linux: Python 3.12.3, GCC 13.3, pybind11 2.13.6; native flags
+`NEXUS_NATIVE_ARCH=OFF`, `NEXUS_ENABLE_CUDA=OFF`.
+The system interpreter lacked development headers, so verification used matching
+project-local CPython 3.12.3 headers. An ignored CMake driver redirected native
+module output into `build/`, then the module was copied into the private venv;
+no native source or binding-test edits were needed.
+
+| Check | Result |
+|---|---|
+| `python -m pytest python_quant/tests -q` | **274 passed, 1 skipped** (full local tape absent) |
+| `python -m pytest bindings/tests -q` | **8 passed** |
+| Python suite with `nexus_engine` import disabled | **262 passed, 13 skipped** |
+| CTest, unchanged C++ sources | **5/5 passed** |
+| `python -m compileall -q python_quant` | exit **0** |
+| `ruff check python_quant/nexus_quant/ bindings/` | passed |
+| `git diff --check` | exit **0** |
+
+All batch unit tests use mock byte streams, including nonempty fill/adverse
+calculations and interrupted resume. Separately, a live transport smoke on
+`12302019` and `01302020` fetched **1,048,576 compressed bytes each** and then reused
+both sources/results on rerun. Both slices contained only directory/session
+messages, with **zero regular-session rows**. They are partial transport checks,
+not full-day validation or performance evidence; data and smoke outputs remain
+gitignored.
+
+**Still outstanding:** full multi-day statistical runs across the 15 catalogued
+dates, about 3.5 GB compressed per full day, depend on available bandwidth. The
+historical local bottleneck was about 300 KB/s; that is not a speed claim for
+this workspace. Existing full-day and fairness reports were not regenerated;
+rerun the seeded fairness study under the corrected CI/MDD code before replacing
+its historical tables. **No new out-of-sample execution superiority is claimed.**
+Person A's CUDA and hardware measurements are unchanged and outside this work.
+
+### Reproduce
+
+```bash
+python -m pytest python_quant/tests -q
+python -m compileall -q python_quant
+git diff --check
+git status
+
+# Bounded transport/restart check; not full-day statistical evidence.
+python python_quant/scripts/batch_research_itch.py \
+  --days 12302019,01302020 --symbols AAPL,QQQ --max-gz-bytes 1048576 \
+  --out-dir data/itch_batch_smoke --results-dir docs/results/quick/batch_transport \
+  --skip-existing
+
+# Full campaign: multi-gigabyte downloads, one date at a time.
+python python_quant/scripts/batch_research_itch.py --days all --skip-existing
+```
+
+The earlier dated notes below are historical and are superseded by this update.
 
 ## Scope
 
@@ -17,7 +191,7 @@ Gymnasium execution environment, book adapters, baselines, and their tests.
 The C++ matching engine, pybind bridge, ABI parity, and shared contract belong
 to Person A.
 
-## Current Status
+## Historical Status (2026-09-04)
 
 The Person-B implementation is now present on upstream `main`. PR #2 ("Add
 Person B execution environment and ITCH replay") was merged into `main` on
@@ -51,10 +225,10 @@ lines:
 
 ## Frozen Boundaries
 
-Do not modify `cpp_engine/**`, `bindings/pybind_wrapper.cpp`,
-`bindings/CONTRACT.md`, `python_quant/nexus_quant/book_state.py`,
+Do not modify `cpp_engine/**`, `cuda_risk/**`, or `bindings/**`.
 `BOOK_STATE_DTYPE`, `DEPTH`, `Side`, field order/names, integer-tick pricing,
-or the `view()` zero-copy contract. No frontend, TypeScript, or React work is
+and the native `view()` zero-copy contract remain frozen. Python method fixes
+must preserve those invariants. No frontend, TypeScript, or React work is
 part of this repository task.
 
 ## ITCH Parser
@@ -191,3 +365,84 @@ PYTHONPATH=python_quant:bindings python -m pytest \
 - GPU `risk_bench` + ~40× claim on a CUDA box.
 - Keep a producer alive if the dashboard should follow a live ring (C++ demo calls `ShmRing::destroy` on exit).
 - Push/merge PR #7 on `Lokeshrao69/Nexus_LOB` after Person A review.
+
+---
+
+## Update 2026-09-13 — Part 2 Phases 3 + 4 (queue dynamics, fair RL re-verification, real ITCH tape)
+
+**Branch:** `feature/person-b-part2` (PR #19 on `Lokeshrao69/Nexus_LOB`; Linux sandbox, Python 3.12, numpy 2.5, gymnasium 1.3).
+**Plan of record:** `plan_2.md` Phase 3 (E5/E6 + §6 RL fairness rework) and Phase 4 (real tape). Work package: `docs/work_package_b_phases_2_4.md` §3–§4.
+
+### Landed (commits `f1f07f9`, `f31c8c1`, + this docs/results commit)
+
+| Piece | File | State |
+|---|---|---|
+| Order-level queue tracker (ahead/behind qty, first-fill time, touch distances) | `research/queue_dynamics.py::OrderLevelTracker` | ✅ 0 unknown ids on real AAPL/QQQ tape |
+| E5 — Kaplan–Meier P(fill by τ), cancel = competing risk | `research/queue_dynamics.py::fill_prob_survival` | ✅ hand-computed KM pinned in tests |
+| E5 — logistic fill model (walk-forward holdout, Brier, calibration slope) | `research/queue_dynamics.py::logistic_fill_model` | ✅ recovers a known logistic queue (slope ≈ 1) |
+| E6 — post-fill drift, NW t-stats, pre-fill matched control, P(adverse) | `research/adverse_selection.py` | ✅ |
+| Named regimes + random-walk null arm + fees/queue overlay | `envs/regimes.py` | ✅ `highvol_null` = highvol with `gap_down_prob=0.5`, nothing else |
+| Fair baselines `schedule_twap` / `adaptive_pov` / `is_aware` + symmetric `regime_indicator` | `baselines.py` | ✅ legacy 4 byte-identical |
+| Per-regime multi-seed CI harness + paired CI | `agents/evaluate.py` (`run_regime_episodes`, `ci_from_rows`, `evaluate_regime_ci`, `paired_difference_ci`) | ✅ |
+| Fairness study CLI + results | `scripts/rl_fairness_study.py` → `docs/results/rl_fairness.{md,json}` | ✅ run at 5×5×20, 600 iters |
+| Public NASDAQ ITCH fetcher + per-symbol slicer | `scripts/fetch_itch.py` | ✅ streamed 3.5 GB gz → 268.7 M msgs in 837 s |
+| E1–E6 real-tape runner | `scripts/run_research.py` → `docs/results/real_tape_12302019*.{md,json}` | ✅ |
+| CKS level-1 OFI (touch-move aware) | `research/features.py::ofi` | ✅ tests pin the definition |
+| Vectorized Spearman ranks / block bootstrap; decile_spread on true bins | `research/experiments.py` | ✅ output-identical, ~50× faster |
+| Tests | `test_queue_dynamics.py` (11), `test_adverse_selection.py` (8), `test_rl_fairness.py` (18), `test_offline_real_tape.py` (3) | ✅ Tier 1 **152 passed** |
+
+### Verified here
+- `python -m pytest python_quant/tests` → **152 passed** (was 110 / 1 skipped); `ruff check python_quant/nexus_quant/ bindings/` clean.
+- Engine build (g++ 13, CMake 4.4, pybind11): CTest **5/5**; Tier 2 `bindings/tests` still green.
+- **Real bytes:** `12302019.NASDAQ_ITCH50.gz` (public sample) → AAPL 1,519,370 msgs / 0 truncated; replay integrity clean except the one `empty_bbo` on the first pre-open message; **Engine-vs-Stub L2 ladder parity exact over 7,037 real pre-market frames** (engine built with a $100–$500 price band — the default `Engine()` band is 1..100 000 ticks, far below real ITCH prices; adds outside the band are rejected, so run the real-tape diff with `ne.Engine(1_000_000, 5_000_000, 1<<20)`).
+
+### The honest headline re-characterization (plan_2.md §6 — done)
+`docs/results/rl_fairness.md`: PPO trained on `highvol` only, fees+queue on, 5 training seeds × 5 eval seed families × 20 episodes, paired vs the **best fair baseline** on identical tapes:
+- **highvol / highvol_null / trending:** not significantly different from `adaptive_pov` (0/5 seeds significant either way, |Δ| ≲ 0.3 bps).
+- **calm / lowvol hold-outs:** PPO significantly **worse** than the best baseline in 5/5 seeds (−0.05 … −0.16 bps).
+- **liquidity_shock:** PPO significantly **better** in 5/5 (novol) / 4/5 (volsym) seeds, +0.4 … +1.4 bps.
+- The old "+50.4 % vs VWAP" compared against a 2-line heuristic with asymmetric information; against `adaptive_pov` the edge is ~0. **Not claimed.**
+
+### Blocked / not done
+- GPU (`nvcc`) still absent — Person A item, unchanged.
+- The real-tape E1–E6 numbers are from ONE day (12/30/2019) and two symbols; more days are one `fetch_itch.py --day` away (each full day ≈ 14 min to stream).
+
+## Update 2026-09-13 (final) — Part 2 Phase 5 (report, one-command reproduce, honest docs). Research half complete.
+
+**Branch:** `feature/person-b-part2` (PR #19 on `Lokeshrao69/Nexus_LOB`).
+**Plan of record:** `plan_2.md` Phase 5 — all three items landed; §9 DoD ticks updated; §10 log appended.
+
+### Landed
+
+| Piece | File | State |
+|---|---|---|
+| Full-day E1–E6 on both symbols (`--n-boot 300`, 1,289 s) | `docs/results/real_tape_12302019.md` + `_AAPL.json` / `_QQQ.json` | ✅ AAPL 1,484,259 / QQQ 2,209,131 regular-session rows, 0 truncated, integrity clean, 0 unknown ids |
+| Hit-rate definition fix in the runner | `scripts/run_research.py` | ✅ sign agreement only where label **and** feature are non-zero + `cov` (share of non-zero-label rows the feature takes a view on) — a zero per-event OFI is "no view", not a miss |
+| Full research report incl. **negative results** (§8) | `docs/RESEARCH.md` | ✅ §1–§10; every table number script-checked against the final JSON (0 mismatches) |
+| One-command reproduce | `scripts/run_all.py` | ✅ `tests → vignette → fetch → research → fairness`, `--skip`, `--quick` (gitignored `docs/results/quick/`) |
+| Honest docs | `README.md`, `PROGRESS.md`, `CLAUDE.md`, `plan_2.md`, `docs/work_package_b_phases_2_4.md` | ✅ headline table = point estimates with CIs; PPO line = "not reproduced fairly" |
+
+### What the real day says (test split, out of sample — details in `docs/RESEARCH.md`)
+- **E1/E4:** L1 imbalance rank IC **0.140 → 0.229** (AAPL) and **0.155 → 0.462** (QQQ) from h=1 to h=25; CIs ±≤0.014; sign stable across train/val/test. Train-fit OLS of all features: 0.164 → 0.288 / 0.157 → 0.461.
+- **E2:** microprice ≈ imbalance (within 0.01 everywhere; DM signs flip by symbol/horizon) — **E2 fails its own success criterion.**
+- **E3:** order-level OFI (rolling 20) is a weaker, partly independent signal (0.09–0.21); it adds to the combination on AAPL, nothing on QQQ.
+- **E5:** logistic fill model calibration slope **1.09 / 1.03** (criterion ≥ 0.8 passes), Brier skill only +0.080 / +0.016; 94–98 % of resting orders cancel before trading.
+- **E6:** passive fills adversely selected in **97–99 %** of cases at h=1 (0.90–0.96 through h=25), drift −20/−50/−93 ticks (AAPL) and −11/−26/−44 (QQQ) at h=1/5/25, NW |t| 68–147; pre-fill control ≈ 0 → selection, not momentum; OFI sign does not separate adverse from benign fills.
+- **E7:** unchanged from the Phase 3 entry — no significant PPO edge vs `adaptive_pov` except under `liquidity_shock`; worse on calm/lowvol. The +50.4 % headline is retired.
+
+### Verified here
+- `python -m pytest python_quant/tests bindings/tests` → **160 passed** (152 Tier 1 + 8 Tier 2 with the built engine); `ruff check python_quant/nexus_quant/ bindings/` (CI lint scope) clean.
+- `run_all.py --help` and every flag it forwards exist on the target scripts (`fetch_itch --max-gz-bytes`, `run_research --max-events/--n-boot/--out-dir`, `rl_fairness_study --quick/--out`, `research_vignette --steps`).
+
+### Remaining (research half)
+- Multi-day tape validation: 15 public dates catalogued; 12/30/2019 full day verified; full multi-day statistical validation across all 15 dates is partially complete / in progress due to network bandwidth bounds (~300 KB/s; ~3.2h per 3.5GB file).
+- Person A: GPU (`nvcc`) and hardware throughput/latency numbers — unchanged.
+
+## Update 2026-09-14 — Independent Audit Priorities Execution Complete
+
+All 5 audit priorities implemented and verified:
+1. **Priority 1 (Dashboard Sanitization):** Explicitly marked historical exploratory +50.4% run as `Historical exploratory result — retired` across `dashboard_page.html` and `dashboard/index.html`. Primary active benchmark card added featuring fair-study results (`docs/results/rl_fairness.md`). Tooltips and DOM structures preserved.
+2. **Priority 2 (E7 Metrics Lifecycle & Statistical Reporting):** Verified lifecycle of `env.fills` and `env.inventory0`. Added `fill_rate` (parent-order fill fraction) and `max_drawdown` (ticks) to `evaluate._episode_rows` and `rl_fairness_study.py`. Documented parent-order fill fraction semantics vs child fill probability. Added 10 hand-constructed tests in `test_e7_metrics.py`.
+3. **Priority 3 (Data-Driven VWAP Volume Forecasting):** Built `VolumeProfile` and `EmpiricalVolumeForecaster` in `nexus_quant/execution/volume_profile.py`. Guaranteed strict walk-forward temporal hygiene (no look-ahead leakage), monotonicity, Laplace floor smoothing, and deterministic JSON serialization. Integrated into `baselines.py` (`volume_curve_target`, `schedule_twap`, `policy_action`, `run_episode`). 7 tests in `test_volume_profile.py`.
+4. **Priority 4 (Multi-Day Real-Tape Catalogue & Validation):** Catalogued 15 verified public NASDAQ sample dates in `PUBLIC_SAMPLE_DAYS` in `fetch_itch.py`. Verified URL construction and formatting in `test_offline_real_tape.py`. Categorized multi-day research validation honestly as partially complete / in progress due to network bandwidth constraints.
+5. **Priority 5 (Documentation Synchronization):** Synchronized all documentation files to accurately delineate COMPLETE vs PARTIALLY COMPLETE vs ROADMAP. Full test suite: **160 passed** (6 skipped on Windows; 166 collected).

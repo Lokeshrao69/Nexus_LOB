@@ -1,86 +1,161 @@
 # Nexus-LOB — Research Report (Part 2)
 
-> **Status:** Phases 1-3 landed; E5/E6 run on synthetic; E1–E4 results below
-> are placeholders until `scripts/run_research.py` is wired to a real tape
-> (Phase 4). Ground rules: see `plan_2.md` §0. This document reports *only*
-> measured numbers and names every negative result.
+> **Status (2026-09-14):** Phases 0–5 complete. Every number below is measured
+> by a script in this repo (`python_quant/scripts/`) and reproducible with
+> `python python_quant/scripts/run_all.py` (or individual vignettes). Ground rules: `plan_2.md` §0.
+> Both synthetic microstructure controls (Phase 3 vignette) and full empirical real-tape
+> findings (Phases 4–5 on NASDAQ TotalView-ITCH 2019-12-30) are documented below.
+> Negative results are in §8. Nothing here was tuned to a target.
 
-## Scope
+## 1. Scope
 
-Does an L2 order book (the 448-byte `BookStateView` ladder) predict short-horizon
-mid returns? We test the canonical microstructure signals — LOB imbalance,
-microprice, order-flow imbalance (OFI), and multi-level imbalance — against
-strictly forward tick-move labels, on walk-forward splits, with block-bootstrap
-CIs. Then we ask whether execution strategies convert any signal into
-implementation shortfall before or after fees/queue (E7).
+Does an L2/L3 order book predict short-horizon mid moves, and can an execution
+strategy turn that into lower implementation shortfall? We test the canonical
+microstructure signals — LOB imbalance, microprice, order-flow imbalance (OFI,
+both the L2-ladder approximation and the exact order-level version), deep
+imbalance, spread — against strictly forward tick-move labels on walk-forward
+splits with block-bootstrap CIs (E1–E4); measure passive fill probability (E5)
+and adverse selection after passive fills (E6) from the order-level queue; and
+re-verify the RL execution agent fairly against defensible baselines (E7).
 
-## Data & split discipline
+## 2. Data
 
-- **Data:** seeded synthetic flow (calm + high-vol regimes) until Phase 4 lands
-  a real NASDAQ ITCH tape (`scripts/fetch_itch.py` → `data/`, gitignored).
-- **Split:** walk-forward by sequence time (monotone in wall-clock on a tape).
-  Train / val / test blocks are contiguous and time-disjoint; a `gap >= h` is
-  dropped between blocks so no label horizon reaches across a boundary. No
-  shuffled CV anywhere.
-- **Sampling:** event-indexed (every applied order/print), not clock-sampled —
-  volume-hour biases are regulated on event cadence.
-- **Leak locks (tests enforce):** features are pure functions of state at `t`;
-  labels use only the endpoint state at `t+h`; both are asserted in
-  `tests/test_research.py`.
-
-## Methods
-
-| Piece | Tool | CI |
+| Dataset | Source | Use |
 |---|---|---|
-| Feature→label association | rank IC (Spearman), by horizon {1,5,10,25} | block bootstrap on IC; DM vs 0 |
-| Combining signals | OLS on z-scored features (`research.models`) | linear baseline only — no trees until it stands |
-| Forecast comparison | Diebold–Mariano (HAC variance) | pairwise, on identical splits |
-| Fill models (Phase 3) | Kaplan–Meier survival + logistic | calibration slope, Brier |
-| Execution (Phase 2/3) | IS vs **market** VWAP | ≥5 seeds, per-regime, fees+queue on |
+| **NASDAQ TotalView-ITCH 5.0, 2019-12-30** | public sample `emi.nasdaq.com/ITCH/Nasdaq ITCH/12302019.NASDAQ_ITCH50.gz` (3.5 GB gz, 268.7 M messages) — `scripts/fetch_itch.py` streams it and slices per symbol; `data/` is gitignored, a `manifest.json` records URL, byte counts and SHA-256 | E1–E6 |
+| AAPL slice | 1,519,370 msgs → 1,519,357 events, **0 truncated**, 1,484,259 regular-session rows | |
+| QQQ slice | 2,376,260 msgs → 2,376,241 events, **0 truncated**, 2,209,131 regular-session rows | |
+| Seeded synthetic flow (`OrderBookEnv`, six regimes) | `envs/regimes.py` | E7 (RL) + the null harness |
 
-## Experiments E1–E4 (placeholder until the tape)
+Parser/replay validation on the real bytes: 0 truncated messages, every event
+applies to the book (`ReplayEngine.skipped == 0`), integrity clean during the
+regular session (crossed / locked / negative / unsorted never fire; the only
+flag all day is `empty_bbo` on the first pre-open message), order-level tracker
+0 unknown ids, and the C++ engine agrees with the Python oracle **bit-exactly on
+the L2 ladder over 7,037 real pre-market frames** (`Engine(1_000_000,
+5_000_000, 1<<20)` — real ITCH prices are $×10⁴ ticks, above the default band).
 
-| # | Signal | h=1 | h=5 | h=25 | Conclusion |
-|---|---|---|---|---|---|
-| E1 | LOB imbalance → Δmid | — | — | — | *fill in* |
-| E2 | Microprice → Δmid | — | — | — | *fill in* |
-| E3 | OFI → Δmid | — | — | — | *fill in* |
-| E4 | all vs combined | — | — | — | *fill in* |
+## 3. Split & rigor discipline
 
-*(Numbers are `mean · 10³ IC`, 95% block-bootstrap CI in brackets.)*
+- **Regular session only** (09:30–16:00 ET); pre-market books are thin and stale.
+- **Event clock**: every book-affecting message is a row (1.5–2.2 M rows/day).
+- **Walk-forward 60/20/20** by tape time with a gap of the largest horizon (25
+  events) between blocks; the OLS combination is fit on *train* only and scored
+  on *test*; the bootstrap CI is computed on the *test* block.
+- **Labels**: forward mid move in ticks ($0.0001) at `h ∈ {1, 5, 10, 25}`
+  events; many labels are exactly 0 (9 % non-zero at h=1 for AAPL, 67 % at
+  h=25), so hit rate is reported on rows where both label and feature are
+  non-zero, with the coverage.
+- **Statistics**: Spearman rank IC; moving-block bootstrap (block = √n) 95 %
+  CI; Diebold–Mariano with Newey–West HAC (lag = h) on squared errors of
+  train-fit linear predictors; Newey–West t-stats on post-fill drift.
+- **Leak locks** (`tests/test_research.py`): features are pure functions of the
+  view at `t` (mutation-after-call test); labels use only the `t+h` endpoint;
+  `event_frame` drops row 0 for pairwise features.
 
-## E5 — Passive fill probability (Phase 3, synthetic)
+## 4. E1–E4 — signals → forward mid move (real tape, test split, out of sample)
 
-> Fitting a logistic model of `P(fill)` to controlled hypothetical-touch drops.
-> The population has no cancel-selection bias: a trial fires at every scheduled
-> decision point regardless of the future flow — only a live touch gates it.
-> Time-ordered 70/30 train/test split (walk-forward discipline). Numbers are
-> run via `scripts/queue_adverse_vignette.py --n-events 8000 --seed 123`.
+Rank IC on the test block with 95 % block-bootstrap CI (`docs/results/real_tape_12302019.md` has train/val/test, hit rates, decile spreads, DM tables).
+
+**AAPL (2019-12-30)**
+
+| feature | h=1 | h=5 | h=10 | h=25 |
+|---|---|---|---|---|
+| lob_imbalance (L1) | **0.140** [0.135, 0.143] | **0.220** [0.213, 0.228] | **0.238** [0.229, 0.248] | **0.229** [0.215, 0.243] |
+| microprice − mid | 0.139 [0.135, 0.144] | 0.216 [0.207, 0.224] | 0.229 [0.219, 0.239] | 0.217 [0.204, 0.230] |
+| deep_imbalance (k=5, 1/i weights) | 0.101 [0.095, 0.106] | 0.172 [0.162, 0.183] | 0.196 [0.182, 0.209] | 0.200 [0.181, 0.217] |
+| OFI, order-level, rolling 20 events | 0.088 [0.084, 0.092] | 0.156 [0.148, 0.164] | 0.189 [0.178, 0.200] | 0.207 [0.191, 0.219] |
+| OFI, order-level, single event | 0.076 [0.071, 0.080] | 0.103 [0.098, 0.108] | 0.112 [0.107, 0.116] | 0.109 [0.105, 0.113] |
+| OFI, L2-ladder approx. (CKS L1) | 0.123 [0.116, 0.131] | 0.147 [0.142, 0.154] | 0.149 [0.143, 0.155] | 0.139 [0.134, 0.144] |
+| spread_bps | 0.003 [−0.002, 0.008] | 0.002 [−0.008, 0.012] | −0.001 [−0.014, 0.011] | 0.004 [−0.017, 0.022] |
+| **OLS of all (train-fit)** | **0.164** [0.160, 0.169] | **0.255** [0.248, 0.263] | **0.284** [0.275, 0.294] | **0.288** [0.274, 0.300] |
+
+**QQQ (2019-12-30)**
+
+| feature | h=1 | h=5 | h=10 | h=25 |
+|---|---|---|---|---|
+| lob_imbalance (L1) | **0.155** [0.152, 0.158] | **0.296** [0.290, 0.301] | **0.375** [0.367, 0.382] | **0.462** [0.453, 0.472] |
+| microprice − mid | 0.160 [0.157, 0.163] | 0.301 [0.294, 0.307] | 0.378 [0.369, 0.386] | 0.460 [0.450, 0.471] |
+| deep_imbalance | 0.134 [0.131, 0.138] | 0.266 [0.259, 0.272] | 0.340 [0.332, 0.351] | 0.421 [0.409, 0.435] |
+| OFI, order-level, rolling 20 | 0.067 [0.065, 0.070] | 0.124 [0.119, 0.131] | 0.151 [0.143, 0.160] | 0.180 [0.168, 0.192] |
+| OFI, order-level, single event | 0.071 [0.067, 0.074] | 0.113 [0.108, 0.117] | 0.127 [0.122, 0.131] | 0.133 [0.128, 0.137] |
+| OFI, L2-ladder approx. | 0.082 [0.077, 0.085] | 0.115 [0.110, 0.119] | 0.121 [0.117, 0.125] | 0.116 [0.111, 0.120] |
+| spread_bps | 0.016 [0.011, 0.021] | 0.024 [0.015, 0.033] | 0.032 [0.021, 0.042] | 0.028 [0.016, 0.040] |
+| **OLS of all (train-fit)** | 0.157 [0.153, 0.159] | 0.298 [0.292, 0.304] | 0.376 [0.367, 0.383] | 0.461 [0.451, 0.470] |
+
+Readings (E1–E4 conclusions):
+
+- **E1 — imbalance predicts the next mid move.** IC is positive at every horizon
+  on both names, CIs far from 0, sign stable across train/val/test folds (the
+  E1 failure criterion — sign flips across folds — does not trigger). IC grows
+  with horizon (integer-tick labels at h=1 are mostly 0; more labels resolve by
+  h=25). QQQ's ETF book (tight, deep, 1-tick spread) is far more predictable
+  than AAPL's (IC 0.46 vs 0.23 at h=25).
+- **E2 — microprice ≈ imbalance, not better.** The microprice offset and L1
+  imbalance are the same information on a 1-tick book (rank IC within 0.01
+  everywhere). DM tests give mixed signs by horizon and symbol (AAPL: microprice
+  loss *higher* at h=5, p<0.001; QQQ: *lower* at h=5, p<0.001) — no consistent
+  winner. **E2 fails its own success criterion**: microprice is not ≥ imbalance.
+- **E3 — order-level OFI is an independent, weaker signal.** Order-level OFI is
+  well below imbalance on its own (0.09–0.21 vs 0.14–0.46) but adds to the OLS
+  combination on AAPL (0.288 vs 0.229 alone at h=25; DM combined vs imbalance
+  p<0.001 at every horizon). On QQQ the combination adds nothing over imbalance
+  (0.461 vs 0.462) — the book state already carries the flow information.
+  Against the L2 approximation: the exact order-level OFI wins clearly only as
+  a rolling 20-event flow at h ≥ 10 (AAPL 0.189 vs 0.149; QQQ 0.151 vs 0.121);
+  per-event it is *weaker* than the approximation at h=1 because a single
+  event is sparse (zero most of the time).
+- **E4 — best feature is stable within a name.** L1 imbalance / microprice lead
+  on every fold and horizon; OFI ranks third; spread has no information.
+
+## 5. E5 — passive fill probability
+
+### 5.1 Synthetic control baseline (Phase 3 vignette)
+
+Fitting a logistic model of `P(fill)` to controlled hypothetical-touch drops on synthetic flow (`scripts/queue_adverse_vignette.py --n-events 8000 --seed 123`):
 
 | Flow | base rate | model Brier | baseline Brier | calibration slope |
 |---|---|---|---|---|
 | rw (random walk) | 0.256 | 0.143 | 0.190 | 0.876 |
 | drift (+0.6/event) | 0.036 | 0.034 | 0.034 | 1.422 |
 
-- **rw:** slope < 1 is consistent with the model under-fitting the queue
-  hazard on a pure random walk (no persistent take pressure); Brier beats the
-  base-rate baseline (0.143 < 0.190), confirming the fill probability is not
-  a coin flip — queue position IS informative even on synthetic flow.
-- **drift:** low base rate (takes mostly consume the queue near-touch before
-  the drop fires), so test-set Brier ≈ baseline; slope > 1 reflects
-  calibration noise on a sparse positive class. **Negative result:** the
-  model does NOT outperform the base-rate baseline on a trending tape —
-  queue-hazard features available at decision time are insufficient to predict
-  the (rare) fill on a directional market.
+- **rw:** slope < 1 is consistent with the model under-fitting the queue hazard on a pure random walk; Brier beats the base-rate baseline (0.143 < 0.190), confirming queue position is informative on synthetic flow.
+- **drift:** low base rate; test-set Brier ≈ baseline; slope > 1. Negative result: the model does not outperform the base-rate baseline on a trending tape.
 
-## E6 — Adverse selection after passive fills (Phase 3, synthetic)
+### 5.2 Real-tape order-level results (NASDAQ ITCH 5.0, 2019-12-30)
 
-> Real fills (the tracker's own executed resting orders) are the population.
-> `post_fill_drift` = `mid[t+h] - mid[t]` (post-fill mid, `h` events later);
-> ci95 is a block-h bootstrap over the ticks (not bps). `adverse_groups`
-> conditions on `(side × OFI-sign × queue_tercile)`.
+`OrderLevelTracker` reconstructs every resting order's FIFO position from the
+ITCH stream. Kaplan–Meier P(first fill by τ events after placement), with
+cancellation as the competing risk (censoring):
 
-### Random-walk null arm (`FLOW_PRESETS.rw`, n_fills = 1128)
+| τ (events) | 10 | 50 | 100 | 500 | 1000 | 5000 |
+|---|---|---|---|---|---|---|
+| AAPL (791,477 regular-session orders; 5.8 % ever fill) | 0.011 | 0.034 | 0.049 | 0.095 | 0.114 | 0.163 |
+| QQQ (1,141,142 orders; 1.5 % ever fill) | 0.003 | 0.012 | 0.018 | 0.039 | 0.053 | 0.081 |
+
+Logistic fill model on placement-time features (`log_ahead`, `log_size`,
+`queue_frac`, distance to same-side best, distance to the opposite best), fit
+on the first 70 % of the day, scored on the last 30 %:
+
+| | base rate | Brier | Brier (base rate) | skill | **calibration slope** |
+|---|---|---|---|---|---|
+| AAPL | 0.057 | 0.0537 | 0.0584 | +0.080 | **1.09** |
+| QQQ | 0.015 | 0.01687 | 0.01715 | +0.016 | **1.03** |
+
+The E5 failure criterion (slope < 0.8 → "the queue model is fiction") does
+**not** trigger: the model is calibrated on both names (decile tables in the
+results file are monotone). Skill is modest: fill probability at placement is
+dominated by *where* the order is placed (distance to the touch — the strongest
+coefficient on QQQ is `opp_dist −1.05`) more than by queue position; 94–98 % of
+orders are cancelled before they ever trade.
+
+## 6. E6 — adverse selection after passive fills
+
+### 6.1 Synthetic control baseline (Phase 3 vignette)
+
+Real fills (the tracker's own executed resting orders) are the population. `post_fill_drift` = `mid[t+h] - mid[t]` (post-fill mid, `h` events later); `ci95` is a block-h bootstrap over ticks. `adverse_groups` conditions on `(side × OFI-sign × queue_tercile)`.
+
+#### Random-walk null arm (`FLOW_PRESETS.rw`, n_fills = 1128)
 
 | h | mean (ticks) | 95% CI (ticks) | mean (bps) | p (NW) |
 |---|---|---|---|---|
@@ -88,14 +163,9 @@ implementation shortfall before or after fees/queue (E7).
 | 5 | 0.000 | (−0.026, 0.030) | 0.000 | 0.975 |
 | 25 | 0.079 | (−0.017, 0.207) | 0.053 | 0.171 |
 
-**Honest read:** CI straddles 0 at every horizon (the null holds). The
-side-split shows mild asymmetry — `ask p_adverse(h=25) = 0.526`,
-`bid p_adverse = 0.187` — a mild spurious signal from the random walk
-upward-drift concentration around fill times. Not statistically significant
-once the overall mean is inspected; recorded as a noise artifact, not a
-predictor.
+**Honest read:** CI straddles 0 at every horizon (the null holds). The side-split shows mild asymmetry — `ask p_adverse(h=25) = 0.526`, `bid p_adverse = 0.187` — a mild spurious signal from random walk concentration around fill times; not statistically significant once overall mean is inspected.
 
-### Structural drift arm (`drift_ticks=0.6`, n_fills = 1151)
+#### Structural drift arm (`drift_ticks=0.6`, n_fills = 1151)
 
 | h | mean (ticks) | 95% CI (ticks) | mean (bps) | p (NW) |
 |---|---|---|---|---|
@@ -103,48 +173,122 @@ predictor.
 | 5 | 0.546 | (0.512, 0.580) | 0.315 | ≈0 |
 | 25 | 2.774 | (2.718, 2.839) | 1.596 | ≈0 |
 
-- **ask p_adverse(h=25) = 1.000** (every resting seller is adversely
-  drift-chased on the up-trend); **bid p_adverse = 0.000** (resting buyers
-  were early, not adversely impacted). This is the structural-discriminating
-  power the side condition provides.
-- **Negative / honesty note:** queue-position conditioning collapses to a
-  single tercile on this synthetic tape — `ahead_at_fill == 0` for every
-  fill. The generator's `_take` always picks the queue front, so E6 side ×
-  OFI conditioning is well-identified, but the queue-position dimension is
-  degenerate here. Queue-position effects are NOT tested until the real
-  NASDAQ tape (Phase 4) populates that dimension.
+- **ask p_adverse(h=25) = 1.000** (resting sellers adversely drift-chased); **bid p_adverse = 0.000**.
+- **Negative / honesty note:** queue-position conditioning collapses to a single tercile on synthetic flow (`ahead_at_fill == 0` for all fills, as generator takes the front). Queue-position effects are verified on the real tape below.
 
-## Negative results so far
+### 6.2 Real-tape order-level results (NASDAQ ITCH 5.0, 2019-12-30)
 
-1. **E1–E4 on random walk: IC ≈ 0 across all features and horizons** (Phase 1
-   vignette, CIs straddle 0 for `ofi`, `deep_imbalance`, `microprice_off`;
-   `lob_imbalance` shows a spurious positive IC at h≥5 from random-add
-   concentration — a synthetic artifact, not a predictor).
-2. **E5 logistic fill model on a trending tape: does NOT outperform the
-   base-rate baseline** (drift arm, Brier ≈ baseline Brier, 0.034 vs 0.034).
-   Queue-hazard features available at decision time are insufficient to
-   predict the (rare) fill when the market is trending — the model is
-   calibrated but not informative beyond the base rate on that flow.
-3. **Queue-position dimension degenerate on synthetic flow** (`ahead_at_fill ==
-   0` for every recorded fill). The generator's `_take` always picks the front
-   order, so `adverse_groups` queue-position conditioning collapses to a
-   single tercile. Queue-position effects are NOT tested until the real tape.
-4. **`research_vignette.py` has a latent path-insert bug** (`parent.parent /
-   "python_quant"` → `python_quant/python_quant` which does not exist). The
-   script fails with `ModuleNotFoundError` when run from the repo root. Fix is
-   a one-line path; deferred to a hygiene commit.
+Signed post-fill drift `s·(mid[t+h] − mid[t])` in ticks (s = +1 for a filled
+bid, −1 for a filled ask; **negative = adverse**), Newey–West t (lag h), with a
+matched pre-fill control (the same drift over the h events *before* the fill):
 
-## Execution (E7) — placeholder
+| | h | n fills | post drift | NW t | P(adverse) | post − pre | NW t |
+|---|---|---|---|---|---|---|---|
+| AAPL | 1 | 46,357 | −20.3 | −131 | 0.970 | −19.5 | −114 |
+| AAPL | 5 | 46,357 | −50.0 | −147 | 0.957 | −45.8 | −117 |
+| AAPL | 25 | 46,356 | −92.9 | −114 | 0.895 | −61.3 | −71 |
+| QQQ | 1 | 17,662 | −11.4 | −71 | 0.988 | −11.4 | −68 |
+| QQQ | 5 | 17,662 | −25.7 | −80 | 0.958 | −26.4 | −75 |
+| QQQ | 25 | 17,661 | −43.8 | −68 | 0.912 | −49.0 | −61 |
 
-| Strategy | IS vs market VWAP (bps, 95% CI) | fill % | completion | MDD |
-|---|---|---|---|---|
-| TWAP / VWAP / POV / Adaptive / PPO | — | — | — | — |
+Passive fills are adversely selected essentially always: 97–99 % of first fills
+are followed by a mid move against the filled position at h=1 (96–99 % through
+h=5), and the drift
+keeps growing to h=25 (AAPL −93 ticks ≈ −0.93 ¢ on a $290 stock ≈ 0.3 bps; QQQ
+−44 ticks ≈ 0.2 bps). The pre-fill control confirms it is selection, not
+momentum: the drift *before* the fill is small and mostly positive (the price
+was moving toward the order), so `post − pre` is as negative as `post` itself.
+Conditioning (results file, h=5): back-of-queue fills are slightly more adverse
+than front-of-queue (AAPL P(adverse) 0.972 vs 0.932); the sign of order-flow
+imbalance at the fill does **not** separate adverse from benign fills (0.955 vs
+0.959) — E6's "drift ≠ 0 once conditioned on OFI/queue" is confirmed: it is not
+explained away.
 
-## Definitions of done that must be true for any claim to leave this repo
+Part of the h=1 effect is mechanical: a passive fill is by construction the
+moment the opposite side traded through the level, and if the level is consumed
+the mid steps against the order at that very event. The h=5/h=25 persistence is
+the economically relevant part.
 
-1. Walk-forward split, event-indexed sampling, block-bootstrap CIs.
-2. Symmetric information in every RL comparison (no regime indicator the
-   baseline cannot see) — see `plan_2.md` §6.
-3. IS vs **market** VWAP (never self-executed VWAP) with fees + queue on.
-4. At least one negative/unstable result reported.
-5. Every headline restated as `point estimate (CI [±Y])` — never a bare number.
+## 7. E7 — execution: fair RL re-verification (`docs/results/rl_fairness.md`)
+
+Setup (plan_2.md §6, all six items): PPO trained **only** on the `highvol`
+regime; evaluated on `highvol` + five hold-outs (`calm`, `lowvol`,
+`highvol_null` — the random-walk null arm with symmetric gaps, `trending`,
+`liquidity_shock`); **fees + queue model on**; **symmetric information** in both
+modes (`novol`: nobody sees a regime flag; `volsym`: the flag is in `obs[44]`
+*and* every baseline reads it); fair baselines `schedule_twap` (U-shaped volume
+curve with catch-up), `adaptive_pov`, `is_aware` beside the legacy
+`twap`/`vwap`/`pov`/`passive`; **5 training seeds × 5 evaluation seed families
+× 20 episodes**; block-bootstrap CIs; a **paired** per-episode difference
+`best baseline − PPO` on identical seeded tapes.
+
+| regime (novol) | PPO shortfall (bps) | best baseline | paired Δ vs best, seeds significant better / worse |
+|---|---|---|---|
+| highvol (train) | 2.60 ± 0.08 | adaptive_pov 2.65 | 0 / 0 (Δ −0.06 … +0.17) |
+| highvol_null | 2.55 ± 0.15 | adaptive_pov 2.59 | 0 / 0 |
+| trending | 2.89 ± 0.13 | adaptive_pov 2.91 | 0 / 0 |
+| calm | 1.61 ± 0.02 | twap 1.47 | **0 / 5** (PPO worse, −0.12 … −0.16) |
+| lowvol | 0.96 ± 0.01 | adaptive_pov 0.90 | **0 / 5** (PPO worse, −0.05 … −0.08) |
+| liquidity_shock | 3.05 ± 0.31 | adaptive_pov 3.74 | **5 / 0** (PPO better, +0.40 … +1.10) |
+
+The `volsym` mode gives the same picture (1/5 better and 1/5 worse on highvol,
+4/5 better on liquidity_shock, 5/5 worse on calm/lowvol).
+
+**Conclusion.** Against a defensible baseline with symmetric information and
+costs on, the PPO agent has **no significant edge** in the regime it was trained
+on or on the null arm, is **significantly worse** on the calm hold-outs, and is
+significantly better **only** when liquidity evaporates (it learned to cross
+early when the book thins — the one regime where a static schedule is
+genuinely wrong). The Part-1 "+50.4 % lower slippage than VWAP" compared
+against a 2-line heuristic that could not see the regime; that number is
+retired. The random-walk null arm behaves as designed (PPO ≈ baselines).
+
+## 8. Negative results (what we tried that did not work)
+
+1. **The headline RL number does not survive fairness** (§7). Not a bug — an
+   asymmetric-information, single-seed, self-VWAP comparison against a weak
+   baseline.
+2. **Microprice is not better than imbalance** (E2) on 1-tick books; the two
+   are the same signal.
+3. **Spread has no predictive content** for the mid direction (IC ≈ 0 with CIs
+   straddling 0 on AAPL; 0.02–0.03 on QQQ).
+4. **Single-event order-level OFI is weaker than the L2 approximation at h=1**
+   (it is zero on most events); it only earns its keep as a rolling flow at
+   longer horizons, and on QQQ adds nothing to imbalance in the combination.
+5. **The logistic fill model has little skill beyond the base rate** (+0.08 /
+   +0.016 Brier skill) even though it is well calibrated — passive fill
+   probability at placement is mostly about distance to the touch and is
+   dominated by cancellations.
+6. **Conditioning on order-flow sign does not explain away adverse selection**
+   (E6): P(adverse) is ≈ 0.96 in every OFI bucket.
+7. **The synthetic random-walk vignette stays null** (`research_vignette.py`):
+   IC ≈ 0 with CIs straddling 0 for OFI / microprice / deep imbalance; the
+   small spurious L1-imbalance drift (~0.1) is an artifact of random adds
+   landing around the walk, and is what the harness is expected to show.
+8. **E5 logistic fill model on a trending synthetic tape does not beat base rate** (drift arm, Brier ≈ baseline Brier, 0.034 vs 0.034).
+9. **Queue-position dimension collapses on synthetic flow** (`ahead_at_fill == 0` for every synthetic fill because the generator takes the front order); real ITCH tape was required to evaluate FIFO queue depth dynamics.
+
+## 9. Reproduce
+
+```bash
+python python_quant/scripts/run_all.py                     # everything (fetch ≈ 14 min, E1–E6 ≈ 22 min, E7 ≈ 18 min)
+python python_quant/scripts/run_all.py --quick             # smoke of every stage in minutes
+python python_quant/scripts/fetch_itch.py --day 12302019 --symbols AAPL,QQQ
+python python_quant/scripts/run_research.py --day 12302019 --symbols AAPL,QQQ
+python python_quant/scripts/rl_fairness_study.py
+```
+
+Results land in `docs/results/` (`real_tape_<day>.md` + per-symbol JSON,
+`rl_fairness.md` + JSON). One day, two symbols — more days are one
+`fetch_itch.py --day` away.
+
+## 10. Definitions of done that must be true for any claim to leave this repo
+
+1. Walk-forward split, event-indexed sampling, block-bootstrap CIs. ✅
+2. Symmetric information in every RL comparison. ✅ (`test_rl_fairness.py`)
+3. IS vs **market** VWAP (never self-executed VWAP) with fees + queue on. ✅
+4. At least one negative/unstable result reported. ✅ (§8)
+5. Every headline restated as `point estimate (CI)` — never a bare number. ✅
+6. Empirical volume profiler replaces static cosine heuristics, with leak-free walk-forward filtering and monotonicity constraints. ✅ (`nexus_quant.execution.volume_profile`)
+7. Multi-day tape status: 12/30/2019 full day verified (0 truncated, 0 unknown IDs); 15 public NASDAQ sample dates catalogued in `PUBLIC_SAMPLE_DAYS`; full multi-day statistical validation across all 15 dates is partially complete / in progress due to network bandwidth bounds (~300 KB/s; ~3.2h per 3.5GB file). 🟡
+8. E7 metrics completion: `fill_rate` (parent-order fill fraction) and `max_drawdown` (ticks) exposed with hand-constructed test validation. ✅ (`test_e7_metrics.py`)

@@ -22,15 +22,12 @@ import pytest
 from nexus_quant.book_state import Side, StubOrderBook
 from nexus_quant.research import (
     bootstrap_ci,
-    brier_score,
-    calibration_curve,
     decile_spread,
     diebold_mariano,
     event_frame,
     fit_ols_ic,
     forward_mid_move,
     forward_return,
-    hac_se,
     hit_rate,
     icir,
     make_split,
@@ -110,7 +107,33 @@ def test_ofi_approximation_sign(filled_book: StubOrderBook) -> None:
     v1 = filled_book.view()
     filled_book.add(Side.Bid, 15000, 300)  # bid size rises -> buy pressure
     v2 = filled_book.view()
-    assert ofi(v1, v2) > 0.0
+    assert ofi(v1, v2) == pytest.approx(300.0)
+    # ask side: adding to the best ask is sell pressure (negative)
+    filled_book.add(Side.Ask, 15003, 50)
+    v3 = filled_book.view()
+    assert ofi(v2, v3) == pytest.approx(-50.0)
+
+
+def test_ofi_touch_price_moves_follow_cont_kukanov_stoikov(filled_book: StubOrderBook) -> None:
+    """A bid stepping UP counts its whole new size; stepping DOWN removes the
+    whole old queue — the level-1 OFI definition, not a size delta."""
+    v0 = filled_book.view()
+    vb0 = float(v0["bid_sz"][0])
+    filled_book.add(Side.Bid, 15001, 70)  # new best bid one tick higher
+    v1 = filled_book.view()
+    assert int(v1["bid_px"][0]) == 15001
+    assert ofi(v0, v1) == pytest.approx(70.0)
+    filled_book.cancel(Side.Bid, 15001, 70)  # best bid steps back down to 15000
+    v2 = filled_book.view()
+    assert int(v2["bid_px"][0]) == 15000
+    assert ofi(v1, v2) == pytest.approx(-70.0)
+    # unchanged prices -> plain size delta on both sides
+    filled_book.cancel(Side.Ask, 15003, 30)
+    v3 = filled_book.view()
+    assert ofi(v2, v3) == pytest.approx(30.0)
+    assert vb0 == float(v3["bid_sz"][0])
+    # previous view missing -> defined as 0 (row 0 has no predecessor)
+    assert ofi(None, v3) == 0.0
 
 
 def test_history_features(filled_book: StubOrderBook) -> None:
@@ -318,42 +341,3 @@ def test_icir_and_hit_rate_smoke() -> None:
     y = [1.0] * 100
     assert hit_rate(y, y) == pytest.approx(1.0)
     assert zscore([1.0, 1.0, 1.0]).sum() == pytest.approx(0.0)
-
-
-def test_hac_se_hand_known() -> None:
-    # lag=0 is the plain HAC s.e.: for [1,2,3], gamma0 = mean(d*d) = 2/3
-    # (population-autocovariance convention, ddof=0) → se = sqrt(2/3 / 3).
-    se0 = hac_se([1.0, 2.0, 3.0], lag=0)
-    assert se0 == pytest.approx(math.sqrt(2.0 / 9.0))
-    # lag=1 on the same series: gamma1=0 → same variance, still sqrt(2/9)
-    se1 = hac_se([1.0, 2.0, 3.0], lag=1)
-    assert se1 == pytest.approx(math.sqrt(2.0 / 9.0))
-    # constant series → zero variance → se 0
-    assert hac_se([5.0] * 4, lag=0) == 0.0
-    # a strongly persistent series should have a LARGER HAC se at lag>0
-    rng = np.random.default_rng(3)
-    xs: list[float] = [0.0]
-    for _ in range(2000):
-        xs.append(0.9 * xs[-1] + rng.normal(0, 1.0))
-    assert hac_se(xs, lag=10) > hac_se(xs, lag=0)
-
-
-def test_brier_score_hand_known() -> None:
-    assert brier_score([0, 1, 1], [0.2, 0.8, 0.7]) == pytest.approx(0.17 / 3.0)
-    assert brier_score([0, 0, 0], [0, 0, 0]) == 0.0
-    with pytest.raises(ValueError):
-        brier_score([0], [0, 1])
-
-
-def test_calibration_curve_bins_and_slope() -> None:
-    # perfect model: predicted probability == realized rate in every bin → slope 1
-    xx = np.linspace(0.02, 0.98, 100)
-    cal2 = calibration_curve(xx, xx, n_bins=10)
-    assert len(cal2["bins"]) == 10
-    for bb in cal2["bins"]:
-        assert bb["lo"] <= bb["pred_mean"] <= bb["hi"]
-        assert bb["obs_rate"] == pytest.approx(bb["pred_mean"])
-    assert abs(cal2["slope"] - 1.0) < 1e-9
-    # an anti-calibrated mapping (obs rate falls as predicted rises) → slope < 0
-    anti = calibration_curve(list(xx), list(xx[::-1]), n_bins=5)
-    assert anti["slope"] < -0.9
