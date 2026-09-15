@@ -25,8 +25,6 @@ from typing import Any
 
 import numpy as np
 
-from .experiments import bootstrap_ci
-
 # Cross-session statistics are reported for these per-session scalars (all
 # taken from the unchanged per-day E1–E6 payloads).  ``sign`` is the direction
 # each project hypothesis predicts; it is only used to report sign consistency.
@@ -185,25 +183,57 @@ def aggregate_multi_day_results(
     ic_summary: dict[int, dict[str, Any]] = {}
 
     for h in horizons:
-        vals = [r.rank_ic_by_horizon[h] for r in records if h in r.rank_ic_by_horizon]
-        weights = [max(1, r.n_test_by_horizon.get(h, 1)) for r in records if h in r.rank_ic_by_horizon]
-        if not vals:
+        day_records: dict[str, list[DayStudyRecord]] = {}
+        for r in records:
+            if h in r.rank_ic_by_horizon:
+                day_records.setdefault(r.day, []).append(r)
+
+        unique_days_h = sorted(day_records.keys())
+        n_unique_days = len(unique_days_h)
+        if not unique_days_h:
             continue
+
+        h_records = [r for d in unique_days_h for r in day_records[d]]
+        vals = [r.rank_ic_by_horizon[h] for r in h_records]
+        weights = [max(1, r.n_test_by_horizon.get(h, 1)) for r in h_records]
         v_arr = np.asarray(vals, dtype=np.float64)
         w_arr = np.asarray(weights, dtype=np.float64)
         w_norm = w_arr / np.sum(w_arr)
 
         mean_unweighted = float(np.mean(v_arr))
         mean_weighted = float(np.sum(v_arr * w_norm))
-        std_between = float(np.std(v_arr, ddof=1)) if len(v_arr) > 1 else 0.0
+
+        day_means = []
+        for d in unique_days_h:
+            d_recs = day_records[d]
+            d_vals = np.asarray([r.rank_ic_by_horizon[h] for r in d_recs], dtype=np.float64)
+            d_w = np.asarray([max(1, r.n_test_by_horizon.get(h, 1)) for r in d_recs], dtype=np.float64)
+            d_m = float(np.sum(d_vals * d_w) / np.sum(d_w)) if np.sum(d_w) > 0 else float(np.mean(d_vals))
+            day_means.append(d_m)
+
+        std_between = float(np.std(day_means, ddof=1)) if n_unique_days > 1 else 0.0
 
         ci95: dict[str, float] | None = None
-        if len(v_arr) >= 2:
-            ci = bootstrap_ci(v_arr, kind="iid", n_boot=1000, seed=seed + h)
-            ci95 = {"lo": round(ci["lo"], 6), "hi": round(ci["hi"], 6)}
+        if n_unique_days >= 2:
+            rng = np.random.default_rng(seed + h)
+            boot_means = np.empty(1000, dtype=np.float64)
+            for b in range(1000):
+                boot_days = rng.choice(unique_days_h, size=n_unique_days, replace=True)
+                b_vals = []
+                b_weights = []
+                for bd in boot_days:
+                    for r in day_records[bd]:
+                        b_vals.append(r.rank_ic_by_horizon[h])
+                        b_weights.append(max(1, r.n_test_by_horizon.get(h, 1)))
+                bv_arr = np.asarray(b_vals, dtype=np.float64)
+                bw_arr = np.asarray(b_weights, dtype=np.float64)
+                boot_means[b] = float(np.sum(bv_arr * bw_arr) / np.sum(bw_arr))
+            lo, hi = np.quantile(boot_means, [0.025, 0.975])
+            ci95 = {"lo": round(float(lo), 6), "hi": round(float(hi), 6)}
 
         ic_summary[h] = {
-            "n_days": len(vals),
+            "n_days": n_unique_days,
+            "n_symbol_sessions": len(vals),
             "mean_unweighted": round(mean_unweighted, 6),
             "mean_weighted": round(mean_weighted, 6),
             "std_between_days": round(std_between, 6),
@@ -211,19 +241,29 @@ def aggregate_multi_day_results(
         }
 
     # Cross-day KM P(fill by 50) aggregation
-    fill_vals = [r.km_p_fill_50 for r in records if r.km_p_fill_50 is not None]
+    day_fill: dict[str, list[float]] = {}
+    for r in records:
+        if r.km_p_fill_50 is not None:
+            day_fill.setdefault(r.day, []).append(r.km_p_fill_50)
+    fill_day_means = [float(np.mean(vals)) for vals in day_fill.values()]
     fill_summary: dict[str, Any] = {
-        "n_days": len(fill_vals),
-        "mean": round(float(np.mean(fill_vals)), 6) if fill_vals else None,
-        "std_between_days": round(float(np.std(fill_vals, ddof=1)), 6) if len(fill_vals) > 1 else 0.0,
+        "n_days": len(day_fill),
+        "n_symbol_sessions": sum(len(v) for v in day_fill.values()),
+        "mean": round(float(np.mean(fill_day_means)), 6) if fill_day_means else None,
+        "std_between_days": round(float(np.std(fill_day_means, ddof=1)), 6) if len(fill_day_means) > 1 else 0.0,
     }
 
     # Cross-day adverse selection drift (h=5) aggregation
-    drift_vals = [r.adverse_drift_h5 for r in records if r.adverse_drift_h5 is not None]
+    day_drift: dict[str, list[float]] = {}
+    for r in records:
+        if r.adverse_drift_h5 is not None:
+            day_drift.setdefault(r.day, []).append(r.adverse_drift_h5)
+    drift_day_means = [float(np.mean(vals)) for vals in day_drift.values()]
     adverse_summary: dict[str, Any] = {
-        "n_days": len(drift_vals),
-        "mean": round(float(np.mean(drift_vals)), 4) if drift_vals else None,
-        "std_between_days": round(float(np.std(drift_vals, ddof=1)), 4) if len(drift_vals) > 1 else 0.0,
+        "n_days": len(day_drift),
+        "n_symbol_sessions": sum(len(v) for v in day_drift.values()),
+        "mean": round(float(np.mean(drift_day_means)), 4) if drift_day_means else None,
+        "std_between_days": round(float(np.std(drift_day_means, ddof=1)), 4) if len(drift_day_means) > 1 else 0.0,
     }
 
     per_day_table: list[dict[str, Any]] = []
@@ -263,6 +303,13 @@ def aggregate_multi_day_results(
         "adverse_drift_h5": adverse_summary,
         "missing_days": missing_days,
         "policy_statement": policy_statement,
+        "independence_assumption": "calendar trading sessions (days) are statistically independent; multiple symbols within the same day are clustered and not independent",
+        "bootstrap": {
+            "kind": "date_cluster_bootstrap",
+            "unit": "trading_day",
+            "n_boot": 1000,
+            "seed": seed,
+        },
     }
 
 
@@ -475,37 +522,78 @@ def _describe(
     n_boot: int = 2000,
     sign: int = 0,
     weights: Sequence[float | None] | None = None,
+    days: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     keep = [i for i, v in enumerate(values) if v is not None]
     x = np.asarray([values[i] for i in keep], dtype=np.float64)
     n = int(x.size)
-    out: dict[str, Any] = {"n_sessions": n}
-    if n == 0:
+    if days is not None:
+        keep_days = [str(days[i]) for i in keep]
+        unique_days = sorted(set(keep_days))
+        n_days = len(unique_days)
+    else:
+        keep_days = [str(i) for i in keep]
+        unique_days = sorted(set(keep_days))
+        n_days = n
+
+    out: dict[str, Any] = {"n_sessions": n, "n_days": n_days, "independence_unit": "trading_day"}
+    if n == 0 or n_days == 0:
         out.update({"mean": None, "median": None, "std_between_sessions": None, "min": None, "max": None, "ci95": None})
         return out
     out["mean"] = float(np.mean(x))
+    w = None
     if weights is not None:
         w = np.asarray([float(weights[i] or 0.0) for i in keep], dtype=np.float64)
         out["mean_weighted"] = float(np.sum(x * w) / np.sum(w)) if np.sum(w) > 0 else None
         out["weight_total"] = float(np.sum(w))
     out["median"] = float(np.median(x))
-    out["std_between_sessions"] = float(np.std(x, ddof=1)) if n > 1 else 0.0
     out["min"] = float(np.min(x))
     out["max"] = float(np.max(x))
-    if n >= 2:
-        ci = bootstrap_ci(x, kind="iid", n_boot=n_boot, seed=seed)
-        out["ci95"] = {"lo": ci["lo"], "hi": ci["hi"]}
-        # Also a t-interval on the mean for reference (bootstrap on tiny n under-covers).
-        se = float(np.std(x, ddof=1) / math.sqrt(n)) if n > 1 else 0.0
+
+    # Compute date-level values for between-session dispersion:
+    day_indices = {d: [idx for idx, day_val in enumerate(keep_days) if day_val == d] for d in unique_days}
+    day_means = []
+    for d in unique_days:
+        idx = day_indices[d]
+        if w is not None and np.sum(w[idx]) > 0:
+            day_means.append(float(np.sum(x[idx] * w[idx]) / np.sum(w[idx])))
+        else:
+            day_means.append(float(np.mean(x[idx])))
+    day_means_arr = np.asarray(day_means, dtype=np.float64)
+
+    out["std_between_sessions"] = float(np.std(day_means_arr, ddof=1)) if n_days > 1 else 0.0
+
+    if n_days >= 2:
+        # Trading-date cluster bootstrap: resample unique_days with replacement
+        rng = np.random.default_rng(seed)
+        boot_means = np.empty(n_boot, dtype=np.float64)
+        for b in range(n_boot):
+            boot_days = rng.choice(unique_days, size=n_days, replace=True)
+            boot_idx = []
+            for bd in boot_days:
+                boot_idx.extend(day_indices[bd])
+            bx = x[boot_idx]
+            if w is not None and np.sum(w[boot_idx]) > 0:
+                bw = w[boot_idx]
+                boot_means[b] = float(np.sum(bx * bw) / np.sum(bw))
+            else:
+                boot_means[b] = float(np.mean(bx))
+        lo, hi = np.quantile(boot_means, [0.025, 0.975])
+        out["ci95"] = {"lo": float(lo), "hi": float(hi)}
+        se = float(np.std(boot_means))
         out["se_mean"] = se
         out["t_stat_mean_zero"] = (out["mean"] / se) if se > 0 else None
     else:
         out["ci95"] = None
+        out["se_mean"] = 0.0
+        out["t_stat_mean_zero"] = None
+
     if sign != 0:
-        agree = int(np.sum(np.sign(x) == sign))
+        day_signs = np.sign(day_means_arr)
+        agree = int(np.sum(day_signs == sign))
         out["hypothesised_sign"] = sign
         out["sessions_with_hypothesised_sign"] = agree
-        out["sign_consistency"] = agree / n
+        out["sign_consistency"] = agree / n_days if n_days > 0 else 0.0
     return out
 
 
@@ -539,10 +627,12 @@ def session_panel_statistics(
 ) -> dict[str, Any]:
     """Cross-session statistics over per-session rows from ``extract_session_metrics``.
 
-    Statistics are computed per symbol and pooled across symbols (a session is a
-    day × symbol study).  Bootstrap CIs resample *sessions*, not events; with
-    fewer than roughly 8 sessions the intervals are indicative only and the
-    ``t_stat_mean_zero`` reference is reported alongside.  Nothing is dropped
+    Statistics are computed per symbol and pooled across symbols. To prevent
+    spurious statistical precision, the unit of inference is the trading day:
+    cross-session bootstrap CIs resample trading days (date-level cluster bootstrap),
+    never treating multiple symbols from the same date as independent sessions.
+    With fewer than roughly 8 sessions the intervals are indicative only and the
+    ``t_stat_mean_zero`` reference is reported alongside. Nothing is dropped
     for being unfavourable: every finite per-session value enters.
     """
     rows = [dict(r) for r in rows]
@@ -555,6 +645,7 @@ def session_panel_statistics(
         entry["pooled"] = _describe(
             [r.get(key) for r in rows], seed=seed + 7 * i, n_boot=n_boot, sign=sign,
             weights=[r.get(wk) for r in rows] if wk else None,
+            days=[r["day"] for r in rows],
         )
         entry["pooled"]["leave_one_day_out"] = _leave_one_out(rows, key)
         entry["pooled"]["per_session_significance"] = _per_session_significance(rows, key, sign)
@@ -563,6 +654,7 @@ def session_panel_statistics(
             entry["by_symbol"][sym] = _describe(
                 [r.get(key) for r in sub_rows], seed=seed + 7 * i + 1000 * (j + 1), n_boot=n_boot, sign=sign,
                 weights=[r.get(wk) for r in sub_rows] if wk else None,
+                days=[r["day"] for r in sub_rows],
             )
             entry["by_symbol"][sym]["per_session_significance"] = _per_session_significance(sub_rows, key, sign)
         metrics[key] = entry
@@ -570,19 +662,22 @@ def session_panel_statistics(
     paired: dict[str, Any] = {}
     for i, (key, a, b, description) in enumerate(PANEL_PAIRED):
         diffs = []
+        diff_days = []
         for r in rows:
             va, vb = r.get(a), r.get(b)
             if va is not None and vb is not None:
                 d = float(va) - float(vb)
                 r[key] = d
                 diffs.append(d)
-        stats = _describe(diffs, seed=seed + 31 * (i + 1), n_boot=n_boot)
+                diff_days.append(r["day"])
+        stats = _describe(diffs, seed=seed + 31 * (i + 1), n_boot=n_boot, days=diff_days)
         stats["sessions_a_greater"] = int(sum(1 for d in diffs if d > 0))
         stats["sessions_b_greater"] = int(sum(1 for d in diffs if d < 0))
         by_symbol = {}
         for j, sym in enumerate(symbols):
             sub = [r.get(key) for r in rows if r["symbol"] == sym and r.get(key) is not None]
-            by_symbol[sym] = _describe(sub, seed=seed + 31 * (i + 1) + 1000 * (j + 1), n_boot=n_boot)
+            sub_days = [r["day"] for r in rows if r["symbol"] == sym and r.get(key) is not None]
+            by_symbol[sym] = _describe(sub, seed=seed + 31 * (i + 1) + 1000 * (j + 1), n_boot=n_boot, days=sub_days)
         paired[key] = {"a": a, "b": b, "description": description, "pooled": stats, "by_symbol": by_symbol}
 
     return {
@@ -590,7 +685,13 @@ def session_panel_statistics(
         "n_days": len(days),
         "days": days,
         "symbols": symbols,
-        "bootstrap": {"kind": "iid over sessions", "n_boot": n_boot, "seed": seed},
+        "bootstrap": {
+            "kind": "date_cluster_bootstrap",
+            "unit": "trading_day",
+            "independence_assumption": "trading days are statistically independent; multiple symbols within the same date are clustered and not independent",
+            "n_boot": n_boot,
+            "seed": seed,
+        },
         "metrics": metrics,
         "paired": paired,
     }
@@ -625,8 +726,9 @@ def render_session_panel_md(panel: dict[str, Any], rows: Sequence[dict[str, Any]
         "## Cross-session statistics",
         "",
         (
-            "Bootstrap CIs resample sessions (iid, seeded); `sign` = share of sessions whose estimate has the hypothesised sign; "
-            "`LOO range` = range of the pooled mean when each trading day (both symbols) is left out."
+            "Bootstrap CIs resample trading days (date-level cluster bootstrap); symbols from the same date are clustered; "
+            "`sign` = share of trading days whose estimate has the hypothesised sign; "
+            "`LOO range` = range of the pooled mean when each trading day (all symbols) is left out."
         ),
         "",
         "| Metric | Group | N | Mean | Weighted mean | Median | Between-session SD | 95% bootstrap CI | t (mean=0) | Sign consistency | Per-session significant | LOO mean range | Most influential day |",
@@ -638,7 +740,7 @@ def render_session_panel_md(panel: dict[str, Any], rows: Sequence[dict[str, Any]
         loo = p.get("leave_one_day_out") or {}
         sig = p.get("per_session_significance")
         sign = (
-            f"{p['sessions_with_hypothesised_sign']}/{p['n_sessions']}" if "sign_consistency" in p else "—"
+            f"{p['sessions_with_hypothesised_sign']}/{p.get('n_days', p['n_sessions'])}" if "sign_consistency" in p else "—"
         )
         loo_range = (
             f"[{_fmt(loo['leave_one_day_out_mean_range'][0])}, {_fmt(loo['leave_one_day_out_mean_range'][1])}]" if loo else "—"
