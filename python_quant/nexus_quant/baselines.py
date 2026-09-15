@@ -25,8 +25,16 @@ from .envs.order_book_env import OrderBookEnv
 from .execution.volume_profile import VolumeProfile
 
 AgentId = Literal[
-    "twap", "vwap", "pov", "passive",
-    "schedule_twap", "adaptive_pov", "is_aware",
+    "twap",
+    "vwap",
+    "pov",
+    "passive",
+    "apov",
+    "stwap",
+    "isaware",
+    "schedule_twap",
+    "adaptive_pov",
+    "is_aware",
 ]
 LEGACY_BASELINES: tuple[str, ...] = ("twap", "vwap", "pov", "passive")
 FAIR_BASELINES: tuple[str, ...] = ("schedule_twap", "adaptive_pov", "is_aware")
@@ -101,6 +109,31 @@ def policy_action(
         return -0.95 if t_frac > 0.7 else 0.2
     if name == "passive":
         return -1.0 if t_frac > 0.92 else 0.7
+    inv_frac = env.inventory / max(1, env.inventory0)
+    # --- Phase 3 strengthened baselines (env-aware, stateless, no lookahead:
+    # they read ONLY the current book + t/horizon/inventory, matching the
+    # symmetric-information requirement of plan_2.md §6 item 3). ---
+    if name == "apov":  # adaptive POV: urgency rises as the clock runs out and
+        # as the spread narrows (cheaper to take now than late)
+        urgency = t_frac + 0.15 * (1.0 - min(1.0, spr / 8.0))
+        if urgency > 0.85:
+            return -1.0
+        if spr <= 1:
+            return -0.6
+        return -0.15 + 0.25 * t_frac
+    if name == "stwap":  # schedule-TWAP on a deterministic (front-loaded-ish)
+        # volume curve: curve=(1-t)^0.8; over-participate only to catch up
+        curve = (1.0 - t_frac) ** 0.8
+        if inv_frac > curve + 0.05:
+            return -1.0
+        return 0.05
+    if name == "isaware":  # IS-aware rule: liquidate early if wide spread /
+        # falling behind / late, else lean on a passive walk
+        if t_frac > 0.7 and (spr >= 4 or inv_frac > 0.5):
+            return -1.0
+        if spr >= 4 and inv_frac > 0.9:
+            return -0.8
+        return 0.0 - 0.3 * min(1.0, spr / 6.0) + 0.4 * t_frac
     if name in FAIR_BASELINES:
         return _fair_action(name, env, s, spr, t_frac, last_sz, volume_profile=volume_profile)
     raise ValueError(name)

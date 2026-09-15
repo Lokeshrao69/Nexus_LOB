@@ -80,7 +80,10 @@ def _post_fill_drift_tracker(
     CI is a *block* bootstrap over block ``h``.
 
     Returns ``{"h", "n", "mean_ticks", "mean_bps", "ci95", "t_stat",
-    "p_value", "hac_se", "nw_lag"}`` — JSON-able.
+    "p_value", "hac_se", "nw_lag"}`` — JSON-able. Note the units: ``mean_ticks``
+    and ``ci95`` are in ticks; ``mean_bps`` is ``mean_ticks / base_mid * 1e4``
+    (the CI is on the ticks, so compare it with ``mean_ticks``, not
+    ``mean_bps``).
     """
     ticks: list[float] = []
     bps: list[float] = []

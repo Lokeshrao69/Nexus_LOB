@@ -253,6 +253,51 @@ Exact shipped API: **`docs/work_package_b_phases_2_4.md §2.2`** (frozen). Signa
   - **Tests:** `test_cost_model.py` (10) + `test_exec_backtest.py` (14) — fee/rebate signs, impact monotonicity, MDD on a hand-built path, slippage sign + market-not-self benchmark, cost-folds-into-reward-not-slippage, env byte-parity, market-VWAP volume-weighting. **Full suite 110 passed / 1 skipped**; ruff clean; `research_vignette.py` still prints the honest null IC table.
   - **Interfaces:** frozen in `docs/work_package_b_phases_2_4.md §2.2` (bumped for the two intended deltas: env-factory backtest + maker/taker-aware env costs).
   - **Remaining (unchanged):** Phase 3 (queue dynamics + RL fairness rework, random-walk null arm) → Phase 4 (real tape; `fetch_itch.py` + `run_research.py` + order-level parser events).
+- **2026-09-13 — Phase 3 planned & approved (branch `feature/part2-phase3-queue-rl`).**
+  - Phase 2 verified green on this branch (110 passed / 1 skipped). Two exploration modules
+    already on the branch (untracked): `research/synthetic_flow.py` (seeded order-level ITCH
+    tape with FIFO ground truth, `FLOW_PRESETS` rw/drift/revert/stress) and
+    `research/queue_dynamics.py` (`QueueTracker` + `queue_ahead_walk` hypothetical-fill walk).
+  - **Plan approved 2026-09-13 — the detailed working plan lives at `plan.md`** (mirrors
+    §3 Phase 3 below + experiment registry E5/E6/E7). Six workstreams: WS-0 env regimes
+    (additive `drift_ticks`/`mean_revert`/`mrv_anchor` knobs + 6-key `REGIME_PRESETS`; user
+    chose **FULL 6-regime**), WS-1 E5 fill models (`fill_dataset` / `standing_order_lifetimes`
+    / KM `fill_prob_survival` with cancel as competing risk / NumPy-IRLS `LogisticFillModel`),
+    WS-2 E6 adverse (`post_fill_drift` / `P_adverse` / `adverse_groups`), WS-3 fair RL eval
+    (`evaluate_regime_ci`, symmetric `vol_feature` toggle, market-VWAP slippage, bootstrap
+    CIs), WS-4 live baselines (`apov` / `stwap` / `isaware`), WS-5 wiring + an honest
+    `queue_adverse_vignette.py` (E5 slope + E6 drift-null on rw vs drift) + docs.
+- **2026-09-13 (later) — Phase 3 working plan REFRESHED at `plan.md` (scope correction).**
+  - WS-0 (additive `OrderBookEnv` `drift_ticks`/`mean_revert`/`mrv_anchor` knobs + 6-key
+    `REGIME_PRESETS`) is **REMOVED from Phase-3 scope** — the env is frozen
+    additive-default-only and the measure already exists: regimes for `evaluate_regime_ci`
+    are built from the env's existing Markov vol-regime knobs (`HIGHVOL_PRESETS["highvol"]`
+    vs defaults) with `vol_feature=False` in fair mode. **`plan.md` is now the single
+    authority for Phase-3 detail** — do not quote the older WS-0 text in this log or in
+    `PROGRESS.md`/`progress_b.md` as current scope.
+  - Scope now: WS-1 E5 (`fill_dataset` / `standing_order_lifetimes` / KM `fill_prob_survival`
+    / NumPy-IRLS `LogisticFillModel` + Brier/calibration), WS-2 E6 (`post_fill_drift` /
+    `P_adverse` / `adverse_groups`; `FillRecord` gains defaulted `level_size_at_fill`/`ofi`),
+    WS-3 `evaluate_regime_ci` (fair `vol_feature` toggle, market-VWAP slippage, seeds≥5),
+    WS-4 `apov`/`stwap`/`isaware`, WS-5 wiring + `queue_adverse_vignette.py`.
+- **2026-09-14 — WS-1 extended: `compute_metrics` flow-tape accumulator (queue_dynamics).**
+  - A context-manager "flow tape" dragged across a step loop (`with compute_metrics() as m:
+    for ev in tape: m(ev)`) that accumulates per-step `StepFlow` snapshots (mid pre/post,
+    spread, touch sizes pre/post, per-step OFI, lob imbalance) and — at closure —
+    computes **queue_decay** (per-event touch-queue attrition/growth, consumed fraction),
+    **latency_attrition** (the queue eaten per second of resting latency, s⁻¹ rate +
+    half-life), and **CAR** (conditional average response: mean `h`-event mid move
+    conditioned on event kind + flow terciles, with rank-IC). Exported from
+    `nexus_quant.research`; no-lookahead lock (posted book only; forward response is a
+    closure-time label), fully deterministic (seeded CIs). Tests:
+    `tests/test_compute_metrics.py` (11, all green).
+- **2026-09-14 (final) — Phase 3 completed: WS-1/WS-2 merged to `main` (PRs #18/#20);
+  WS-3/WS-4/WS-5 merged via PR #21 (`d446a87`).**
+  - Fair RL eval (`evaluate_regime_ci`: env-instance-or-factory regimes, same-seed episodes,
+    fair `vol_feature` toggle with raise, arrival-IS + market-VWAP slippage, iid-bootstrap CIs,
+    seeds≥5 enforced), strengthened baselines (`apov` adaptive-POV / `stwap` schedule-TWAP /
+    `isaware` IS-aware), and WS-5 wiring + `queue_adverse_vignette.py`. Vignette (E5 slope + E6 drift null)
+    honest on both arms: rw ⇒ CI straddles 0, drift ⇒ ask `p_adverse=1.00`, bid `0.00`.
 - **2026-09-13 (later) — Phases 3 + 4 landed (Person B, branch `feature/person-b-part2`, PR #19).**
   - **Phase 3 / E5–E6:** `research/queue_dynamics.py` (`OrderLevelTracker` with exact FIFO ahead/behind, first-fill time, touch distances via lazy-heap BBO; Kaplan–Meier `fill_prob_survival` with cancels as competing risk; ridge-logistic `logistic_fill_model` with walk-forward holdout, Brier skill and calibration slope) + `research/adverse_selection.py` (signed post-fill drift, Newey–West t, pre-fill matched control, P(adverse), grouped by side / OFI sign / queue position). 19 tests, all exact (hand-computed KM, known-logistic recovery, constructed adverse stream).
   - **Phase 3 / §6 fairness:** `envs/regimes.py` (6 regimes incl. `highvol_null` random-walk null arm, `COSTS_ON`), fair baselines (`schedule_twap`, `adaptive_pov`, `is_aware`) + `regime_indicator` for symmetric information, `agents/evaluate.py` `run_regime_episodes` / `ci_from_rows` / `evaluate_regime_ci` / `paired_difference_ci`, `scripts/rl_fairness_study.py`. **Result:** no significant PPO edge vs `adaptive_pov` except under liquidity shocks; worse on calm/lowvol hold-outs. Committed at `docs/results/rl_fairness.{md,json}`.
@@ -271,7 +316,6 @@ Exact shipped API: **`docs/work_package_b_phases_2_4.md §2.2`** (frozen). Signa
   - **Priority 4 (Multi-Day Real-Tape Catalogue):** Catalogued 15 verified public NASDAQ sample dates in `PUBLIC_SAMPLE_DAYS` in `fetch_itch.py` and unit tested in `test_offline_real_tape.py`. Multi-day validation documented honestly as partially complete / in progress due to local network bandwidth bounds (~300 KB/s; ~3.2h per 3.5GB file).
   - **Priority 5 (Documentation Synchronization):** All docs updated. Tier 1 test suite: **160 passed** (6 skipped on Windows; 166 collected).
   - **Remaining:** Multi-day E1–E6 validation across all 15 dates (pending high-bandwidth environment); Person A: GPU + hardware numbers.
-
 - **2026-09-14 — Person-B implementation follow-up completed.** Empirical VWAP
   conditioning now preserves the exact no-profile heuristic; E7 fill-rate and
   drawdown CIs resample whole seed families and enforce paired seed identity.
@@ -283,3 +327,8 @@ Exact shipped API: **`docs/work_package_b_phases_2_4.md §2.2`** (frozen). Signa
   live smoke had zero regular-session rows and is not statistical evidence.
   Full multi-day runs and regeneration of historical fairness CIs remain pending;
   no new execution-superiority claim is made. Current handoff: `progress_b.md`.
+- **2026-09-14 — FIFO Exogenous Cancellations, Empirical Hazard Seam, and Cross-Day Aggregation.**
+  Completed deterministic exogenous FIFO cancellations (`cancel_prob`, `_exogenous_cancel()`),
+  empirical queue hazard integration (`queue_model="empirical_hazard"`), and cross-day empirical
+  aggregation (`nexus_quant.research.multi_day_aggregation`). Full suite passes with **336 tests
+  collected** (322 passed / 14 skipped without engine; 335 passed / 1 skipped with engine).

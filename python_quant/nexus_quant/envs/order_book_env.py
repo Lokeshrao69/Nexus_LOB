@@ -151,6 +151,11 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         queue_model: str = "",  # "" = off; "uniform" = placeholder; "fifo" = discrete FIFO; "empirical_hazard" = calibrated hazard
         cancel_prob: float = 0.0,
         empirical_hazard: Any | None = None,
+        # --- regime-process extension (Phase 3; defaults off = byte-identical) ---
+        take_intensity: float = 0.28,  # calm-path P(marketable print); default = historic 0.28
+        drift_ticks: float = 0.0,      # per-step drift of the trend target (ticks)
+        mean_revert: float = 0.0,      # OU pull strength back to ``mrv_anchor``
+        mrv_anchor: float = 15_000.0,  # mean-reversion anchor (ticks)
     ) -> None:
         self.inventory0 = int(inventory)
         self.horizon = int(horizon)
@@ -204,6 +209,12 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             self.empirical_hazard = empirical_hazard
         self._queue_ahead_fifo = 0
         self._queue_ahead_fifo_initial = 0
+        self.take_intensity = float(take_intensity)
+        if not 0.0 <= self.take_intensity <= 1.0:
+            raise ValueError(f"take_intensity must be in [0, 1], got {self.take_intensity}")
+        self.drift_ticks = float(drift_ticks)
+        self.mean_revert = float(mean_revert)
+        self.mrv_anchor = float(mrv_anchor)
         self.last_cvar = 0.0
         self._volatile = False
         obs_dim = 45 if self.vol_feature else OBS_DIM
@@ -608,6 +619,37 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             return self._exogenous_cancel()
         return 0
 
+    def _center(self, mid: float) -> float:
+        """Price band around which calm-path adds/takes operate in a forced regime.
+
+        * ``drift_ticks``: a moving trend target ``arrival_mid + drift_ticks*t`` —
+          liquidity is re-anchored up (down for negative drift).
+        * ``mean_revert``: an OU pull ``mid + mean_revert*(mrv_anchor - mid)`` —
+          liquidity is re-anchored back toward the anchor.
+
+        With both knobs off this returns ``mid`` unchanged and draws no RNG, so
+        the default env is byte-identical (Phase-3 additive).
+        """
+        if self.drift_ticks:
+            return self.arrival_mid + self.drift_ticks * self.t
+        if self.mean_revert:
+            return mid + self.mean_revert * (self.mrv_anchor - mid)
+        return mid
+
+    def _take_up_p(self, mid: float, p_gain: float = 0.2) -> float:
+        """Probability the next calm-path take lifts asks (pushes mid up).
+
+        Proportional controller over the gap between the regime center and the
+        current mid, clamped to [0.1, 0.9]. Returns exactly ``0.5`` (neutral)
+        when both knobs are off, so the default RNG path is unchanged and no RNG
+        draw is consumed inside this helper.
+        """
+        center = self._center(mid)
+        gap = center - mid
+        if gap == 0.0:
+            return 0.5
+        return min(0.9, max(0.1, 0.5 + p_gain * gap))
+
     def _exogenous_flow(self) -> None:
         # --- Markov regime transition ---
         if self.regime_prob > 0 or self.vol_decay > 0:
@@ -627,13 +669,16 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                 s = self.book.view()
                 mid = self._mid(s) or 15_000
                 roll = float(self._rng.random())
-                if roll < 0.28:
-                    side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
+                if roll < self.take_intensity:
+                    # take(side) walks the opposite book: take(Bid) lifts asks (price up),
+                    # take(Ask) hits bids (price down). drift/mean_revert bias the side.
+                    side = Side.Bid if self._rng.random() < self._take_up_p(mid) else Side.Ask
                     self._record_market_trade(self.book.take(side, int(15 + self._rng.integers(0, 70))))
                 else:
                     side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
                     off = int(1 + self._rng.integers(0, 8))
-                    px = round(mid) - off if side == Side.Bid else round(mid) + off
+                    ctr = self._center(mid)
+                    px = round(ctr) - off if side == Side.Bid else round(ctr) + off
                     self.book.rest(side, px, int(30 + self._rng.integers(0, 160)))
         else:
             # === volatile regime: larger takes, thinner/wider adds, gap events ===

@@ -1,8 +1,10 @@
 # Nexus-LOB — Research Report (Part 2)
 
-> **Status (2026-09-13):** Phases 0–5 complete. Every number below is measured
+> **Status (2026-09-14):** Phases 0–5 complete. Every number below is measured
 > by a script in this repo (`python_quant/scripts/`) and reproducible with
-> `python python_quant/scripts/run_all.py`. Ground rules: `plan_2.md` §0.
+> `python python_quant/scripts/run_all.py` (or individual vignettes). Ground rules: `plan_2.md` §0.
+> Both synthetic microstructure controls (Phase 3 vignette) and full empirical real-tape
+> findings (Phases 4–5 on NASDAQ TotalView-ITCH 2019-12-30) are documented below.
 > Negative results are in §8. Nothing here was tuned to a target.
 
 ## 1. Scope
@@ -106,7 +108,21 @@ Readings (E1–E4 conclusions):
 - **E4 — best feature is stable within a name.** L1 imbalance / microprice lead
   on every fold and horizon; OFI ranks third; spread has no information.
 
-## 5. E5 — passive fill probability (order level)
+## 5. E5 — passive fill probability
+
+### 5.1 Synthetic control baseline (Phase 3 vignette)
+
+Fitting a logistic model of `P(fill)` to controlled hypothetical-touch drops on synthetic flow (`scripts/queue_adverse_vignette.py --n-events 8000 --seed 123`):
+
+| Flow | base rate | model Brier | baseline Brier | calibration slope |
+|---|---|---|---|---|
+| rw (random walk) | 0.256 | 0.143 | 0.190 | 0.876 |
+| drift (+0.6/event) | 0.036 | 0.034 | 0.034 | 1.422 |
+
+- **rw:** slope < 1 is consistent with the model under-fitting the queue hazard on a pure random walk; Brier beats the base-rate baseline (0.143 < 0.190), confirming queue position is informative on synthetic flow.
+- **drift:** low base rate; test-set Brier ≈ baseline; slope > 1. Negative result: the model does not outperform the base-rate baseline on a trending tape.
+
+### 5.2 Real-tape order-level results (NASDAQ ITCH 5.0, 2019-12-30)
 
 `OrderLevelTracker` reconstructs every resting order's FIFO position from the
 ITCH stream. Kaplan–Meier P(first fill by τ events after placement), with
@@ -134,6 +150,33 @@ coefficient on QQQ is `opp_dist −1.05`) more than by queue position; 94–98 %
 orders are cancelled before they ever trade.
 
 ## 6. E6 — adverse selection after passive fills
+
+### 6.1 Synthetic control baseline (Phase 3 vignette)
+
+Real fills (the tracker's own executed resting orders) are the population. `post_fill_drift` = `mid[t+h] - mid[t]` (post-fill mid, `h` events later); `ci95` is a block-h bootstrap over ticks. `adverse_groups` conditions on `(side × OFI-sign × queue_tercile)`.
+
+#### Random-walk null arm (`FLOW_PRESETS.rw`, n_fills = 1128)
+
+| h | mean (ticks) | 95% CI (ticks) | mean (bps) | p (NW) |
+|---|---|---|---|---|
+| 1 | −0.009 | (−0.020, 0.001) | −0.006 | 0.088 |
+| 5 | 0.000 | (−0.026, 0.030) | 0.000 | 0.975 |
+| 25 | 0.079 | (−0.017, 0.207) | 0.053 | 0.171 |
+
+**Honest read:** CI straddles 0 at every horizon (the null holds). The side-split shows mild asymmetry — `ask p_adverse(h=25) = 0.526`, `bid p_adverse = 0.187` — a mild spurious signal from random walk concentration around fill times; not statistically significant once overall mean is inspected.
+
+#### Structural drift arm (`drift_ticks=0.6`, n_fills = 1151)
+
+| h | mean (ticks) | 95% CI (ticks) | mean (bps) | p (NW) |
+|---|---|---|---|---|
+| 1 | 0.020 | (0.004, 0.036) | 0.012 | 0.010 |
+| 5 | 0.546 | (0.512, 0.580) | 0.315 | ≈0 |
+| 25 | 2.774 | (2.718, 2.839) | 1.596 | ≈0 |
+
+- **ask p_adverse(h=25) = 1.000** (resting sellers adversely drift-chased); **bid p_adverse = 0.000**.
+- **Negative / honesty note:** queue-position conditioning collapses to a single tercile on synthetic flow (`ahead_at_fill == 0` for all fills, as generator takes the front). Queue-position effects are verified on the real tape below.
+
+### 6.2 Real-tape order-level results (NASDAQ ITCH 5.0, 2019-12-30)
 
 Signed post-fill drift `s·(mid[t+h] − mid[t])` in ticks (s = +1 for a filled
 bid, −1 for a filled ask; **negative = adverse**), Newey–West t (lag h), with a
@@ -222,6 +265,8 @@ retired. The random-walk null arm behaves as designed (PPO ≈ baselines).
    IC ≈ 0 with CIs straddling 0 for OFI / microprice / deep imbalance; the
    small spurious L1-imbalance drift (~0.1) is an artifact of random adds
    landing around the walk, and is what the harness is expected to show.
+8. **E5 logistic fill model on a trending synthetic tape does not beat base rate** (drift arm, Brier ≈ baseline Brier, 0.034 vs 0.034).
+9. **Queue-position dimension collapses on synthetic flow** (`ahead_at_fill == 0` for every synthetic fill because the generator takes the front order); real ITCH tape was required to evaluate FIFO queue depth dynamics.
 
 ## 9. Reproduce
 
