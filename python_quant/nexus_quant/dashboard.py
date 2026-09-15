@@ -128,6 +128,9 @@ class SnapshotHub:
         self.latency_kind = "feed"  # "feed" (transport) or "fill" (execution)
         self._lat_samples: deque[float] = deque(maxlen=_LATENCY_SAMPLES_MAX)
         self._last_seq = -1
+        # Live execution episode (optional): set by serve.py's driver; carried
+        # through /api/state so the desk can render a real per-step trajectory.
+        self.exec_episode: dict[str, Any] | None = None
 
     # -- latency ------------------------------------------------------------
     def record_latency(self, ns: float, *, kind: str = "feed") -> None:
@@ -224,6 +227,7 @@ class SnapshotHub:
             "latency": self._latency_json(),
             "issues": issues,
             "risk": self.risk,
+            "exec": self.exec_episode,
         }
 
 

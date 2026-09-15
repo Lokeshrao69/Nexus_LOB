@@ -414,62 +414,20 @@
       </div>
     </div>
 
-    <!-- Execution Episode & Inventory Trajectory Visualizer -->
+    <!-- Execution Episode & Inventory Trajectory (live) -->
     <div class="chartcard" style="margin-top:16px;">
       <div class="cap">
         <h4>Execution Episode &amp; Inventory Trajectory</h4>
-        <span class="sub">Generated research episode artifact (OrderBookEnv seed=42, Q&#8320; = 500 shares, T = 20 steps, queue_model=&quot;fifo&quot;) &middot; Real deterministic trajectory &middot; Inventory decay q_t/Q&#8320; &middot; Midpoint path &middot; Child fill executions</span>
+        <span class="sub" id="execSub">waiting for live episode &hellip;</span>
+      </div>
+      <div class="legend" id="execLegend" style="display:none">
+        <span class="li"><span class="sw" style="background:var(--good)"></span>inventory q<sub>t</sub>/Q<sub>0</sub></span>
+        <span class="li"><span class="sw" style="background:var(--accent)"></span>midpoint path</span>
+        <span class="li"><span class="sw" style="background:var(--good);border-radius:50%"></span>child fills</span>
+        <span class="li mono" id="execShortfall" style="color:var(--faint)"></span>
       </div>
       <div style="padding:16px 20px;">
-        <svg viewBox="0 0 800 240" style="width:100%;height:auto;display:block;background:var(--surface2);border-radius:8px;border:1px solid var(--line);">
-          <defs>
-            <linearGradient id="invGrad2" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#37c98c" stop-opacity="0.3"/>
-              <stop offset="100%" stop-color="#37c98c" stop-opacity="0.0"/>
-            </linearGradient>
-          </defs>
-          <!-- Grid lines -->
-          <line x1="60" y1="30" x2="760" y2="30" stroke="var(--line)" stroke-dasharray="3,3"/>
-          <line x1="60" y1="80" x2="760" y2="80" stroke="var(--line)" stroke-dasharray="3,3"/>
-          <line x1="60" y1="130" x2="760" y2="130" stroke="var(--line)" stroke-dasharray="3,3"/>
-          <line x1="60" y1="180" x2="760" y2="180" stroke="var(--line)" stroke-dasharray="3,3"/>
-          <!-- Axis labels -->
-          <text x="50" y="34" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end">100%</text>
-          <text x="50" y="84" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end">75%</text>
-          <text x="50" y="134" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end">50%</text>
-          <text x="50" y="184" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end">25%</text>
-          <text x="50" y="215" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end">0%</text>
-          <!-- Time steps -->
-          <text x="60" y="228" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="middle">t=0</text>
-          <text x="235" y="228" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="middle">t=5</text>
-          <text x="410" y="228" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="middle">t=10</text>
-          <text x="585" y="228" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="middle">t=15</text>
-          <text x="760" y="228" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="middle">t=20</text>
-          <!-- Price Path (gold line) -->
-          <path d="M 60.0 75.0 L 95.0 75.0 L 130.0 75.0 L 165.0 90.0 L 200.0 90.0 L 235.0 75.0 L 270.0 90.0 L 305.0 105.0 L 340.0 120.0 L 375.0 90.0 L 410.0 105.0 L 445.0 120.0 L 480.0 90.0 L 515.0 105.0 L 550.0 135.0 L 585.0 105.0 L 620.0 90.0 L 655.0 90.0 L 690.0 105.0 L 725.0 105.0 L 760.0 120.0" fill="none" stroke="#e9b64b" stroke-width="2" opacity="0.85"/>
-          <!-- Inventory Area & Path (green fill & line) -->
-          <path d="M 60.0 30.0 L 95.0 39.2 L 130.0 48.5 L 165.0 48.5 L 200.0 48.5 L 235.0 57.8 L 270.0 57.8 L 305.0 57.8 L 340.0 70.0 L 375.0 82.2 L 410.0 82.2 L 445.0 95.1 L 480.0 108.4 L 515.0 118.4 L 550.0 118.4 L 585.0 134.7 L 620.0 151.0 L 655.0 167.3 L 690.0 178.4 L 725.0 196.9 L 760.0 215.0 L 760.0 215.0 L 60.0 215.0 Z" fill="url(#invGrad2)"/>
-          <path d="M 60.0 30.0 L 95.0 39.2 L 130.0 48.5 L 165.0 48.5 L 200.0 48.5 L 235.0 57.8 L 270.0 57.8 L 305.0 57.8 L 340.0 70.0 L 375.0 82.2 L 410.0 82.2 L 445.0 95.1 L 480.0 108.4 L 515.0 118.4 L 550.0 118.4 L 585.0 134.7 L 620.0 151.0 L 655.0 167.3 L 690.0 178.4 L 725.0 196.9 L 760.0 215.0" fill="none" stroke="#37c98c" stroke-width="2.5"/>
-          <!-- Fill execution points -->
-          <circle cx="95.0" cy="39.2" r="3.8" fill="#37c98c"/>
-          <circle cx="130.0" cy="48.5" r="3.8" fill="#37c98c"/>
-          <circle cx="235.0" cy="57.8" r="3.8" fill="#37c98c"/>
-          <circle cx="340.0" cy="70.0" r="4.2" fill="#37c98c"/>
-          <circle cx="375.0" cy="82.2" r="4.2" fill="#37c98c"/>
-          <circle cx="445.0" cy="95.1" r="4.2" fill="#37c98c"/>
-          <circle cx="480.0" cy="108.4" r="4.3" fill="#37c98c"/>
-          <circle cx="515.0" cy="118.4" r="3.9" fill="#37c98c"/>
-          <circle cx="585.0" cy="134.7" r="4.7" fill="#37c98c"/>
-          <circle cx="620.0" cy="151.0" r="4.7" fill="#37c98c"/>
-          <circle cx="655.0" cy="167.3" r="4.7" fill="#37c98c"/>
-          <circle cx="690.0" cy="178.4" r="4.0" fill="#37c98c"/>
-          <circle cx="725.0" cy="196.9" r="5.0" fill="#37c98c"/>
-          <!-- Legend -->
-          <rect x="520" y="10" width="12" height="12" fill="#37c98c" rx="2"/>
-          <text x="540" y="20" fill="var(--text)" font-family="var(--mono)" font-size="11">Inventory q_t/Q&#8320; (FIFO Sim Artifact)</text>
-          <line x1="520" y1="36" x2="532" y2="36" stroke="#e9b64b" stroke-width="2"/>
-          <text x="540" y="39" fill="var(--text)" font-family="var(--mono)" font-size="11">Midpoint Price Path</text>
-        </svg>
+        <svg id="execChart" viewBox="0 0 800 240" style="width:100%;height:auto;display:block;background:var(--surface2);border-radius:8px;border:1px solid var(--line);"></svg>
       </div>
     </div>
   </section>
@@ -810,6 +768,86 @@
     });
   }
 
+  /* ---- live execution episode chart ---- */
+  function renderExec(s){
+    var e=s.exec, svg=el('execChart'), leg=el('execLegend'), sub=el('execSub');
+    if(!e || !e.steps || e.steps.length<2){
+      svg.innerHTML='<text x="20" y="22" fill="#5e738d" font-size="11" font-family="var(--mono)">waiting for live episode…</text>';
+      leg.style.display='none'; sub.textContent='waiting for live episode …';
+      return;
+    }
+    leg.style.display=''; var steps=e.steps, n=steps.length;
+    var inv0=e.inventory0||500, h=e.horizon||n;
+    // summary line
+    var summ=e.strategy.toUpperCase()+' · Q₀='+inv0+' · T='+h+' · '+e.queue_model;
+    if(e.drift_ticks) summ+=' · drift='+e.drift_ticks+'t/step';
+    if(e.done && e.shortfall_bps!=null) summ+=' · shortfall '+e.shortfall_bps.toFixed(2)+' bps';
+    if(e.done && e.final.completion!=null) summ+=' · completion '+(e.final.completion*100).toFixed(0)+'%';
+    sub.textContent=summ;
+    var sf=el('execShortfall');
+    sf.textContent=e.done?'shortfall '+e.shortfall_bps.toFixed(2)+' bps':'step '+(n)+'/'+h;
+
+    var W=800,H=240,ML=60,MR=20,MT=20,MB=30;
+    var pw=W-ML-MR, ph=H-MT-MB;
+    // inventory range 0..1 (fraction of inv0)
+    var midVals=steps.map(function(s){return s.mid;});
+    var mn=Math.min.apply(null,midVals), mx=Math.max.apply(null,midVals);
+    if(mx-mn<1e-9){mn-=1;mx+=1;}
+    var sx=function(i){return ML+i/(h)*pw;};
+    var syInv=function(f){return MT+(1-f)*ph;};  // 1.0=top, 0.0=bottom
+    var syMid=function(v){return MT+(mx-v)/(mx-mn)*ph;};
+    var g='';
+    // defs for gradient
+    g+='<defs><linearGradient id="execInvGrad" x1="0" y1="0" x2="0" y2="1">';
+    g+='<stop offset="0%" stop-color="#37c98c" stop-opacity="0.3"/>';
+    g+='<stop offset="100%" stop-color="#37c98c" stop-opacity="0.0"/>';
+    g+='</linearGradient></defs>';
+    // grid lines at 25% intervals
+    for(var p=0;p<=4;p++){
+      var y=syInv(p/4).toFixed(1);
+      g+='<line x1="'+ML+'" y1="'+y+'" x2="'+(W-MR)+'" y2="'+y+'" stroke="var(--line)" stroke-dasharray="3,3"/>';
+      g+='<text x="'+(ML-8)+'" y="'+(parseFloat(y)+3.5)+'" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end">'+(p*25)+'%</text>';
+    }
+    // time axis labels
+    var tStep=Math.max(1,Math.floor(h/4));
+    for(var t=0;t<=h;t+=tStep){
+      g+='<text x="'+sx(t).toFixed(1)+'" y="'+(H-8)+'" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="middle">t='+t+'</text>';
+    }
+    // inventory area fill
+    var areaPts=sx(0).toFixed(1)+','+syInv(steps[0].inv/inv0).toFixed(1);
+    for(var i=1;i<n;i++) areaPts+=' '+sx(steps[i].t).toFixed(1)+','+syInv(steps[i].inv/inv0).toFixed(1);
+    areaPts+=' '+sx(steps[n-1].t).toFixed(1)+','+syInv(0).toFixed(1);
+    areaPts+=' '+sx(0).toFixed(1)+','+syInv(0).toFixed(1);
+    g+='<polygon points="'+areaPts+'" fill="url(#execInvGrad)"/>';
+    // inventory line
+    var invPts='';
+    for(i=0;i<n;i++){
+      var ix=sx(steps[i].t).toFixed(1), iy=syInv(steps[i].inv/inv0).toFixed(1);
+      invPts+=(invPts?' ':'')+ix+','+iy;
+    }
+    g+='<polyline points="'+invPts+'" fill="none" stroke="var(--good)" stroke-width="2.5"/>';
+    // mid line (right axis, scaled)
+    var midPts='';
+    for(i=0;i<n;i++){
+      var mx2=sx(steps[i].t).toFixed(1), my=syMid(steps[i].mid).toFixed(1);
+      midPts+=(midPts?' ':'')+mx2+','+my;
+    }
+    g+='<polyline points="'+midPts+'" fill="none" stroke="var(--accent)" stroke-width="1.8" opacity="0.8"/>';
+    // fill points (circle when filled > 0, sized proportional to fill)
+    var maxFill=1; for(i=0;i<n;i++) if(steps[i].filled>maxFill) maxFill=steps[i].filled;
+    for(i=0;i<n;i++){
+      if(steps[i].filled>0){
+        var cx=sx(steps[i].t).toFixed(1), cy=syInv(steps[i].inv/inv0).toFixed(1);
+        var r=(3+3*steps[i].filled/maxFill).toFixed(1);
+        g+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="var(--good)" opacity="0.85">';
+        g+='<title>t='+steps[i].t+' filled='+steps[i].filled+' inv='+steps[i].inv+'</title></circle>';
+      }
+    }
+    // episode number watermark
+    g+='<text x="'+(W-MR-4)+'" y="'+(MT+12)+'" fill="var(--faint)" font-family="var(--mono)" font-size="10" text-anchor="end" opacity="0.6">ep #'+e.episode+'</text>';
+    svg.innerHTML=g;
+  }
+
   /* ---- main render ---- */
   function render(s){
     el('livepill').className='livepill live'; el('livepill').textContent='LIVE';
@@ -837,7 +875,7 @@
       tk.innerHTML='<span class="'+sc+'">'+sl+'</span> &nbsp;'+fmt(s.last_trade_px)+' × '+fmt(s.last_trade_sz);
     } else { tk.textContent='no trades yet'; }
 
-    renderDepth(s); renderSpark(s); renderLatency(s);
+    renderDepth(s); renderSpark(s); renderLatency(s); renderExec(s);
 
     if(s.seq===lastSeq){ stalls++; if(stalls>=3){ setPill('stale'); } }
     else { stalls=0; setPill('live'); }

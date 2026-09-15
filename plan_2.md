@@ -203,7 +203,7 @@ Exact shipped API: **`docs/work_package_b_phases_2_4.md §2.2`** (frozen). Signa
 | P1 | Historical/parametric/stress VaR + scenario bank |
 | P1 | `docs/RESEARCH.md` + honest README rewrite |
 | P2 | CUDA toolkit + `risk_bench` measurement (fast once decided) |
-| P2 | Execution timeline + inventory chart in dashboard |
+| ~~P2~~ | ~~Execution timeline + inventory chart in dashboard~~ — ✅ 2026-09-15: `--live-exec` drives a real `OrderBookEnv` TWAP/FIFO episode; animated inventory/mid/fill SVG in the desk |
 | P2 | VWAP volume-curve forecast (real baseline) |
 | P3 | Notebooks, plotting polish, ruff/mypy config, lockfile, RSS-style writeup |
 

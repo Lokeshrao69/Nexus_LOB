@@ -5,7 +5,7 @@
 > **§7 Next steps** so the next session resumes without re-deriving everything.
 > **Part 2 (quant research layer) plan of record: `plan_2.md`** — read that FIRST
 > for the research half; this file stays the systems-half handoff.
-> Last updated: **2026-09-14** (Person-B follow-up: empirical VWAP, E7 family CIs, resumable batches, and Linux adapter verification; see `progress_b.md`).
+> Last updated: **2026-09-15** (live execution timeline + inventory chart in the desk; see §6 Phase 1e).
 
 ---
 
@@ -296,24 +296,28 @@ outperforms during liquidity shocks (+0.4…+1.4 bps).
 Policy preserved at: `python_quant/artifacts/policy_ppo_highvol.npz`.
 Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
 
-**Phase 1e — Person B: combined interactive desk (subsystem 4/5, 2026-09-09).**
+**Phase 1e — Person B: combined interactive desk (subsystem 4/5, 2026-09-09; live exec panel 2026-09-15).**
 **Phase 1e — Person B: combined interactive desk (subsystem 4/5, 2026-09-09, branch `feature/dashboard-file-ring`).**
 
 | Component | File | State |
 |---|---|---|
 | Combined desk page (console styling + live L2 overlay) | `python_quant/nexus_quant/dashboard_page.html` | ✅ served at `/` by the dashboard server |
-| Slot codec + `SnapshotHub` (decode/dedup history/latency histogram) | `python_quant/nexus_quant/dashboard.py` | ✅ rolling 200-sample history, log-binned latency, p50/p95 |
-| Dashboard server (shm-ring / file-ring / seeded synthetic walk) | `python_quant/scripts/serve_dashboard.py` | ✅ synthetic emits real measured render latency + VaR every 8 ticks |
+| Live execution timeline + inventory chart | `dashboard_page.html` + `serve_dashboard.py` + `dashboard.py` | ✅ `--live-exec` drives real `OrderBookEnv` TWAP/FIFO; live SVG renderer in JS; `--exec-drift` for price trend |
+| Slot codec + `SnapshotHub` (decode/dedup history/latency histogram + exec_episode) | `python_quant/nexus_quant/dashboard.py` | ✅ rolling 200-sample history, log-binned latency, p50/p95; `exec_episode` carried in `as_json()` |
+| Dashboard server (shm-ring / file-ring / seeded synthetic walk + live exec) | `python_quant/scripts/serve_dashboard.py` | ✅ synthetic + `LiveEpisode` driver; `--live-exec` enables the exec panel |
 | Dashboard tests | `python_quant/tests/test_dashboard.py` | ✅ **5 pass** (+1 shm skip on Windows); full suite **68 pass / 1 skip** |
 | GRPO trainer on PPO actor interface | `python_quant/nexus_quant/agents/grpo.py` | ✅ (merged via PR #7) |
 | Risk↔env inventory CVaR penalty | `python_quant/nexus_quant/risk.py` + `order_book_env.py` | ✅ `lambda_risk` param, default 0.0 (merged via PR #7) |
 | EngineAdapter keeps book across env reset | `python_quant/nexus_quant/book_port.py` | ✅ (merged via PR #8) |
 | Static verification console | `dashboard/index.html` | ✅ separate page on `feature/risk-engine` |
 
-**Verified (2026-09-09):** the combined page serves console sections *and* the live desk
+**Verified (2026-09-15):** the combined page serves console sections *and* the live desk
 (depth ladder, mid+spread sparklines, latency histogram, VaR/CVaR tiles, trade ticker) in one page,
 polling `/api/state` at 400 ms; `seq`/mid/history/latency all tick live against the seeded synthetic
 walk. Feeds: POSIX `/dev/shm` ring, a file ring of 448-B slots, or synthetic (no C++ build needed).
+The live execution panel (`--live-exec`) drives a real `OrderBookEnv` episode with TWAP/FIFO, streams
+its per-step trajectory (inventory decay, midpoint path, child fills, shortfall) through `/api/state`,
+and renders it as an animated SVG chart — replacing the prior static hardcoded episode artifact.
 
 **Risk↔env seam (item 12, also done):** `OrderBookEnv` accepts `lambda_risk` (default 0.0);
 when > 0 it calls `inventory_risk_penalty()` from `risk.py` (NumPy oracle, exact parity with
