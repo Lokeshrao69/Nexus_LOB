@@ -73,7 +73,7 @@ Finance Project-1/            # repo root (branch: main)
 │   │   ├── envs/order_book_env.py  # Gymnasium execution env (44-dim, high-vol regime)
 │   │   └── agents/            # mlp.py, ppo.py, grpo.py, evaluate.py
 │   ├── scripts/               # train_eval_agent.py, serve_dashboard.py, run_all.py, run_research.py
-│   ├── tests/                 # 152 tests, all green in CI (143 passed / 6 skipped on Windows without ITCH file / .pyd)
+│   ├── tests/                 # 347 tests, all green with engine (335 without); +8 in bindings
 │   └── artifacts/             # policy_ppo.npz, policy_ppo_highvol.npz
 ├── bindings/                  # pybind_wrapper.cpp, CONTRACT.md, tests/ (+ compiled .pyd)
 ├── dashboard/                 # static verification console (dashboard/index.html)
@@ -119,9 +119,10 @@ training · W7-8 profiling, dashboard, benchmarks, write-up.
   valid only until the next mutating engine call); `snapshot()` = owning copy (safe to
   retain, telemetry/tests/cross-thread).
 
-## 6. Status — latest verification 2026-09-14; dated implementation history below
+## 6. Status — latest verification 2026-09-15; dated implementation history below
 
-**Person-B follow-up:** canonical branch `feature/person-b-part2` targeting `main` in PR #19.
+**Person-B follow-up (merged):** the Person B research layer (`feature/person-b-part2`,
+PR #19) and the live-execution dashboard panel (PR #23) are both on `main`.
 
 - Empirical `vwap` now uses the forecast volume over the next episode step. Explicit
   profiles override `env.volume_profile`; no-profile legacy actions are unchanged.
@@ -147,11 +148,10 @@ training · W7-8 profiling, dashboard, benchmarks, write-up.
   handles. Linux pybind and the no-engine path are both tested. C++/CUDA/bindings
   sources and all frozen state fields remain unchanged.
 
-**Verified:** Python suite **274 passed / 1 local-tape skip**; binding suite
-**8 passed**; native CTest **5/5**; compileall, CI-scope Ruff, and diff whitespace
-checks pass. Without engine import: **262 passed / 13 skipped**. A live two-date
-transport/resume smoke fetched exactly 1 MiB per date, with no regular-session
-rows; those prefixes provide no execution or full-day statistical evidence.
+**Verified (2026-09-15):** Python suite **347 passed / 2 skipped** with the compiled
+engine (335 passed / 14 skipped without it); binding suite **8 passed** (total
+**355 passed / 2 skipped**); native CTest **5/5**; compileall, CI-scope Ruff
+(`ruff check python_quant/nexus_quant/ bindings/`), and diff whitespace checks all pass.
 
 No new out-of-sample execution-superiority claim is made. Reproduction and
 compatibility details are in the current update at the top of `progress_b.md`.
@@ -305,7 +305,7 @@ Regime tests: `python_quant/tests/test_highvol_env.py` (11 tests, green).
 | Live execution timeline + inventory chart | `dashboard_page.html` + `serve_dashboard.py` + `dashboard.py` | ✅ `--live-exec` drives real `OrderBookEnv` TWAP/FIFO; live SVG renderer in JS; `--exec-drift` for price trend |
 | Slot codec + `SnapshotHub` (decode/dedup history/latency histogram + exec_episode) | `python_quant/nexus_quant/dashboard.py` | ✅ rolling 200-sample history, log-binned latency, p50/p95; `exec_episode` carried in `as_json()` |
 | Dashboard server (shm-ring / file-ring / seeded synthetic walk + live exec) | `python_quant/scripts/serve_dashboard.py` | ✅ synthetic + `LiveEpisode` driver; `--live-exec` enables the exec panel |
-| Dashboard tests | `python_quant/tests/test_dashboard.py` | ✅ **5 pass** (+1 shm skip on Windows); full suite **68 pass / 1 skip** |
+| Dashboard tests | `python_quant/tests/test_dashboard.py` | ✅ **5 pass** (+1 shm skip on Windows); full suite **355 passed / 2 skipped** (2026-09-15) |
 | GRPO trainer on PPO actor interface | `python_quant/nexus_quant/agents/grpo.py` | ✅ (merged via PR #7) |
 | Risk↔env inventory CVaR penalty | `python_quant/nexus_quant/risk.py` + `order_book_env.py` | ✅ `lambda_risk` param, default 0.0 (merged via PR #7) |
 | EngineAdapter keeps book across env reset | `python_quant/nexus_quant/book_port.py` | ✅ (merged via PR #8) |
@@ -391,7 +391,7 @@ All 12 original plan items are complete. Remaining work is **polish & measuremen
 | E7 `fill_rate` / `mdd_ticks`, whole-family CIs, paired metric direction | Person B | ✅ 2026-09-14; published study not rerun |
 | Empirical volume profiler and VWAP baseline conditioning | Person B | ✅ 2026-09-14; no-profile legacy actions preserved |
 | Multi-day NASDAQ ITCH: 15 dates catalogued, resumable batch harness ready | Person B | 🟡 Full statistical campaign not run; ~3.5 GB/day, bandwidth-dependent |
-| Part 2 quant research layer (Phases 0–5 complete, PR #19 on `Lokeshrao69/Nexus_LOB`) | Person B | ✅ 2026-09-14 (160 tests passing) |
+| Part 2 quant research layer (Phases 0–5 complete — merged to `main` via PR #19) | Person B | ✅ merged; full suite 355 passed / 2 skipped (2026-09-15) |
 
 ## 8. Environment reality (IMPORTANT — read before running anything)
 
