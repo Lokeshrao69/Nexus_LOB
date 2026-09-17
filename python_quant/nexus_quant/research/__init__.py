@@ -18,6 +18,7 @@ from .adverse_selection import (
     fills_from_tracker,
     nw_tstat,
     p_adverse,
+    p_adverse_unconditional,
     post_fill_drift,
     pre_fill_drift,
 )
@@ -132,6 +133,7 @@ __all__ = [
     "ofi",
     "order_features",
     "p_adverse",
+    "p_adverse_unconditional",
     "post_fill_drift",
     "pre_fill_drift",
     "queue_ahead_walk",

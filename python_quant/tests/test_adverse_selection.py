@@ -21,6 +21,7 @@ from nexus_quant.research.adverse_selection import (
     fills_from_tracker,
     nw_tstat,
     p_adverse,
+    p_adverse_unconditional,
     post_fill_drift,
     pre_fill_drift,
 )
@@ -169,6 +170,30 @@ def test_pre_fill_control_window_ends_before_the_fill():
 def test_p_adverse_excludes_ties_and_nans():
     assert p_adverse([-1.0, -1.0, 1.0, 0.0, np.nan]) == 2 / 3
     assert np.isnan(p_adverse([0.0, np.nan]))
+
+
+def test_p_adverse_conditional_and_unconditional_distinction():
+    """Verify conditional (1.0) vs unconditional (0.20) on 80% zero-move and 20% adverse series."""
+    # 80 zeros, 20 adverse (-1.0)
+    drifts = [0.0] * 80 + [-1.0] * 20
+    # Conditional on |ΔP| > 0: all 20 non-zero moves are adverse -> 1.0
+    assert p_adverse(drifts, conditional=True) == 1.0
+    # Unconditional: 20 adverse out of 100 total fills -> 0.20
+    assert p_adverse(drifts, conditional=False) == 0.20
+    assert p_adverse_unconditional(drifts) == 0.20
+
+    # Also test in adverse_selection_report
+    fills = [PassiveFill(idx=i, side=Side.Bid) for i in range(100)]
+    # Construct mids such that first 80 fills have 0 change and last 20 fills have adverse drop
+    mids = [100.0] * 105
+    for i in range(80, 100):
+        mids[i + 1] = mids[i] - 1.0  # each step drops 1 tick -> adverse for Bid
+    rep = adverse_selection_report(fills, mids, horizons=(1,))
+    ov = rep["horizons"][1]["overall"]
+    assert ov["p_adverse"] == 1.0
+    assert ov["p_adverse_conditional"] == 1.0
+    assert ov["p_adverse_unconditional"] == 0.20
+
 
 
 def test_newey_west_matches_hand_computation():
