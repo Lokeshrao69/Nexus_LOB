@@ -34,9 +34,12 @@ Run (from repo root)::
 
     python python_quant/scripts/fetch_itch.py --day 12302019 --symbols QQQ,AAPL
     # smoke: only the first 64 MB of the gzip (pre-market + directory)
-    python python_quant/scripts/fetch_itch.py --day 12302019 --symbols QQQ --max-gz-bytes 67108864
+    python python_quant/scripts/fetch_itch.py --day 12302019 --symbols QQQ --max-gz-bytes 67108864 --out data/itch_quick
 
-Output: ``data/itch/<day>/<SYMBOL>.itch`` + ``data/itch/<day>/manifest.json``.
+Default output: ``data/itch/<day>/<SYMBOL>.itch`` + ``data/itch/<day>/manifest.json``.
+Use an isolated ``--out`` root for bounded smoke fetches, as above. Their
+manifests declare ``range_limited: true`` and ``max_gz_bytes_requested``;
+they are not full-day research inputs, even if the gzip happens to finish.
 No third-party dependency — stdlib only.
 """
 

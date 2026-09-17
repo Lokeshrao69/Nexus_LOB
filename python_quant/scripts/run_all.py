@@ -13,6 +13,12 @@ Defaults reproduce ``docs/results/`` exactly (same day, symbols, seeds, n_boot).
 ``--quick`` runs a smoke of every stage in a few minutes: 64 MB of the gzip,
 one symbol, 100k rows, 2 training seeds.
 
+Quick slices and manifests use ``data/itch_quick/<day>/``; their manifests
+declare ``range_limited: true`` and the requested byte cap. Quick research
+reads only that root, even with ``--skip fetch``, and writes reports to
+``docs/results/quick/``. Full runs keep using ``data/itch/<day>/`` and
+``docs/results/``. All paths are relative to the repository root.
+
     python python_quant/scripts/run_all.py            # full (≈ 1 h on one core; fetch ≈ 14 min)
     python python_quant/scripts/run_all.py --quick
     python python_quant/scripts/run_all.py --skip fetch,fairness
@@ -53,6 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         ap.error(f"unknown stage(s) {sorted(unknown)}; known: {STAGES}")
     py = sys.executable
     symbols = args.symbols.split(",")[0] if args.quick else args.symbols
+    data_root = _ROOT / "data" / ("itch_quick" if args.quick else "itch")
     timings: dict[str, float] = {}
 
     if "tests" not in skip:
@@ -60,12 +67,14 @@ def main(argv: list[str] | None = None) -> int:
     if "vignette" not in skip:
         timings["vignette"] = _run("vignette", [py, str(_SCRIPTS / "research_vignette.py"), "--steps", "800" if args.quick else "2000"])
     if "fetch" not in skip:
-        cmd = [py, str(_SCRIPTS / "fetch_itch.py"), "--day", args.day, "--symbols", symbols]
+        cmd = [py, str(_SCRIPTS / "fetch_itch.py"), "--day", args.day, "--symbols", symbols,
+               "--out", str(data_root)]
         if args.quick:
             cmd += ["--max-gz-bytes", str(64 << 20)]
         timings["fetch"] = _run("fetch", cmd)
     if "research" not in skip:
-        cmd = [py, str(_SCRIPTS / "run_research.py"), "--day", args.day, "--symbols", symbols, "--n-boot", "300"]
+        cmd = [py, str(_SCRIPTS / "run_research.py"), "--day", args.day, "--symbols", symbols,
+               "--data", str(data_root), "--n-boot", "300"]
         if args.quick:
             cmd += ["--max-events", "100000", "--n-boot", "100", "--out-dir", str(_ROOT / "docs" / "results" / "quick")]
         timings["research"] = _run("research", cmd)
