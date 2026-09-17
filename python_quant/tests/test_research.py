@@ -298,6 +298,21 @@ def test_bootstrap_ci_covers_true_mean() -> None:
     assert covered / trials >= 0.8  # nominal 95%; allow MC slack
 
 
+def test_bootstrap_ci_replicate_length_exact() -> None:
+    n = 25
+    x = list(range(n))
+    lengths: list[int] = []
+
+    def check_len(sample: np.ndarray) -> float:
+        lengths.append(sample.size)
+        return float(np.mean(sample))
+
+    ci = bootstrap_ci(x, n_boot=100, kind="block", block=4, seed=42, stat_fn=check_len)
+    assert len(lengths) == 100
+    assert all(length == n for length in lengths)
+    assert ci["mean"] is not None
+
+
 # ---------------------------------------------------------------------------
 # experiments / models smoke
 # ---------------------------------------------------------------------------

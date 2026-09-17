@@ -122,10 +122,8 @@ def bootstrap_ci(
         if kind == "block":
             starts = rng.integers(0, n, size=n_blocks)
             idx = np.concatenate(
-                [np.arange(s, min(s + blen, n), dtype=np.int64) for s in starts]
+                [(s + np.arange(blen, dtype=np.int64)) % n for s in starts]
             )[:n]
-            if idx.size == 0:
-                idx = np.arange(n)
             sample = x[idx]
         else:  # iid
             sample = x[rng.integers(0, n, size=n)]
@@ -340,7 +338,7 @@ def _rank_ic_bootstrap(
     for b in range(n_boot):
         starts = rng.integers(0, n, size=n_blocks)
         idx = np.concatenate(
-            [np.arange(s, min(s + blen, n), dtype=np.int64) for s in starts]
+            [(s + np.arange(blen, dtype=np.int64)) % n for s in starts]
         )[:n]
         stats[b] = rank_ic(yt[idx], yp[idx])
     lo, hi = np.quantile(stats, [alpha / 2, 1 - alpha / 2])
