@@ -435,7 +435,7 @@ def adverse_selection_report(
     stats dict carries ``n, mean_drift, se_nw, t_nw, p_value, p_adverse``.
     Groups with fewer than ``min_group`` fills are omitted (no claims on 5 fills).
     """
-    fills = list(fills)
+    fills = sorted(fills, key=lambda f: f.idx)
     result: dict[str, Any] = {"n_fills": len(fills), "horizons": {}}
     for h in horizons:
         d = post_fill_drift(fills, mids, h)
@@ -494,4 +494,5 @@ def fills_from_tracker(completed: Sequence[Any], *, ofi_at: Sequence[float] | No
         ofi_v = float(ofi_at[idx]) if ofi_at is not None and idx < len(ofi_at) else 0.0
         out.append(PassiveFill(idx=int(idx), side=Side(int(o.side)), price=int(o.price),
                                size=int(o.filled), ofi=ofi_v, queue_frac=q))
+    out.sort(key=lambda f: f.idx)
     return out
