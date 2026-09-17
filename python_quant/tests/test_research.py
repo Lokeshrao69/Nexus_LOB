@@ -282,6 +282,22 @@ def test_rank_ic_zero_on_white_noise() -> None:
     assert decile_spread(y, pred) is not None
 
 
+def test_decile_spread_quantile_and_count() -> None:
+    y = list(range(1000))
+    pred = list(range(1000))
+    # Default q=0.10: top 100 mean is 949.5, bottom 100 mean is 49.5 -> spread 900.0
+    spread_10pct = decile_spread(y, pred)
+    assert pytest.approx(spread_10pct, abs=1e-6) == 900.0
+
+    # Explicit count n=10: top 10 mean is 994.5, bottom 10 mean is 4.5 -> spread 990.0
+    spread_10rows = decile_spread(y, pred, n=10)
+    assert pytest.approx(spread_10rows, abs=1e-6) == 990.0
+
+    # Edge cases: too small sample
+    assert math.isnan(decile_spread([1.0], [1.0]))
+    assert math.isnan(decile_spread([1.0, 2.0], [1.0, 2.0], n=5))
+
+
 # ---------------------------------------------------------------------------
 # (f) bootstrap CI coverage
 # ---------------------------------------------------------------------------
