@@ -20,7 +20,9 @@ parity exact over the pre-market prefix (7,037 frames) — see ``progress_b.md``
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 import os
 import sys
 import time
@@ -187,6 +189,7 @@ def test_extended_sample_tapes_catalogue() -> None:
     assert extended["12132018"].endswith("/S121318-v50.txt.gz")
 
 
+<<<<<<< HEAD
 def test_replay_tracks_applied_and_failed_events(tmp_path: Path) -> None:
     ts = 34_200_000_000_000
     events = [
@@ -256,6 +259,54 @@ def test_fill_study_isolates_regular_session() -> None:
     assert res["outcomes"] == {"filled": 1}  # only Order 2
     assert res["n_still_open_at_close"] == 1  # Order 1 is still open at close
     assert res["n_orders_regular"] == 2
+
+
+def test_manifest_provenance_verification(tmp_path: Path) -> None:
+    spec = importlib.util.spec_from_file_location(
+        "run_research", _ROOT / "python_quant" / "scripts" / "run_research.py"
+    )
+    assert spec is not None and spec.loader is not None
+    rr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rr)
+
+    day_dir = tmp_path / "12302019"
+    day_dir.mkdir(parents=True)
+    itch_file = day_dir / "AAPL.itch"
+    itch_bytes = b"sample itch data for testing"
+    itch_file.write_bytes(itch_bytes)
+
+    valid_sha = hashlib.sha256(itch_bytes).hexdigest()
+    manifest_data = {
+        "day": "12302019",
+        "symbols": {
+            "AAPL": {
+                "file": "AAPL.itch",
+                "bytes": len(itch_bytes),
+                "sha256": valid_sha,
+            }
+        },
+    }
+    manifest_path = day_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    # 1. Valid manifest passes verification without error
+    rr.verify_manifest_provenance(itch_file)
+
+    # 2. Corrupted file content (modified bytes / mismatched hash) raises ValueError
+    itch_file.write_bytes(b"corrupted itch data")
+    with pytest.raises(ValueError, match="SHA-256 mismatch|File size mismatch"):
+        rr.verify_manifest_provenance(itch_file)
+
+    # 3. Size mismatch raises ValueError
+    manifest_data["symbols"]["AAPL"]["sha256"] = hashlib.sha256(b"corrupted itch data").hexdigest()
+    manifest_data["symbols"]["AAPL"]["bytes"] = 999999
+    manifest_path.write_text(json.dumps(manifest_data), encoding="utf-8")
+    with pytest.raises(ValueError, match="File size mismatch"):
+        rr.verify_manifest_provenance(itch_file)
+
+    # 4. Running CLI main with mismatched hash halts with ValueError
+    with pytest.raises(ValueError):
+        rr.main(["--data", str(tmp_path), "--day", "12302019", "--symbols", "AAPL"])
 
 
 @pytest.mark.skipif(not _TAPE.exists(), reason=f"real tape not fetched: {_TAPE} (run scripts/fetch_itch.py)")

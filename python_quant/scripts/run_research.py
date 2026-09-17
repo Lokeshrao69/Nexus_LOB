@@ -36,6 +36,7 @@ Output: ``docs/results/real_tape_<day>_<SYMBOL>.json`` + ``docs/results/real_tap
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import sys
@@ -115,8 +116,56 @@ def order_level_ofi(ev, live_before) -> float:
     return -qty if int(live_before.side) == 0 else qty
 
 
-def replay_symbol(path: Path, *, max_events: int | None = None, log=print) -> dict:
+def verify_manifest_provenance(path: Path, manifest_path: Path | None = None, symbol: str | None = None) -> None:
+    """Verify file size and SHA-256 checksum against manifest.json if present.
+
+    Raises ValueError if size or SHA-256 does not match the manifest.
+    """
+    if manifest_path is None:
+        manifest_path = path.parent / "manifest.json"
+    if not manifest_path.is_file():
+        return
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        raise ValueError(f"Failed to read manifest {manifest_path}: {e}") from e
+
+    sym = symbol or path.stem
+    sym_entry = manifest.get("symbols", {}).get(sym)
+    if sym_entry is None:
+        return
+
+    expected_bytes = sym_entry.get("bytes")
+    if expected_bytes is not None:
+        actual_bytes = path.stat().st_size
+        if actual_bytes != expected_bytes:
+            raise ValueError(
+                f"File size mismatch for {path}: expected {expected_bytes} bytes from manifest, got {actual_bytes} bytes"
+            )
+
+    expected_sha = sym_entry.get("sha256")
+    if expected_sha:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            while chunk := f.read(65536):
+                h.update(chunk)
+        actual_sha = h.hexdigest()
+        if actual_sha != expected_sha:
+            raise ValueError(
+                f"SHA-256 mismatch for {path}: expected {expected_sha} from manifest, got {actual_sha}"
+            )
+
+
+def replay_symbol(
+    path: Path,
+    *,
+    max_events: int | None = None,
+    verify_manifest: bool = True,
+    log=print,
+) -> dict:
     """Parse + replay one symbol file, computing per-event features inline."""
+    if verify_manifest:
+        verify_manifest_provenance(path)
     stats = ItchParseStats()
     t0 = time.time()
     events = list(iter_itch_events(path, stats=stats))
@@ -434,8 +483,9 @@ def main(argv: list[str] | None = None) -> int:
         if not path.exists():
             print(f"missing {path} — run scripts/fetch_itch.py --day {args.day} --symbols {sym}")
             continue
+        verify_manifest_provenance(path, symbol=sym)
         print(f"== {sym} ==")
-        rep = replay_symbol(path, max_events=args.max_events)
+        rep = replay_symbol(path, max_events=args.max_events, verify_manifest=False)
         t0 = time.time()
         ic = ic_study(rep, horizons=tuple(args.horizons), train=args.train, val=args.val, n_boot=args.n_boot)
         print(f"  E1–E4 done in {time.time() - t0:.1f}s")
