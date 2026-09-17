@@ -223,6 +223,41 @@ def test_replay_tracks_applied_and_failed_events(tmp_path: Path) -> None:
     assert res["events_failed"] == 1
 
 
+def test_fill_study_isolates_regular_session() -> None:
+    spec = importlib.util.spec_from_file_location(
+        "run_research", _ROOT / "python_quant" / "scripts" / "run_research.py"
+    )
+    assert spec is not None and spec.loader is not None
+    rr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rr)
+
+    tr = OrderLevelTracker()
+    ts_open = rr.REGULAR_OPEN_NS
+    ts_close = rr.REGULAR_CLOSE_NS
+
+    # Order 1: added at 15:59:59, fills at 16:00:05 (post-close fill)
+    tr.on_event(NormalizedEvent(EventType.ADD, ts_close - 1_000_000_000, 1, Side.Bid, 10_000, 10))
+    # Order 2: added at 10:00:00, fills at 10:05:00 (regular-session fill)
+    tr.on_event(NormalizedEvent(EventType.ADD, ts_open + 1_800_000_000_000, 2, Side.Bid, 10_000, 10))
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, ts_open + 2_100_000_000_000, 2, Side.NONE, 0, 10))
+    # Order 1 fills at 16:00:05
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, ts_close + 5_000_000_000, 1, Side.NONE, 0, 10))
+
+    events = [
+        NormalizedEvent(EventType.ADD, ts_close - 1_000_000_000, 1, Side.Bid, 10_000, 10),
+        NormalizedEvent(EventType.ADD, ts_open + 1_800_000_000_000, 2, Side.Bid, 10_000, 10),
+        NormalizedEvent(EventType.EXECUTE, ts_open + 2_100_000_000_000, 2, Side.NONE, 0, 10),
+        NormalizedEvent(EventType.EXECUTE, ts_close + 5_000_000_000, 1, Side.NONE, 0, 10),
+    ]
+    rep = {"tracker": tr, "events": events}
+    res = rr.fill_study(rep, horizons_events=(1, 2, 5))
+
+    # Order 1 must NOT count as a completed fill in regular session
+    assert res["outcomes"] == {"filled": 1}  # only Order 2
+    assert res["n_still_open_at_close"] == 1  # Order 1 is still open at close
+    assert res["n_orders_regular"] == 2
+
+
 @pytest.mark.skipif(not _TAPE.exists(), reason=f"real tape not fetched: {_TAPE} (run scripts/fetch_itch.py)")
 def test_real_tape_parses_clean() -> None:
     """Parser 0 truncated · replay integrity clean (bar the empty pre-open book) ·
