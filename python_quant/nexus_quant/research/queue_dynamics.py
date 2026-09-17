@@ -68,6 +68,12 @@ from .synthetic_flow import SyntheticFlow
 
 _View = Any
 
+NS_PER_S: int = 1_000_000_000
+NS_PER_H: int = 3_600 * NS_PER_S
+REGULAR_OPEN_NS: int = int(9.5 * NS_PER_H)   # 09:30 ET: 34_200_000_000_000
+REGULAR_CLOSE_NS: int = int(16.0 * NS_PER_H) # 16:00 ET: 57_600_000_000_000
+
+
 
 @dataclass(slots=True)
 class RestingOrder:
@@ -136,7 +142,8 @@ class QueueTracker:
     back of its price level.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, count_trades_in_clock: bool = False) -> None:
+        self.count_trades_in_clock = count_trades_in_clock
         self._orders: dict[int, RestingOrder] = {}
         self._levels: dict[Side, dict[int, _Level]] = {Side.Bid: {}, Side.Ask: {}}
         self._side_levels_owner = self._levels  # (kept for clarity/tests)
@@ -169,7 +176,8 @@ class QueueTracker:
         elif kind == EventType.REPLACE:
             self._replace(ev)
         elif kind == EventType.TRADE:
-            pass  # a print — no queue effect
+            if not self.count_trades_in_clock:
+                return  # off-market / hidden trade does not advance book event clock (M03)
         else:  # pragma: no cover — defensive
             self.issues.append(f"seq{self.seq}: unhandled kind {kind}")
         self.seq += 1
@@ -1273,7 +1281,8 @@ class OrderLevelTracker:
     survival and logistic models consume.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, count_trades_in_clock: bool = True) -> None:
+        self.count_trades_in_clock = count_trades_in_clock
         self.orders: dict[int, TrackedOrder] = {}
         self.levels: dict[tuple[int, int], _TrackedLevel] = {}
         # lazy-deletion heaps for O(log n) best-price lookups: bids keyed by -price
@@ -1296,6 +1305,8 @@ class OrderLevelTracker:
             self.on_replace(ev)
         elif k == EventType.TRADE:
             self.on_trade(ev)
+            if not self.count_trades_in_clock:
+                return
         self.index += 1
 
     def on_add(self, ev: NormalizedEvent) -> TrackedOrder:
@@ -1433,6 +1444,10 @@ class OrderLevelTracker:
         self.completed.append(o)
         self.orders.pop(o.order_id, None)
 
+    def completed_chronological(self) -> list[TrackedOrder]:
+        """Return completed orders sorted chronologically by placement timestamp (ts_add) and idx_add."""
+        return sorted(self.completed, key=lambda o: (o.ts_add, getattr(o, "idx_add", 0)))
+
 
 # ---------------------------------------------------------------------------
 # E5 — passive fill probability
@@ -1459,6 +1474,7 @@ def _fill_prob_survival_tracked(
     Returns ``{"tau": [...], "survival": [...], "p_fill": [...], "n": int,
     "n_fill": int, "n_cancel": int, "median_fill_time": float | None}``.
     """
+    orders = list(orders)
     times: list[float] = []
     fills: list[bool] = []
     n_cancel = 0
@@ -1482,8 +1498,10 @@ def _fill_prob_survival_tracked(
     t_arr = np.asarray(times, dtype=np.float64)
     f_arr = np.asarray(fills, dtype=bool)
     n = int(t_arr.size)
+    cif = cumulative_incidence_competing_risks(orders, horizons=horizons, clock=clock)
     out: dict[str, Any] = {"tau": [float(h) for h in horizons], "n": n,
-                           "n_fill": int(f_arr.sum()), "n_cancel": n_cancel}
+                           "n_fill": int(f_arr.sum()), "n_cancel": n_cancel,
+                           "cif_fill": cif["cif_fill"], "cif_cancel": cif["cif_cancel"]}
     if n == 0:
         out.update({"survival": [1.0] * len(horizons), "p_fill": [0.0] * len(horizons),
                     "median_fill_time": None})
@@ -1515,6 +1533,167 @@ def _fill_prob_survival_tracked(
             median = t
             break
     out.update({"survival": surv, "p_fill": [1.0 - v for v in surv], "median_fill_time": median})
+    return out
+
+
+def cumulative_incidence_competing_risks(
+    orders: Iterable[Any],
+    *,
+    horizons: Sequence[float],
+    clock: str = "events",
+) -> dict[str, Any]:
+    """Compute the Cumulative Incidence Function (CIF) under competing risks (Aalen-Johansen).
+
+    In an order book queue, an order lifecycle terminates either via execution (Fill)
+    or via cancellation / deletion (Cancel). Treating cancellations as standard non-informative
+    right-censoring under Kaplan-Meier estimates a counterfactual:
+    "What would fill probability be if cancelling were prohibited?"
+    Because cancellations are endogenous and frequent (94-98% of orders), Kaplan-Meier
+    systematically overestimates the real-world probability of execution.
+
+    The Aalen-Johansen estimator tracks Fill (cause 1) and Cancel (cause 2) as distinct
+    competing endpoints alongside right-censored resting orders (cause 0).
+    The resulting CIF satisfy the exact identity:
+        CIF_fill(t) + CIF_cancel(t) = 1 - S(t)
+    and CIF_fill(t) <= P_KM(t).
+
+    Returns:
+        {
+            "tau": list[float],
+            "cif_fill": list[float],
+            "cif_cancel": list[float],
+            "survival": list[float],
+            "n": int,
+            "n_fill": int,
+            "n_cancel": int,
+            "n_censored": int,
+        }
+    """
+    times: list[float] = []
+    events: list[int] = []
+
+    for o in orders:
+        if isinstance(o, TrackedOrder) or (hasattr(o, "outcome") and hasattr(o, "idx_add")):
+            if o.idx_end is None and o.ts_end is None:
+                continue
+            if o.outcome == "filled":
+                i_end = o.idx_first_fill if o.idx_first_fill is not None else o.idx_end
+                t_end = o.ts_first_fill if o.ts_first_fill is not None else o.ts_end
+                t = float(i_end - o.idx_add) if clock == "events" else float(t_end - o.ts_add)
+                times.append(max(0.0, t))
+                events.append(1)
+            elif o.outcome == "cancelled":
+                t = float(o.idx_end - o.idx_add) if clock == "events" else float(o.ts_end - o.ts_add)
+                times.append(max(0.0, t))
+                events.append(2)
+            else:
+                t = float(o.idx_end - o.idx_add) if clock == "events" else float(o.ts_end - o.ts_add)
+                times.append(max(0.0, t))
+                events.append(0)
+        elif isinstance(o, OrderLife) or (hasattr(o, "end_kind") and hasattr(o, "born_index")):
+            if o.end_index is None:
+                continue
+            t = float(o.end_index - o.born_index)
+            times.append(max(0.0, t))
+            if o.end_kind == "fill":
+                events.append(1)
+            elif o.end_kind in ("cancel", "delete", "replace"):
+                events.append(2)
+            else:
+                events.append(0)
+        elif isinstance(o, (tuple, list)) and len(o) >= 2:
+            t = float(o[0])
+            times.append(max(0.0, t))
+            ev = o[1]
+            if ev in (1, "fill", "filled"):
+                events.append(1)
+            elif ev in (2, "cancel", "cancelled", "delete", "replace"):
+                events.append(2)
+            else:
+                events.append(0)
+        elif isinstance(o, dict) and "time" in o:
+            t = float(o["time"])
+            times.append(max(0.0, t))
+            ev = o.get("event", o.get("outcome", o.get("status", 0)))
+            if ev in (1, "fill", "filled"):
+                events.append(1)
+            elif ev in (2, "cancel", "cancelled", "delete", "replace"):
+                events.append(2)
+            else:
+                events.append(0)
+
+    t_arr = np.asarray(times, dtype=np.float64)
+    ev_arr = np.asarray(events, dtype=np.int64)
+    n = int(t_arr.size)
+    n_fill = int(np.sum(ev_arr == 1))
+    n_cancel = int(np.sum(ev_arr == 2))
+    n_censored = int(np.sum(ev_arr == 0))
+
+    hz = [float(h) for h in horizons]
+    out: dict[str, Any] = {
+        "tau": hz,
+        "n": n,
+        "n_fill": n_fill,
+        "n_cancel": n_cancel,
+        "n_censored": n_censored,
+    }
+
+    if n == 0:
+        out.update({
+            "cif_fill": [0.0] * len(hz),
+            "cif_cancel": [0.0] * len(hz),
+            "survival": [1.0] * len(hz),
+        })
+        return out
+
+    ev_mask = (ev_arr == 1) | (ev_arr == 2)
+    uniq_times = np.sort(np.unique(t_arr[ev_mask])) if ev_mask.any() else np.empty(0)
+
+    s_cur = 1.0
+    cif1_cur = 0.0
+    cif2_cur = 0.0
+    steps: list[tuple[float, float, float, float]] = []
+
+    for t in uniq_times:
+        at_risk = int(np.sum(t_arr >= t))
+        if at_risk <= 0:
+            continue
+        d1 = int(np.sum((t_arr == t) & (ev_arr == 1)))
+        d2 = int(np.sum((t_arr == t) & (ev_arr == 2)))
+        d = d1 + d2
+
+        h1 = d1 / at_risk
+        h2 = d2 / at_risk
+        cif1_cur += s_cur * h1
+        cif2_cur += s_cur * h2
+        s_cur *= (1.0 - d / at_risk)
+
+        steps.append((float(t), s_cur, cif1_cur, cif2_cur))
+
+    cif_fill_list = []
+    cif_cancel_list = []
+    survival_list = []
+
+    for h in hz:
+        s_val = 1.0
+        c1_val = 0.0
+        c2_val = 0.0
+        for t, s_st, c1_st, c2_st in steps:
+            if t <= h:
+                s_val = s_st
+                c1_val = c1_st
+                c2_val = c2_st
+            else:
+                break
+        survival_list.append(float(s_val))
+        cif_fill_list.append(float(c1_val))
+        cif_cancel_list.append(float(c2_val))
+
+    out.update({
+        "cif_fill": cif_fill_list,
+        "cif_cancel": cif_cancel_list,
+        "survival": survival_list,
+    })
     return out
 
 
@@ -1558,16 +1737,101 @@ def fill_prob_survival(
         )
     return _fill_prob_survival_lifetimes(orders_or_levels, hazard_fn=hazard_fn)
 
-def censor_open_orders(tracker: OrderLevelTracker, ts_end: int) -> list[TrackedOrder]:
-    """Snapshot copies of still-resting orders, censored at ``ts_end`` / current index."""
+def censor_open_orders(
+    tracker: OrderLevelTracker,
+    ts_end: int = REGULAR_CLOSE_NS,
+    idx_end: int | None = None,
+    *,
+    include_post_cutoff: bool = False,
+) -> list[TrackedOrder]:
+    """Snapshot copies of still-resting orders, censored at ``ts_end`` / current index.
+
+    Survival durations will never exceed ``ts_end - ts_add``.
+    Orders placed after ``ts_end`` are ignored.
+    If ``include_post_cutoff=True``, orders in ``tracker.completed`` that were placed
+    before ``ts_end`` but completed at or after ``ts_end`` (without a pre-cutoff fill)
+    are also included as censored open orders at ``ts_end``.
+    """
     out: list[TrackedOrder] = []
+    end_idx = tracker.index if idx_end is None else int(idx_end)
     for o in tracker.orders.values():
+        if o.ts_add > ts_end:
+            continue
         c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
         c.ts_end = int(ts_end)
-        c.idx_end = tracker.index
+        c.idx_end = end_idx
         c.outcome = "cancelled"  # censored: contributes to the at-risk set only
         out.append(c)
+    if include_post_cutoff:
+        for o in tracker.completed:
+            if o.ts_add > ts_end:
+                continue
+            if o.ts_first_fill is not None and o.ts_first_fill < ts_end:
+                continue
+            if o.ts_end is not None and o.ts_end < ts_end:
+                continue
+            c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
+            c.ts_end = int(ts_end)
+            c.idx_end = end_idx
+            c.outcome = "cancelled"
+            c.ts_first_fill = None
+            c.idx_first_fill = None
+            out.append(c)
     return out
+
+
+def filter_session_orders(
+    tracker: OrderLevelTracker,
+    ts_open: int = REGULAR_OPEN_NS,
+    ts_close: int = REGULAR_CLOSE_NS,
+    idx_close: int | None = None,
+) -> tuple[list[TrackedOrder], list[TrackedOrder]]:
+    """Partition orders into (completed_in_session, censored_at_close).
+
+    Strictly isolates the continuous trading window [ts_open, ts_close).
+    - Orders placed outside [ts_open, ts_close) are excluded.
+    - Orders that filled or cancelled before ts_close are in completed_in_session.
+    - Orders placed in session that filled/cancelled at or after ts_close (or remained
+      open at stream end) are in censored_at_close with outcome="cancelled" and
+      ts_end=ts_close, idx_end=idx_close.
+    """
+    end_idx = tracker.index if idx_close is None else int(idx_close)
+    completed: list[TrackedOrder] = []
+    censored: list[TrackedOrder] = []
+
+    for o in tracker.completed:
+        if not (ts_open <= o.ts_add < ts_close):
+            continue
+        if o.ts_first_fill is not None and o.ts_first_fill < ts_close:
+            c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
+            if c.ts_end is not None and c.ts_end > ts_close:
+                c.ts_end = int(ts_close)
+                c.idx_end = end_idx
+            completed.append(c)
+        elif o.outcome == "cancelled" and o.ts_end is not None and o.ts_end < ts_close:
+            c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
+            completed.append(c)
+        else:
+            # Post-close fill or cancel -> censored at close
+            c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
+            c.ts_end = int(ts_close)
+            c.idx_end = end_idx
+            c.outcome = "cancelled"
+            c.ts_first_fill = None
+            c.idx_first_fill = None
+            censored.append(c)
+
+    for o in tracker.orders.values():
+        if not (ts_open <= o.ts_add < ts_close):
+            continue
+        c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
+        c.ts_end = int(ts_close)
+        c.idx_end = end_idx
+        c.outcome = "cancelled"
+        censored.append(c)
+
+    return completed, censored
+
 
 
 def order_features(o: TrackedOrder, *, level_size_at_add: int | None = None) -> dict[str, float]:
@@ -1594,6 +1858,7 @@ def logistic_fill_model(
     features: Mapping[str, Sequence[float]] | np.ndarray,
     filled: Sequence[bool] | Sequence[int],
     *,
+    timestamps: Sequence[int] | Sequence[float] | None = None,
     l2: float = 1e-3,
     max_iter: int = 50,
     tol: float = 1e-8,
@@ -1602,8 +1867,10 @@ def logistic_fill_model(
     """Fit P(fill | features) by ridge-regularized logistic regression (Newton).
 
     Rows are time-ordered orders; the LAST ``holdout`` fraction is the
-    out-of-sample block (walk-forward, never shuffled). Reports the
-    out-of-sample **Brier score**, the **calibration slope** (logit of the
+    out-of-sample block (walk-forward, never shuffled). If ``timestamps`` is
+    provided, rows are sorted chronologically by placement timestamp (``ts_add``)
+    and walk-forward temporal consistency (max(ts_train) <= min(ts_test)) is strictly enforced.
+    Reports the out-of-sample **Brier score**, the **calibration slope** (logit of the
     prediction regressed on the outcome — 1.0 = perfectly calibrated, < 0.8 is
     the E5 failure criterion), and a decile calibration table.
     """
@@ -1619,7 +1886,27 @@ def logistic_fill_model(
     n = y.size
     if n < 20:
         raise ValueError("logistic_fill_model needs at least 20 orders")
+
+    ts_arr: np.ndarray | None = None
+    if timestamps is not None:
+        ts_arr = np.asarray(timestamps).reshape(-1)
+        if ts_arr.size != n:
+            raise ValueError("timestamps length must match filled length")
+        order = np.argsort(ts_arr, kind="stable")
+        X = X[order]
+        y = y[order]
+        ts_arr = ts_arr[order]
+
     n_train = max(10, int(n * (1.0 - holdout)))
+    if ts_arr is not None and n_train > 0 and (n - n_train) > 0:
+        max_tr = float(np.max(ts_arr[:n_train]))
+        min_te = float(np.min(ts_arr[n_train:]))
+        if max_tr > min_te:
+            raise ValueError(
+                f"Temporal overlap detected in walk-forward train/test split: "
+                f"max train ts ({max_tr}) > min test ts ({min_te})"
+            )
+
     mu = X[:n_train].mean(axis=0)
     sd = X[:n_train].std(axis=0)
     sd[sd <= 1e-12] = 1.0
@@ -1654,6 +1941,8 @@ def logistic_fill_model(
         "brier_skill": (1.0 - brier / brier_base) if brier_base > 0 else float("nan"),
         "calibration_slope": slope,
         "calibration_table": calibration_table(p_te, y_te) if y_te.size else [],
+        "max_ts_train": float(np.max(ts_arr[:n_train])) if (ts_arr is not None and n_train > 0) else None,
+        "min_ts_test": float(np.min(ts_arr[n_train:])) if (ts_arr is not None and y_te.size > 0) else None,
         "predict": lambda Xnew: _sigmoid(
             np.column_stack([np.ones(len(Xnew)), (np.asarray(Xnew, dtype=np.float64) - mu) / sd]) @ w
         ),

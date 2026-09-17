@@ -29,9 +29,9 @@ def _fills_as(fills: Sequence[object]) -> list[tuple[int, int]]:
     for f in fills:
         if isinstance(f, (tuple, list)):
             if len(f) == 2:
-                out.append((int(f[0]), int(f[1])))
+                out.append((float(f[0]), int(f[1])))
             elif len(f) == 3:
-                out.append((int(f[1]), int(f[2])))
+                out.append((float(f[1]), int(f[2])))
     return out
 
 

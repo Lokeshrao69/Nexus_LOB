@@ -164,8 +164,10 @@ def _fair_action(
         return 0.05 if spr > 1 else 0.1
     if name == "adaptive_pov":
         # participation reacts to observed flow and spread; a wide spread or a
-        # volatile flag means taking is expensive -> post; thin spread -> take
-        flow = min(1.0, last_sz / 150.0)
+        # volatile flag means taking is expensive -> post; thin spread -> take.
+        # Fall back to symmetric observable top-of-book depth if private last_trade_sz is absent (F06).
+        flow_src = last_sz if last_sz > 0 else int(s["ask_sz"][0] if int(s["ask_px"][0]) else 0)
+        flow = min(1.0, flow_src / 150.0)
         aggressive = flow > 0.5 or spr <= 1
         if volatile is True:
             aggressive = aggressive or t_frac > 0.5

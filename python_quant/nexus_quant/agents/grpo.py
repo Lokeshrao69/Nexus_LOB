@@ -102,7 +102,15 @@ def train_grpo(
                 ratio_cl = np.clip(ratio, 1.0 - cfg.clip, 1.0 + cfg.clip)
                 surr = np.minimum(ratio * ad, ratio_cl * ad)
                 pg_loss = -float(np.mean(surr))
-                mask = (ratio > 1.0 - cfg.clip) & (ratio < 1.0 + cfg.clip)
+                # Standard PPO/GRPO surrogate objective gradient mask:
+                # d/d(ratio) min(r*A, clip(r)*A) is A when unclipped, 0 when clipped.
+                # ad >= 0: unclipped when ratio <= 1 + clip (clipped above)
+                # ad < 0: unclipped when ratio >= 1 - clip (clipped below)
+                mask = np.where(
+                    ad >= 0,
+                    ratio <= 1.0 + cfg.clip,
+                    ratio >= 1.0 - cfg.clip,
+                )
                 dlogp = -ad * ratio * mask
                 dlogp_dmu = (ac - mu) / (sigma * sigma)
                 d_out = dlogp * dlogp_dmu / m

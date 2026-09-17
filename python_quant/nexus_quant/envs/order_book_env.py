@@ -151,6 +151,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         queue_model: str = "",  # "" = off; "uniform" = placeholder; "fifo" = discrete FIFO; "empirical_hazard" = calibrated hazard
         cancel_prob: float = 0.0,
         empirical_hazard: Any | None = None,
+        reward_model: str = "shaped",  # "shaped" = default multi-objective reward; "is" = canonical implementation shortfall
         # --- regime-process extension (Phase 3; defaults off = byte-identical) ---
         take_intensity: float = 0.28,  # calm-path P(marketable print); default = historic 0.28
         drift_ticks: float = 0.0,      # per-step drift of the trend target (ticks)
@@ -167,6 +168,8 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         self.child_max = int(child_max)
         self._seed0 = int(seed)
         self._rng = np.random.default_rng(self._seed0)
+        self._queue_rng = np.random.default_rng(self._seed0 + 10_000)
+        self.reward_model = str(reward_model)
         self.book = adapt(book if book is not None else StubOrderBook())
         # regime params
         self.regime_prob = float(regime_prob)
@@ -244,6 +247,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         if seed is not None:
             self._seed0 = int(seed)
         self._rng = np.random.default_rng(self._seed0)
+        self._queue_rng = np.random.default_rng(self._seed0 + 10_000)
         self.book.reset()
         self._seed_book()
         self.t = 0
@@ -335,10 +339,8 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             got = rest_sz_before - residual
             if self.queue_model and got > 0:
                 if self.queue_model == "fifo":
-                    if not hasattr(self.book, "_orders") and self._queue_ahead_fifo > 0:
-                        depleted = min(self._queue_ahead_fifo, got)
-                        self._queue_ahead_fifo -= depleted
-                        got -= depleted
+                    # Both StubBookAdapter and EngineAdapter natively enforce FIFO time priority at each price level.
+                    pass
                 elif self.queue_model == "empirical_hazard":
                     ahead = self._get_queue_ahead()
                     lvl_sz = max(got, ahead + rest_sz_before)
@@ -351,14 +353,28 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                     p_fill = hazard.predict_fill_prob(
                         queue_ahead=ahead, level_size=lvl_sz, distance_ticks=dist
                     )
-                    if float(self._rng.random()) > p_fill:
+                    if float(self._queue_rng.random()) > p_fill:
+                        # Restore uncredited shares back to the book to conserve quantity
+                        if live is not None:
+                            live.size += got
+                        elif hasattr(self.book, "cancel_resting"):
+                            self.book.cancel_resting(self.agent_rest)
+                            self.agent_rest = self.book.rest(Side.Ask, self.agent_rest.price, got, order_id=self.agent_rest.order_id)
                         got = 0
                 else:
                     # Queue-position degradation: only a fraction of the *displayed*
                     # depth ahead of the child is actually reachable this step.
                     # Default "" = today's optimistic fill (queue ignored) = byte-identical.
                     reachable = max(0, got - int(want * self._queue_ahead_frac()))
-                    got = min(got, reachable)
+                    got_reachable = min(got, reachable)
+                    uncredited = got - got_reachable
+                    if uncredited > 0:
+                        if live is not None:
+                            live.size += uncredited
+                        elif hasattr(self.book, "cancel_resting"):
+                            self.book.cancel_resting(self.agent_rest)
+                            self.agent_rest = self.book.rest(Side.Ask, self.agent_rest.price, uncredited, order_id=self.agent_rest.order_id)
+                    got = got_reachable
             if got > 0:
                 px = live.price if live is not None else self.agent_rest.price
                 filled += got
@@ -371,7 +387,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         if filled > 0:
             self.inventory -= filled
             self.cash_ticks += notional
-            self.fills.append((self.t, notional // filled, filled))
+            self.fills.append((self.t, float(notional) / filled, filled))
 
         self.t += 1
         mid1 = self._mid() or mid0
@@ -388,6 +404,10 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             maker = mode == "limit"
             fee = self.fee_bps if not maker else 0.0
             reb = self.rebate_bps if maker else 0.0
+            fee_cost = notional * (fee / 1e4)
+            reb_gain = notional * (reb / 1e4)
+            self.cash_ticks -= fee_cost
+            self.cash_ticks += reb_gain
             part = self.impact_participation
             is_ticks = is_ticks + filled * mid0 * (fee - reb) / 1e4
             if self.impact_coef:
@@ -397,13 +417,16 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         adv = max(0, mid0 - mid1) / OFFSET_SCALE if filled else 0.0
         sched_frac = max(0.0, self.horizon - self.t) / self.horizon
         sched_dev = (inv_frac - sched_frac) * (inv_frac - sched_frac)
-        reward = (
-            -self.is_coef * is_norm
-            - self.lambda_inv * inv_frac * inv_frac
-            - self.lambda_time * inv_frac * t_frac
-            - self.lambda_adv * adv
-            - self.lambda_sched * sched_dev
-        )
+        if self.reward_model == "is":
+            reward = -self.is_coef * is_norm
+        else:
+            reward = (
+                -self.is_coef * is_norm
+                - self.lambda_inv * inv_frac * inv_frac
+                - self.lambda_time * inv_frac * t_frac
+                - self.lambda_adv * adv
+                - self.lambda_sched * sched_dev
+            )
         if self.lambda_risk > 0.0:
             from ..risk import inventory_risk_penalty
 
@@ -422,17 +445,32 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
         terminated = self.inventory <= 0
         truncated = (not terminated) and self.t >= self.horizon
         if truncated and self.inventory > 0:
+            self._cancel_agent()
+            inv_before_dump = self.inventory
+            pen = 2.5 * (inv_before_dump / float(self.inventory0))
             dump = self.book.take(Side.Ask, self.inventory)
             self.inventory -= dump.filled
             self.cash_ticks += dump.notional_ticks
+            if self.fee_bps and dump.filled > 0:
+                dump_fee = dump.notional_ticks * (self.fee_bps / 1e4)
+                self.cash_ticks -= dump_fee
+                reward -= (dump_fee / (self.inventory0 * max(1, mid0) * 1e-4)) * self.is_coef
             if dump.filled:
-                self.fills.append((self.t, dump.avg_px, dump.filled))
-            reward -= 2.5 * (self.inventory / self.inventory0)
+                self.fills.append((self.t, float(dump.notional_ticks) / dump.filled, dump.filled))
+            reward -= pen
+        elif truncated:
+            self._cancel_agent()
 
         vwap = self.execution_vwap()
-        shortfall_bps = (
-            ((self.arrival_mid - vwap) / self.arrival_mid) * 1e4 if vwap else 0.0
-        )
+        if vwap > 0:
+            shortfall_bps = (
+                ((self.arrival_mid - vwap) / self.arrival_mid) * 1e4
+            )
+        elif self.inventory0 > 0:
+            cur_mid = mid1 or self.arrival_mid
+            shortfall_bps = ((self.arrival_mid - cur_mid) / self.arrival_mid) * 1e4
+        else:
+            shortfall_bps = 0.0
         info = {
             "filled": filled,
             "inventory": self.inventory,
@@ -530,20 +568,40 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
             ahead = self._get_queue_ahead()
             init = max(1, self._queue_ahead_fifo_initial)
             return float(min(1.0, ahead / init))
-        return float(self._rng.random())
+        return float(self._queue_rng.random())
 
-    def _record_market_trade(self, result: Any) -> None:
+    def _record_market_trade(
+        self, result: Any, agent_filled: int = 0, agent_notional: int = 0
+    ) -> None:
         """Accumulate the tape's own prints (exogenous flow) into market VWAP.
 
         The agent's own fills/executions are deliberately EXCLUDED — market VWAP
         is the benchmark the strategy is measured against, so it must be
         independent of the strategy's own participation (plan_2.md §5 leak 3).
         """
-        filled = int(getattr(result, "filled", 0))
-        notional = int(getattr(result, "notional_ticks", 0))
+        filled = max(0, int(getattr(result, "filled", 0)) - agent_filled)
+        notional = max(0, int(getattr(result, "notional_ticks", 0)) - agent_notional)
         if filled > 0:
             self._mkt_qty += filled
             self._mkt_notional += notional
+
+    def _take_market(self, side: Side, qty: int) -> None:
+        """Execute exogenous take, ensuring agent resting executions do not contaminate market VWAP."""
+        agent_sz_before = 0
+        agent_px = 0
+        if self.agent_rest is not None and side == Side.Bid:
+            live = self.book.lookup(self.agent_rest.order_id) if hasattr(self.book, "lookup") else None
+            agent_sz_before = live.size if live is not None else 0
+            agent_px = self.agent_rest.price
+        r = self.book.take(side, qty)
+        agent_filled = 0
+        agent_notional = 0
+        if agent_sz_before > 0:
+            live = self.book.lookup(self.agent_rest.order_id) if hasattr(self.book, "lookup") else None
+            agent_sz_after = live.size if live is not None else 0
+            agent_filled = max(0, agent_sz_before - agent_sz_after)
+            agent_notional = agent_filled * agent_px
+        self._record_market_trade(r, agent_filled=agent_filled, agent_notional=agent_notional)
 
     def market_vwap(self) -> float:
         """Volume-weighted average price of the tape's exogenous prints (ticks)."""
@@ -673,7 +731,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                     # take(side) walks the opposite book: take(Bid) lifts asks (price up),
                     # take(Ask) hits bids (price down). drift/mean_revert bias the side.
                     side = Side.Bid if self._rng.random() < self._take_up_p(mid) else Side.Ask
-                    self._record_market_trade(self.book.take(side, int(15 + self._rng.integers(0, 70))))
+                    self._take_market(side, int(15 + self._rng.integers(0, 70)))
                 else:
                     side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
                     off = int(1 + self._rng.integers(0, 8))
@@ -689,7 +747,7 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                 # take() walks the OPPOSITE book: an Ask taker hits bids
                 # (price falls = gap down); a Bid taker lifts asks (price up).
                 side = Side.Ask if self._rng.random() < self.gap_down_prob else Side.Bid
-                self._record_market_trade(self.book.take(side, gap_sz))
+                self._take_market(side, gap_sz)
                 self._ensure_bbo()
 
             n = int(self._rng.integers(self.vol_events_min, self.vol_events_max + 1))
@@ -699,11 +757,9 @@ class OrderBookEnv(_Base):  # type: ignore[misc]
                 roll = float(self._rng.random())
                 if roll < self.vol_take_prob:
                     side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
-                    self._record_market_trade(
-                        self.book.take(
-                            side,
-                            int(self._rng.integers(self.vol_take_min, self.vol_take_max + 1)),
-                        )
+                    self._take_market(
+                        side,
+                        int(self._rng.integers(self.vol_take_min, self.vol_take_max + 1)),
                     )
                 else:
                     side = Side.Bid if self._rng.random() < 0.5 else Side.Ask
