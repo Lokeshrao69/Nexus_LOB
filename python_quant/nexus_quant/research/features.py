@@ -189,7 +189,7 @@ def flow_intensity(events: Iterable[Any], tau: int = 10) -> float:
         side = _get_side(ev)
         if side == 0:  # bid
             s += 1.0
-        else:
+        elif side == 1:  # ask
             s -= 1.0
         seen += 1
         if seen >= tau:

@@ -55,7 +55,13 @@ def event_frame(
     prev_feature_fns = prev_feature_fns or {}
     views: list[_View] = []
     for ev in events:
-        views.append(apply(ev))
+        v = apply(ev)
+        if isinstance(v, dict):
+            views.append({k: (val.copy() if hasattr(val, "copy") else val) for k, val in v.items()})
+        elif hasattr(v, "copy"):
+            views.append(v.copy())
+        else:
+            views.append(v)
 
     rows: list[Row] = []
     for i in range(len(views) - h):

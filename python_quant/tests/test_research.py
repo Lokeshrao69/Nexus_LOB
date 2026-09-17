@@ -341,3 +341,28 @@ def test_icir_and_hit_rate_smoke() -> None:
     y = [1.0] * 100
     assert hit_rate(y, y) == pytest.approx(1.0)
     assert zscore([1.0, 1.0, 1.0]).sum() == pytest.approx(0.0)
+
+
+def test_icir_zero_variance_and_single_sample() -> None:
+    assert icir([0.05, 0.05, 0.05]) == 0.0
+    assert math.isnan(icir([0.05]))
+
+
+def test_event_frame_view_snapshot_isolation() -> None:
+    events = [(Side.Bid, 15000 + i, 100) for i in range(5)]
+    shared_view = {}
+
+    def mutating_apply(ev: tuple[Side, int, int]) -> dict:
+        _side, px, sz = ev
+        shared_view["bid_px"] = np.array([px], dtype=np.int64)
+        shared_view["ask_px"] = np.array([px + 2], dtype=np.int64)
+        shared_view["bid_sz"] = np.array([sz], dtype=np.uint64)
+        shared_view["ask_sz"] = np.array([sz], dtype=np.uint64)
+        shared_view["seq"] = px
+        return shared_view
+
+    fns = {"spread": spread_bps}
+    rows = event_frame(events, mutating_apply, feature_fns=fns, h=1)
+    assert len(rows) == 4
+    ts_values = [r.ts for r in rows]
+    assert ts_values == [15000, 15001, 15002, 15003]
