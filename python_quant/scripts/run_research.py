@@ -71,8 +71,8 @@ from nexus_quant.research.features import (
 )
 from nexus_quant.research.queue_dynamics import (
     OrderLevelTracker,
-    censor_open_orders,
     fill_prob_survival,
+    filter_session_orders,
     logistic_fill_model,
     order_features,
 )
@@ -250,12 +250,19 @@ def _z(x: np.ndarray, ref: np.ndarray) -> np.ndarray:
 def fill_study(rep: dict, *, horizons_events: tuple[int, ...]) -> dict:
     """E5: KM survival + logistic fill model on the tracker's regular-session orders."""
     tracker: OrderLevelTracker = rep["tracker"]
-    def in_session(o) -> bool:
-        return REGULAR_OPEN_NS <= o.ts_add < REGULAR_CLOSE_NS
+    events = rep.get("events", [])
+    close_idx = len(events)
+    for i, ev in enumerate(events):
+        if ev.ts_ns >= REGULAR_CLOSE_NS:
+            close_idx = i
+            break
 
-    completed = [o for o in tracker.completed if in_session(o)]
-    last_ts = rep["events"][-1].ts_ns if rep["events"] else 0
-    censored = [o for o in censor_open_orders(tracker, last_ts) if in_session(o)]
+    completed, censored = filter_session_orders(
+        tracker,
+        ts_open=REGULAR_OPEN_NS,
+        ts_close=REGULAR_CLOSE_NS,
+        idx_close=close_idx,
+    )
     km = fill_prob_survival(completed + censored, horizons=horizons_events)
     out: dict = {
         "n_orders_regular": len(completed) + len(censored),

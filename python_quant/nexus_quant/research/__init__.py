@@ -56,6 +56,8 @@ from .multi_day_aggregation import (
     session_panel_statistics,
 )
 from .queue_dynamics import (
+    REGULAR_CLOSE_NS,
+    REGULAR_OPEN_NS,
     EmpiricalQueueHazard,
     FillOutcome,
     FillRecord,
@@ -72,6 +74,7 @@ from .queue_dynamics import (
     compute_metrics,
     fill_dataset,
     fill_prob_survival,
+    filter_session_orders,
     logistic_fill_model,
     order_features,
     queue_ahead_walk,
@@ -81,6 +84,8 @@ from .synthetic_flow import FLOW_PRESETS, FlowConfig, SyntheticFlow
 
 __all__ = [
     "FLOW_PRESETS",
+    "REGULAR_CLOSE_NS",
+    "REGULAR_OPEN_NS",
     "EmpiricalQueueHazard",
     "FillOutcome",
     "FillRecord",
@@ -115,6 +120,7 @@ __all__ = [
     "fill_dataset",
     "fill_prob_survival",
     "fills_from_tracker",
+    "filter_session_orders",
     "fit_ols_ic",
     "flow_intensity",
     "forward_mid_move",

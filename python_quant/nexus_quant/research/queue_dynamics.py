@@ -68,6 +68,12 @@ from .synthetic_flow import SyntheticFlow
 
 _View = Any
 
+NS_PER_S: int = 1_000_000_000
+NS_PER_H: int = 3_600 * NS_PER_S
+REGULAR_OPEN_NS: int = int(9.5 * NS_PER_H)   # 09:30 ET: 34_200_000_000_000
+REGULAR_CLOSE_NS: int = int(16.0 * NS_PER_H) # 16:00 ET: 57_600_000_000_000
+
+
 
 @dataclass(slots=True)
 class RestingOrder:
@@ -1558,16 +1564,101 @@ def fill_prob_survival(
         )
     return _fill_prob_survival_lifetimes(orders_or_levels, hazard_fn=hazard_fn)
 
-def censor_open_orders(tracker: OrderLevelTracker, ts_end: int) -> list[TrackedOrder]:
-    """Snapshot copies of still-resting orders, censored at ``ts_end`` / current index."""
+def censor_open_orders(
+    tracker: OrderLevelTracker,
+    ts_end: int = REGULAR_CLOSE_NS,
+    idx_end: int | None = None,
+    *,
+    include_post_cutoff: bool = False,
+) -> list[TrackedOrder]:
+    """Snapshot copies of still-resting orders, censored at ``ts_end`` / current index.
+
+    Survival durations will never exceed ``ts_end - ts_add``.
+    Orders placed after ``ts_end`` are ignored.
+    If ``include_post_cutoff=True``, orders in ``tracker.completed`` that were placed
+    before ``ts_end`` but completed at or after ``ts_end`` (without a pre-cutoff fill)
+    are also included as censored open orders at ``ts_end``.
+    """
     out: list[TrackedOrder] = []
+    end_idx = tracker.index if idx_end is None else int(idx_end)
     for o in tracker.orders.values():
+        if o.ts_add > ts_end:
+            continue
         c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
         c.ts_end = int(ts_end)
-        c.idx_end = tracker.index
+        c.idx_end = end_idx
         c.outcome = "cancelled"  # censored: contributes to the at-risk set only
         out.append(c)
+    if include_post_cutoff:
+        for o in tracker.completed:
+            if o.ts_add > ts_end:
+                continue
+            if o.ts_first_fill is not None and o.ts_first_fill < ts_end:
+                continue
+            if o.ts_end is not None and o.ts_end < ts_end:
+                continue
+            c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
+            c.ts_end = int(ts_end)
+            c.idx_end = end_idx
+            c.outcome = "cancelled"
+            c.ts_first_fill = None
+            c.idx_first_fill = None
+            out.append(c)
     return out
+
+
+def filter_session_orders(
+    tracker: OrderLevelTracker,
+    ts_open: int = REGULAR_OPEN_NS,
+    ts_close: int = REGULAR_CLOSE_NS,
+    idx_close: int | None = None,
+) -> tuple[list[TrackedOrder], list[TrackedOrder]]:
+    """Partition orders into (completed_in_session, censored_at_close).
+
+    Strictly isolates the continuous trading window [ts_open, ts_close).
+    - Orders placed outside [ts_open, ts_close) are excluded.
+    - Orders that filled or cancelled before ts_close are in completed_in_session.
+    - Orders placed in session that filled/cancelled at or after ts_close (or remained
+      open at stream end) are in censored_at_close with outcome="cancelled" and
+      ts_end=ts_close, idx_end=idx_close.
+    """
+    end_idx = tracker.index if idx_close is None else int(idx_close)
+    completed: list[TrackedOrder] = []
+    censored: list[TrackedOrder] = []
+
+    for o in tracker.completed:
+        if not (ts_open <= o.ts_add < ts_close):
+            continue
+        if o.ts_first_fill is not None and o.ts_first_fill < ts_close:
+            c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
+            if c.ts_end is not None and c.ts_end > ts_close:
+                c.ts_end = int(ts_close)
+                c.idx_end = end_idx
+            completed.append(c)
+        elif o.outcome == "cancelled" and o.ts_end is not None and o.ts_end < ts_close:
+            c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
+            completed.append(c)
+        else:
+            # Post-close fill or cancel -> censored at close
+            c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
+            c.ts_end = int(ts_close)
+            c.idx_end = end_idx
+            c.outcome = "cancelled"
+            c.ts_first_fill = None
+            c.idx_first_fill = None
+            censored.append(c)
+
+    for o in tracker.orders.values():
+        if not (ts_open <= o.ts_add < ts_close):
+            continue
+        c = TrackedOrder(**{f: getattr(o, f) for f in TrackedOrder.__slots__})
+        c.ts_end = int(ts_close)
+        c.idx_end = end_idx
+        c.outcome = "cancelled"
+        censored.append(c)
+
+    return completed, censored
+
 
 
 def order_features(o: TrackedOrder, *, level_size_at_add: int | None = None) -> dict[str, float]:

@@ -17,6 +17,8 @@ from nexus_quant.itch_parser import (
     iter_itch_events,
 )
 from nexus_quant.research.queue_dynamics import (
+    REGULAR_CLOSE_NS,
+    REGULAR_OPEN_NS,
     FillRow,
     LogisticFillModel,
     OrderLevelTracker,
@@ -29,6 +31,7 @@ from nexus_quant.research.queue_dynamics import (
     censor_open_orders,
     fill_dataset,
     fill_prob_survival,
+    filter_session_orders,
     logistic_fill_model,
     order_features,
     queue_ahead_walk,
@@ -510,6 +513,78 @@ def test_kaplan_meier_uses_first_fill_time_and_censors_open_orders():
 def test_kaplan_meier_empty_input_is_safe():
     km = fill_prob_survival([], horizons=[1, 5])
     assert km["n"] == 0 and km["p_fill"] == [0.0, 0.0] and km["median_fill_time"] is None
+
+
+def test_censor_open_orders_never_exceeds_session_close():
+    """Survival duration must never exceed REGULAR_CLOSE_NS - ts_add, even if tape continues after hours."""
+    tr = OrderLevelTracker()
+    ts1 = REGULAR_CLOSE_NS - 60_000_000_000  # 15:59:00
+    ts2 = REGULAR_CLOSE_NS - 1_000_000_000   # 15:59:59
+    ts_post = REGULAR_CLOSE_NS + 10_000_000_000  # 16:00:10 (after close add)
+
+    tr.on_event(_ev_tracked(EventType.ADD, 10, px=100, sz=10, ts=ts1))
+    tr.on_event(_ev_tracked(EventType.ADD, 20, px=100, sz=10, ts=ts2))
+    tr.on_event(_ev_tracked(EventType.ADD, 30, px=100, sz=10, ts=ts_post))
+
+    censored = censor_open_orders(tr, ts_end=REGULAR_CLOSE_NS)
+    # Order 30 added after close must be ignored
+    assert {o.order_id for o in censored} == {10, 20}
+    for c in censored:
+        assert c.ts_end == REGULAR_CLOSE_NS
+        assert c.ts_end - c.ts_add <= REGULAR_CLOSE_NS - c.ts_add
+        assert c.outcome == "cancelled"
+
+
+def test_post_close_fills_marked_as_censored_at_regular_close():
+    """Orders submitted before 16:00 that fill at 16:00:05 must NOT count as regular-session fills."""
+    tr = OrderLevelTracker()
+    # Order 1: placed at 15:59:59, fills at 16:00:05 (after-hours fill)
+    ts_add1 = REGULAR_CLOSE_NS - 1_000_000_000  # 15:59:59
+    ts_fill1 = REGULAR_CLOSE_NS + 5_000_000_000  # 16:00:05
+    tr.on_event(_ev_tracked(EventType.ADD, 1, px=100, sz=10, ts=ts_add1))
+
+    # Order 2: placed at 15:30:00, fills at 15:45:00 (regular fill)
+    ts_add2 = REGULAR_OPEN_NS + 15 * 60 * 1_000_000_000
+    ts_fill2 = REGULAR_OPEN_NS + 30 * 60 * 1_000_000_000
+    tr.on_event(_ev_tracked(EventType.ADD, 2, px=100, sz=10, ts=ts_add2))
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 2, sz=10, ts=ts_fill2))
+
+    # Order 3: placed at 15:40:00, cancels at 15:50:00 (regular cancel)
+    ts_add3 = REGULAR_OPEN_NS + 20 * 60 * 1_000_000_000
+    ts_cancel3 = REGULAR_OPEN_NS + 30 * 60 * 1_000_000_000
+    tr.on_event(_ev_tracked(EventType.ADD, 3, px=100, sz=10, ts=ts_add3))
+    tr.on_event(_ev_tracked(EventType.DELETE, 3, sz=0, ts=ts_cancel3))
+
+    # Now Order 1 fills after close
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 1, sz=10, ts=ts_fill1))
+
+    # Order 4: placed at 16:05:00, fills at 16:10:00 (entirely post-close)
+    ts_add4 = REGULAR_CLOSE_NS + 300_000_000_000
+    ts_fill4 = REGULAR_CLOSE_NS + 600_000_000_000
+    tr.on_event(_ev_tracked(EventType.ADD, 4, px=100, sz=10, ts=ts_add4))
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 4, sz=10, ts=ts_fill4))
+
+    # Partition session orders
+    completed, censored = filter_session_orders(tr, ts_open=REGULAR_OPEN_NS, ts_close=REGULAR_CLOSE_NS)
+
+    # Order 1 (filled post-close) must NOT be in completed; it must be censored at close
+    completed_ids = {o.order_id for o in completed}
+    assert completed_ids == {2, 3}
+    assert {o.order_id: o.outcome for o in completed} == {2: "filled", 3: "cancelled"}
+
+    censored_ids = {o.order_id for o in censored}
+    assert censored_ids == {1}
+    o1_censored = censored[0]
+    assert o1_censored.order_id == 1
+    assert o1_censored.outcome == "cancelled"
+    assert o1_censored.ts_end == REGULAR_CLOSE_NS
+    assert o1_censored.ts_first_fill is None
+    assert o1_censored.ts_end - o1_censored.ts_add == 1_000_000_000
+
+    # Also test censor_open_orders with include_post_cutoff=True
+    post_censored = censor_open_orders(tr, ts_end=REGULAR_CLOSE_NS, include_post_cutoff=True)
+    assert 1 in {o.order_id for o in post_censored}
+
 
 
 # --------------------------------------------------------------------------- logistic
