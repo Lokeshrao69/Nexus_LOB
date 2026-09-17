@@ -58,9 +58,11 @@ def icir(ic_series: Sequence[float], annualize: float = 1.0) -> float:
     x = np.asarray(ic_series, dtype=np.float64)
     if x.size < 2:
         return float("nan")
-    s = x.std(ddof=1)
-    if s <= 0:
-        return float("nan")
+    if np.allclose(x, x[0]):
+        return 0.0
+    s = float(x.std(ddof=1))
+    if s <= 1e-12 or np.isnan(s):
+        return 0.0
     return float(x.mean() / s * np.sqrt(x.size) * annualize)
 
 
@@ -318,10 +320,12 @@ def _one_result(yt: np.ndarray, yp: np.ndarray, n_boot: int, seed: int) -> dict:
     ic = rank_ic(yt, yp)
     ci = _rank_ic_bootstrap(yt, yp, n_boot=n_boot, seed=seed)
     ic_clean = None if (isnan(ic) or isinf(ic)) else float(ic)
+    val_icir = icir([ic]) if ic_clean is not None else float("nan")
+    icir_clean = None if (ic_clean is None or np.isnan(val_icir)) else float(val_icir)
     return {
         "n": n,
         "rank_ic": ic_clean,
-        "icir": None if ic_clean is None else icir([ic]),
+        "icir": icir_clean,
         "hit_rate": hit_rate(yt, yp),
         "decile_spread": decile_spread(yt, yp),
         "ci95": {"lo": ci["lo"], "hi": ci["hi"], "mean": ci["mean"]},
