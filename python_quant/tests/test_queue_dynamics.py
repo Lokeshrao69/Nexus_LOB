@@ -565,3 +565,39 @@ def test_brier_and_calibration_helpers():
     assert np.isnan(brier_score([], []))
     rows = calibration_table(np.array([0.1, 0.9, 0.2, 0.8]), np.array([0, 1, 0, 1]), bins=2)
     assert [r["n"] for r in rows] == [2, 2] and rows[0]["realized"] == 0.0 and rows[1]["realized"] == 1.0
+
+
+def test_completed_chronological_ordering():
+    """Early arrival orders must appear before late arrival orders in completed_chronological."""
+    tr = OrderLevelTracker()
+    # Order 1 placed early at t=100
+    tr.on_event(NormalizedEvent(EventType.ADD, 100, 1, Side.Bid, 100, 50))
+    # Order 2 placed later at t=200
+    tr.on_event(NormalizedEvent(EventType.ADD, 200, 2, Side.Bid, 100, 50))
+    # Order 2 fills immediately at t=210 (finishes first)
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 210, 2, Side.NONE, 0, 50))
+    # Order 1 fills late at t=500 (finishes second)
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 500, 1, Side.NONE, 0, 50))
+
+    # Raw completed list is in completion order: [Order 2, Order 1]
+    assert [o.order_id for o in tr.completed] == [2, 1]
+
+    # completed_chronological sorts by (ts_add, idx_add): [Order 1, Order 2]
+    chrono = tr.completed_chronological()
+    assert [o.order_id for o in chrono] == [1, 2]
+    assert chrono[0].ts_add <= chrono[1].ts_add
+
+
+def test_logistic_fill_model_enforces_temporal_consistency():
+    """Walk-forward splits must strictly guarantee max(ts_train) <= min(ts_test)."""
+    rng = np.random.default_rng(42)
+    n = 100
+    # Scrambled timestamps from 1000 to 2000
+    timestamps = rng.permutation(np.linspace(1000, 2000, n))
+    x = rng.normal(size=n)
+    y = rng.choice([True, False], size=n)
+
+    m = logistic_fill_model({"x": x}, y, timestamps=timestamps, holdout=0.3)
+    assert m["max_ts_train"] is not None and m["min_ts_test"] is not None
+    assert m["max_ts_train"] <= m["min_ts_test"]
+

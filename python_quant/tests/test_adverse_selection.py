@@ -271,3 +271,34 @@ def test_fills_from_tracker_uses_first_fill_index_and_queue_fraction():
     assert len(fills) == 1
     f = fills[0]
     assert f.idx == 2 and f.side == Side.Ask and f.size == 100 and f.ofi == -2.0 and f.queue_frac == 0.0
+
+
+def test_fills_from_tracker_and_adverse_selection_sorted_by_execution_time():
+    """Fills must be strictly sorted by execution index, even if orders completed out-of-order."""
+    tr = OrderLevelTracker()
+    # Order 1: added at ts=100 (idx=0), partial fill at ts=105 (idx=1), full fill at ts=500 (idx=4)
+    tr.on_event(NormalizedEvent(EventType.ADD, 100, 1, Side.Bid, 100, 50))      # idx 0
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 105, 1, Side.NONE, 0, 10))  # idx 1 (first fill)
+
+    # Order 2: added at ts=200 (idx=2), full fill at ts=210 (idx=3)
+    tr.on_event(NormalizedEvent(EventType.ADD, 200, 2, Side.Ask, 101, 50))      # idx 2
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 210, 2, Side.NONE, 0, 50))  # idx 3 (Order 2 finishes here!)
+
+    # Order 1 finally finishes at ts=500
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 500, 1, Side.NONE, 0, 40))  # idx 4 (Order 1 finishes here!)
+
+    # Completed orders list has Order 2 first, then Order 1
+    assert [o.order_id for o in tr.completed] == [2, 1]
+
+    # fills_from_tracker must sort by execution event idx (Order 1 first at idx 1, Order 2 second at idx 3)
+    fills = fills_from_tracker(tr.completed)
+    assert len(fills) == 2
+    assert fills[0].idx == 1 and fills[0].side == Side.Bid
+    assert fills[1].idx == 3 and fills[1].side == Side.Ask
+
+    # adverse_selection_report must also handle out-of-order fills safely
+    scrambled = [fills[1], fills[0]]
+    mids = [100.0] * 10
+    rep = adverse_selection_report(scrambled, mids, horizons=(1,))
+    assert rep["n_fills"] == 2
+

@@ -1433,6 +1433,10 @@ class OrderLevelTracker:
         self.completed.append(o)
         self.orders.pop(o.order_id, None)
 
+    def completed_chronological(self) -> list[TrackedOrder]:
+        """Return completed orders sorted chronologically by placement timestamp (ts_add) and idx_add."""
+        return sorted(self.completed, key=lambda o: (o.ts_add, getattr(o, "idx_add", 0)))
+
 
 # ---------------------------------------------------------------------------
 # E5 — passive fill probability
@@ -1594,6 +1598,7 @@ def logistic_fill_model(
     features: Mapping[str, Sequence[float]] | np.ndarray,
     filled: Sequence[bool] | Sequence[int],
     *,
+    timestamps: Sequence[int] | Sequence[float] | None = None,
     l2: float = 1e-3,
     max_iter: int = 50,
     tol: float = 1e-8,
@@ -1602,8 +1607,10 @@ def logistic_fill_model(
     """Fit P(fill | features) by ridge-regularized logistic regression (Newton).
 
     Rows are time-ordered orders; the LAST ``holdout`` fraction is the
-    out-of-sample block (walk-forward, never shuffled). Reports the
-    out-of-sample **Brier score**, the **calibration slope** (logit of the
+    out-of-sample block (walk-forward, never shuffled). If ``timestamps`` is
+    provided, rows are sorted chronologically by placement timestamp (``ts_add``)
+    and walk-forward temporal consistency (max(ts_train) <= min(ts_test)) is strictly enforced.
+    Reports the out-of-sample **Brier score**, the **calibration slope** (logit of the
     prediction regressed on the outcome — 1.0 = perfectly calibrated, < 0.8 is
     the E5 failure criterion), and a decile calibration table.
     """
@@ -1619,7 +1626,27 @@ def logistic_fill_model(
     n = y.size
     if n < 20:
         raise ValueError("logistic_fill_model needs at least 20 orders")
+
+    ts_arr: np.ndarray | None = None
+    if timestamps is not None:
+        ts_arr = np.asarray(timestamps).reshape(-1)
+        if ts_arr.size != n:
+            raise ValueError("timestamps length must match filled length")
+        order = np.argsort(ts_arr, kind="stable")
+        X = X[order]
+        y = y[order]
+        ts_arr = ts_arr[order]
+
     n_train = max(10, int(n * (1.0 - holdout)))
+    if ts_arr is not None and n_train > 0 and (n - n_train) > 0:
+        max_tr = float(np.max(ts_arr[:n_train]))
+        min_te = float(np.min(ts_arr[n_train:]))
+        if max_tr > min_te:
+            raise ValueError(
+                f"Temporal overlap detected in walk-forward train/test split: "
+                f"max train ts ({max_tr}) > min test ts ({min_te})"
+            )
+
     mu = X[:n_train].mean(axis=0)
     sd = X[:n_train].std(axis=0)
     sd[sd <= 1e-12] = 1.0
@@ -1654,6 +1681,8 @@ def logistic_fill_model(
         "brier_skill": (1.0 - brier / brier_base) if brier_base > 0 else float("nan"),
         "calibration_slope": slope,
         "calibration_table": calibration_table(p_te, y_te) if y_te.size else [],
+        "max_ts_train": float(np.max(ts_arr[:n_train])) if (ts_arr is not None and n_train > 0) else None,
+        "min_ts_test": float(np.min(ts_arr[n_train:])) if (ts_arr is not None and y_te.size > 0) else None,
         "predict": lambda Xnew: _sigmoid(
             np.column_stack([np.ones(len(Xnew)), (np.asarray(Xnew, dtype=np.float64) - mu) / sd]) @ w
         ),

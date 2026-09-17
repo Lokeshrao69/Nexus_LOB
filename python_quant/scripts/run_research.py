@@ -265,14 +265,17 @@ def fill_study(rep: dict, *, horizons_events: tuple[int, ...]) -> dict:
                "n_fill": km["n_fill"], "n_cancel": km["n_cancel"],
                "median_fill_time_events": km["median_fill_time"]},
     }
+    completed.sort(key=lambda o: (o.ts_add, getattr(o, "idx_add", 0)))
     X: dict[str, list[float]] = {}
     y: list[bool] = []
+    ts_list: list[int] = []
     for o in completed:
         for k, v in order_features(o).items():
             X.setdefault(k, []).append(v)
         y.append(o.outcome == "filled")
+        ts_list.append(o.ts_add)
     if len(y) >= 200 and 5 <= sum(y) <= len(y) - 5:
-        m = logistic_fill_model(X, y, holdout=0.3)
+        m = logistic_fill_model(X, y, timestamps=ts_list, holdout=0.3)
         out["logistic"] = {k: m[k] for k in ("n_train", "n_test", "base_rate", "brier", "brier_base_rate",
                                              "brier_skill", "calibration_slope", "coefs", "calibration_table")}
     return out
@@ -294,6 +297,7 @@ def adverse_study(rep: dict, *, horizons: tuple[int, ...]) -> dict:
             continue
         fills.append(PassiveFill(idx=j, side=f.side, price=f.price, size=f.size,
                                  ofi=float(ofi_w[j - 1]) if j > 0 else 0.0, queue_frac=f.queue_frac))
+    fills.sort(key=lambda f: f.idx)
     return adverse_selection_report(fills, rep["mids"], horizons=horizons, min_group=30)
 
 
