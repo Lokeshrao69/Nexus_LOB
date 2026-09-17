@@ -25,10 +25,12 @@ from nexus_quant.research.queue_dynamics import (
     OrderLife,
     QueueTracker,
     RestingOrder,
+    TrackedOrder,
     _decision_features,
     brier_score,
     calibration_table,
     censor_open_orders,
+    cumulative_incidence_competing_risks,
     fill_dataset,
     fill_prob_survival,
     filter_session_orders,
@@ -585,6 +587,135 @@ def test_post_close_fills_marked_as_censored_at_regular_close():
     post_censored = censor_open_orders(tr, ts_end=REGULAR_CLOSE_NS, include_post_cutoff=True)
     assert 1 in {o.order_id for o in post_censored}
 
+
+def test_cumulative_incidence_hand_computed():
+    """Exact Aalen-Johansen CIF check on the 5-order queue from test_kaplan_meier_fits_hand_computed_survival.
+
+    Orders:
+      1: t=2, fill
+      2: t=3, cancel
+      3: t=4, fill
+      4: t=3, cancel
+      5: t=3, fill
+
+    At t=2: at_risk=5, d_fill=1, d_cancel=0 -> S=0.8, CIF_fill=0.2, CIF_cancel=0.0
+    At t=3: at_risk=4, d_fill=1, d_cancel=2 -> S=0.2, CIF_fill=0.4, CIF_cancel=0.4
+    At t=4: at_risk=1, d_fill=1, d_cancel=0 -> S=0.0, CIF_fill=0.6, CIF_cancel=0.4
+
+    KM P(fill) at t=4 is 1.0 (censoring assumption), whereas CIF_fill is 0.6 (true competing risk).
+    """
+    tr = OrderLevelTracker()
+    tr.on_event(_ev_tracked(EventType.ADD, 1, px=100, sz=10, ts=1))      # idx 0
+    tr.on_event(_ev_tracked(EventType.ADD, 2, px=100, sz=10, ts=2))      # idx 1
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 1, sz=10, ts=3))          # idx 2 -> order1 fill t=2
+    tr.on_event(_ev_tracked(EventType.ADD, 3, px=100, sz=10, ts=4))      # idx 3
+    tr.on_event(_ev_tracked(EventType.CANCEL, 2, sz=10, ts=5))           # idx 4 -> order2 cancel t=3
+    tr.on_event(_ev_tracked(EventType.ADD, 4, px=100, sz=10, ts=6))      # idx 5
+    tr.on_event(_ev_tracked(EventType.ADD, 5, px=100, sz=10, ts=7))      # idx 6
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 3, sz=10, ts=8))          # idx 7 -> order3 fill t=4
+    tr.on_event(_ev_tracked(EventType.DELETE, 4, ts=9))                  # idx 8 -> order4 cancel t=3
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 5, sz=10, ts=10))         # idx 9 -> order5 fill t=3
+
+    horizons = [1, 2, 3, 4, 10]
+    cif = cumulative_incidence_competing_risks(tr.completed, horizons=horizons)
+    assert cif["n"] == 5 and cif["n_fill"] == 3 and cif["n_cancel"] == 2
+    np.testing.assert_allclose(cif["cif_fill"], [0.0, 0.2, 0.4, 0.6, 0.6], atol=1e-12)
+    np.testing.assert_allclose(cif["cif_cancel"], [0.0, 0.0, 0.4, 0.4, 0.4], atol=1e-12)
+    np.testing.assert_allclose(cif["survival"], [1.0, 0.8, 0.2, 0.0, 0.0], atol=1e-12)
+
+    # CIF additivity identity holds exactly: CIF_fill(t) + CIF_cancel(t) == 1 - S(t)
+    sum_cif = np.array(cif["cif_fill"]) + np.array(cif["cif_cancel"])
+    np.testing.assert_allclose(sum_cif, 1.0 - np.array(cif["survival"]), atol=1e-12)
+
+    # fill_prob_survival also bundles CIF results
+    km = fill_prob_survival(tr.completed, horizons=horizons)
+    np.testing.assert_allclose(km["cif_fill"], cif["cif_fill"], atol=1e-12)
+    np.testing.assert_allclose(km["cif_cancel"], cif["cif_cancel"], atol=1e-12)
+    # Kaplan-Meier P(fill) overestimates CIF_fill: at t=4, KM=1.0 vs CIF=0.6
+    assert km["p_fill"][3] == pytest.approx(1.0)
+    assert cif["cif_fill"][3] == pytest.approx(0.6)
+
+
+def test_cumulative_incidence_competing_risks_identity_and_bound():
+    """Simulated queue data with 85% cancellation rate.
+
+    Verifies:
+      1. CIF_fill(t) + CIF_cancel(t) == 1 - S(t) (conservation identity)
+      2. CIF_fill(t) <= P_KM(t) (KM upward bias bound)
+      3. Monotonicity of CIF functions
+    """
+    rng = np.random.default_rng(42)
+    n = 1000
+    horizons = [5.0, 10.0, 20.0, 50.0, 100.0, 200.0]
+
+    # Generate synthetic order lifecycles: 85% cancelled, 15% filled
+    orders = []
+    for i in range(n):
+        is_fill = rng.random() < 0.15
+        outcome = "filled" if is_fill else "cancelled"
+        # Fills take longer on average than quick cancels
+        dur = rng.exponential(30.0) if is_fill else rng.exponential(15.0)
+        dur = max(1, int(dur))
+        o = TrackedOrder(
+            order_id=i + 1,
+            side=Side.Bid,
+            price=100,
+            size=10,
+            size0=10,
+            ts_add=1000,
+            idx_add=0,
+            ahead_at_add=50,
+            ahead=0,
+            idx_end=dur,
+            ts_end=1000 + dur * 10,
+            idx_first_fill=dur if is_fill else None,
+            ts_first_fill=1000 + dur * 10 if is_fill else None,
+            outcome=outcome,
+        )
+        orders.append(o)
+
+    cif = cumulative_incidence_competing_risks(orders, horizons=horizons)
+    km = fill_prob_survival(orders, horizons=horizons)
+
+    cif_f = np.array(cif["cif_fill"])
+    cif_c = np.array(cif["cif_cancel"])
+    surv = np.array(cif["survival"])
+    km_p = np.array(km["p_fill"])
+
+    # 1. Total terminated probability identity
+    np.testing.assert_allclose(cif_f + cif_c, 1.0 - surv, atol=1e-12)
+
+    # 2. CIF_fill <= KM_p_fill everywhere
+    assert np.all(cif_f <= km_p + 1e-12)
+    # Over long horizons with high cancellation rate, KM is strictly higher
+    assert km_p[-1] > cif_f[-1] + 0.1
+
+    # 3. Monotonicity
+    assert np.all(np.diff(cif_f) >= -1e-12)
+    assert np.all(np.diff(cif_c) >= -1e-12)
+    assert np.all(np.diff(surv) <= 1e-12)
+
+
+def test_cumulative_incidence_empty_and_edge_cases():
+    res = cumulative_incidence_competing_risks([], horizons=[1, 5, 10])
+    assert res["n"] == 0
+    assert res["cif_fill"] == [0.0, 0.0, 0.0]
+    assert res["cif_cancel"] == [0.0, 0.0, 0.0]
+    assert res["survival"] == [1.0, 1.0, 1.0]
+
+    # All-censored
+    censored_orders = [
+        TrackedOrder(
+            order_id=1, side=Side.Bid, price=100, size=10, size0=10,
+            ts_add=0, idx_add=0, ahead_at_add=0, ahead=0,
+            idx_end=10, ts_end=10, outcome="resting",
+        )
+    ]
+    res_c = cumulative_incidence_competing_risks(censored_orders, horizons=[5, 15])
+    assert res_c["n"] == 1 and res_c["n_censored"] == 1 and res_c["n_fill"] == 0 and res_c["n_cancel"] == 0
+    assert res_c["cif_fill"] == [0.0, 0.0]
+    assert res_c["cif_cancel"] == [0.0, 0.0]
+    assert res_c["survival"] == [1.0, 1.0]
 
 
 # --------------------------------------------------------------------------- logistic
