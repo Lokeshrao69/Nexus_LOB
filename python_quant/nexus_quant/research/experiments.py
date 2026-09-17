@@ -73,16 +73,29 @@ def hit_rate(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
     return float(np.mean(np.sign(b) == np.sign(a)))
 
 
-def decile_spread(y_true: Sequence[float], y_pred: Sequence[float], n: int = 10) -> float:
-    """mean(label of top pred decile) − mean(label of bottom pred decile)."""
+def decile_spread(
+    y_true: Sequence[float],
+    y_pred: Sequence[float],
+    n: int | None = None,
+    q: float = 0.10,
+) -> float:
+    """mean(label of top pred decile) − mean(label of bottom pred decile).
+
+    If ``n`` is None, the bucket size is computed from quantile ``q``
+    (default 0.10 for deciles: ``max(1, int(len(a) * q))``). If an explicit
+    count ``n`` is provided, that fixed count is used instead.
+    """
     a = np.asarray(y_true, dtype=np.float64)
     b = np.asarray(y_pred, dtype=np.float64)
-    if a.size != b.size or a.size < 2 * n:
+    if a.size != b.size:
+        return float("nan")
+    k = n if n is not None else max(1, int(a.size * q))
+    if a.size < 2 * k or k < 1:
         return float("nan")
     order = np.argsort(b, kind="mergesort")
     a_sorted = a[order]
-    top = a_sorted[-n:].mean()
-    bot = a_sorted[:n].mean()
+    top = a_sorted[-k:].mean()
+    bot = a_sorted[:k].mean()
     return float(top - bot)
 
 
