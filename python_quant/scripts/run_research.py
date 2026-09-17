@@ -131,12 +131,17 @@ def replay_symbol(path: Path, *, max_events: int | None = None, log=print) -> di
     issues: Counter = Counter()
     prev_view = None
     t0 = time.time()
+    applied_count = 0
+    failed_count = 0
     for i, ev in enumerate(events):
         live_before = None
         if ev.kind not in (EventType.ADD, EventType.ADD_MPID, EventType.TRADE):
             live_before = tracker.orders.get(int(ev.order_id))
         e_n = order_level_ofi(ev, live_before)
-        rep.apply(ev)
+        if rep.apply(ev):
+            applied_count += 1
+        else:
+            failed_count += 1
         tracker.on_event(ev)
         if not (REGULAR_OPEN_NS <= ev.ts_ns < REGULAR_CLOSE_NS):
             continue
@@ -162,11 +167,13 @@ def replay_symbol(path: Path, *, max_events: int | None = None, log=print) -> di
     log(
         f"  {path.name}: {stats.messages:,} msgs → {stats.emitted:,} events, truncated={stats.truncated}, "
         f"parse {t_parse:.1f}s, replay+track+features {t_replay:.1f}s; regular-session rows {n:,}; "
-        f"integrity issues {dict(issues) or 'none'}; tracker unknown ids {tracker.stats['unknown_id']}"
+        f"integrity issues {dict(issues) or 'none'}; tracker unknown ids {tracker.stats['unknown_id']}; "
+        f"events applied={applied_count:,}, failed={failed_count:,}"
     )
     return {
         "events": events, "stats": stats, "features": arr, "mids": np.asarray(mids), "ts": np.asarray(ts),
         "tape_idx": np.asarray(tape_idx), "tracker": tracker, "issues": dict(issues), "n_regular": n,
+        "events_applied": applied_count, "events_failed": failed_count,
         "t_parse": t_parse, "t_replay": t_replay,
     }
 
@@ -444,17 +451,19 @@ def main(argv: list[str] | None = None) -> int:
             "tape": {"messages": st.messages, "events": st.emitted, "truncated": st.truncated,
                      "skipped_type": st.skipped_type, "regular_events": rep["n_regular"],
                      "integrity_issues": rep["issues"], "tracker_unknown_id": rep["tracker"].stats["unknown_id"],
+                     "events_applied": rep["events_applied"], "events_failed": rep["events_failed"],
                      "t_parse_s": rep["t_parse"], "t_replay_s": rep["t_replay"]},
             "ic": ic, "fill": fill, "adverse": adverse,
         }
         args.out_dir.mkdir(parents=True, exist_ok=True)
         (args.out_dir / f"real_tape_{args.day}_{sym}.json").write_text(
-            json.dumps(per_symbol[sym], indent=1, default=float) + "\n"
+            json.dumps(per_symbol[sym], indent=1, default=float) + "\n",
+            encoding="utf-8",
         )
         del rep
     if per_symbol:
         md = args.out_dir / f"real_tape_{args.day}.md"
-        md.write_text(render_md(args.day, per_symbol))
+        md.write_text(render_md(args.day, per_symbol), encoding="utf-8")
         print(f"\nwrote {md} ({time.time() - t_all:.0f}s total)")
     return 0
 
