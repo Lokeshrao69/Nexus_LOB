@@ -187,6 +187,42 @@ def test_extended_sample_tapes_catalogue() -> None:
     assert extended["12132018"].endswith("/S121318-v50.txt.gz")
 
 
+def test_replay_tracks_applied_and_failed_events(tmp_path: Path) -> None:
+    ts = 34_200_000_000_000
+    events = [
+        NormalizedEvent(EventType.ADD, ts + 1, 100, Side.Bid, 10_000, 50),
+        NormalizedEvent(EventType.DELETE, ts + 2, 100, Side.NONE, 0, 0),
+        NormalizedEvent(EventType.DELETE, ts + 3, 999, Side.NONE, 0, 0),  # non-existent order
+    ]
+    rep = ReplayEngine(events, StubBookAdapter())
+    f1 = rep.step()
+    assert f1 is not None and f1.applied is True
+    f2 = rep.step()
+    assert f2 is not None and f2.applied is True
+    f3 = rep.step()
+    assert f3 is not None and f3.applied is False
+    assert rep.applied == 2
+    assert rep.skipped == 1
+
+    itch_file = tmp_path / "AAPL.itch"
+    itch_file.write_bytes(
+        b"".join([
+            encode_event(NormalizedEvent(EventType.ADD, ts + 1, 100, Side.Bid, 10_000, 50)),
+            encode_event(NormalizedEvent(EventType.DELETE, ts + 2, 100, Side.NONE, 0, 0)),
+            encode_event(NormalizedEvent(EventType.DELETE, ts + 3, 999, Side.NONE, 0, 0)),
+        ])
+    )
+    spec = importlib.util.spec_from_file_location(
+        "run_research", _ROOT / "python_quant" / "scripts" / "run_research.py"
+    )
+    assert spec is not None and spec.loader is not None
+    rr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rr)
+    res = rr.replay_symbol(itch_file)
+    assert res["events_applied"] == 2
+    assert res["events_failed"] == 1
+
+
 @pytest.mark.skipif(not _TAPE.exists(), reason=f"real tape not fetched: {_TAPE} (run scripts/fetch_itch.py)")
 def test_real_tape_parses_clean() -> None:
     """Parser 0 truncated · replay integrity clean (bar the empty pre-open book) ·
