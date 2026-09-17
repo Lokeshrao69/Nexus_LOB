@@ -209,6 +209,22 @@ def test_walk_forward_blocks_disjoint_in_time() -> None:
     assert test[0].ts > val[-1].ts + gap
 
 
+def test_walk_forward_negative_gap_raises() -> None:
+    rows = [Row(ts=i, features={"x": float(i)}, label=float(i), split="") for i in range(20)]
+    with pytest.raises(ValueError, match="gap must be non-negative"):
+        make_split(rows, gap=-1)
+
+
+def test_walk_forward_identical_timestamps_deterministic() -> None:
+    rows_a = [Row(ts=10, features={"x": float(i)}, label=float(i), split="") for i in range(100)]
+    rows_b = [Row(ts=10, features={"x": float(i)}, label=float(i), split="") for i in range(100)]
+    split_a = make_split(rows_a, train=0.6, val=0.2)
+    split_b = make_split(rows_b, train=0.6, val=0.2)
+    assert [r.features["x"] for r in split_a["train"]] == [r.features["x"] for r in split_b["train"]]
+    assert [r.features["x"] for r in split_a["val"]] == [r.features["x"] for r in split_b["val"]]
+    assert [r.features["x"] for r in split_a["test"]] == [r.features["x"] for r in split_b["test"]]
+
+
 def test_event_frame_labels_and_tail(filled_book: StubOrderBook) -> None:
     events = [
         (Side.Bid, 15000 + i, 100 + i) for i in range(1, 20)
