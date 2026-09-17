@@ -442,23 +442,24 @@ def render_md(day: str, per_symbol: dict[str, dict]) -> str:
              "`s·(mid[t+h] − mid[t])` in ticks, s = +1 for a filled bid (bought), −1 for a filled ask; negative = "
              "adverse. `post − pre` nets out the drift over the h events *before* the fill (matched control on the "
              "same tape)."), "",
-            "| h | n | mean post drift | NW t | P(adverse) | mean pre drift | post − pre | NW t |",
-            "|---|---|---|---|---|---|---|---|",
+            "| h | n | mean post drift | NW t | P(adv|Δ≠0) | P(adv uncond) | mean pre drift | post − pre | NW t |",
+            "|---|---|---|---|---|---|---|---|---|",
         ]
         for h, blk in e6.get("horizons", {}).items():
             o, p, x = blk["overall"], blk["pre_fill"], blk["post_minus_pre"]
             lines.append(f"| {h} | {o['n']} | {fmt(o['mean_drift'], 1, 8, 2)} | {fmt(o['t_nw'], 1, 6, 2)} | "
-                         f"{fmt(o['p_adverse'], 1, 6, 3)} | {fmt(p['mean_drift'], 1, 8, 2)} | "
+                         f"{fmt(o['p_adverse'], 1, 6, 3)} | {fmt(o.get('p_adverse_unconditional'), 1, 6, 3)} | "
+                         f"{fmt(p['mean_drift'], 1, 8, 2)} | "
                          f"{fmt(x['mean_drift'], 1, 8, 2)} | {fmt(x['t_nw'], 1, 6, 2)} |")
         lines.append("")
         hz = e6.get("horizons", {})
         blk5 = hz.get(5) or hz.get("5") or (next(iter(hz.values())) if hz else None)
         if blk5 and blk5["groups"]:
             lines += ["Conditioned on side / rolling order-flow imbalance sign / queue position at placement (h = 5):", "",
-                      "| group | n | mean drift | NW t | P(adverse) |", "|---|---|---|---|---|"]
+                      "| group | n | mean drift | NW t | P(adv|Δ≠0) | P(adv uncond) |", "|---|---|---|---|---|---|"]
             for g, st in blk5["groups"].items():
                 lines.append(f"| {g} | {st['n']} | {fmt(st['mean_drift'], 1, 8, 2)} | {fmt(st['t_nw'], 1, 6, 2)} | "
-                             f"{fmt(st['p_adverse'], 1, 6, 3)} |")
+                             f"{fmt(st['p_adverse'], 1, 6, 3)} | {fmt(st.get('p_adverse_unconditional'), 1, 6, 3)} |")
             lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -505,8 +506,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  E6 done in {time.time() - t0:.1f}s: {adverse.get('n_fills', 0)} passive fills")
         for h, blk in adverse.get("horizons", {}).items():
             o, x = blk["overall"], blk["post_minus_pre"]
-            print(f"    h={h:<3} post drift {o['mean_drift']:+.2f} (t {o['t_nw']:+.2f}, P(adv) {o['p_adverse']:.3f}); "
-                  f"post−pre {x['mean_drift']:+.2f} (t {x['t_nw']:+.2f})")
+            print(f"    h={h:<3} post drift {o['mean_drift']:+.2f} (t {o['t_nw']:+.2f}, P(adv|Δ≠0) {o['p_adverse']:.3f}, "
+                  f"P(adv uncond) {o.get('p_adverse_unconditional', 0.0):.3f}); post−pre {x['mean_drift']:+.2f} (t {x['t_nw']:+.2f})")
         st = rep["stats"]
         per_symbol[sym] = {
             "tape": {"messages": st.messages, "events": st.emitted, "truncated": st.truncated,

@@ -370,14 +370,30 @@ def _ncdf(z: float) -> float:
     return 0.5 * (1.0 + erf(z / sqrt(2.0)))
 
 
-def p_adverse(drifts: Sequence[float]) -> float:
-    """P(drift < 0) over non-NaN, non-zero drifts (ties are neither adverse nor favorable)."""
+def p_adverse(drifts: Sequence[float], *, conditional: bool = True) -> float:
+    """P(drift < 0).
+
+    Args:
+        drifts: Sequence of signed post-fill mid moves (negative = adverse).
+        conditional: If True (default), computes P(drift < 0 | drift != 0), conditioning
+            only on intervals with a non-zero mid move. If False, computes unconditional
+            P(drift < 0) = N(drift < 0) / N(valid drifts), treating zero moves as non-adverse.
+    """
     a = np.asarray(drifts, dtype=np.float64)
     a = a[~np.isnan(a)]
-    a = a[a != 0.0]
     if a.size == 0:
         return float("nan")
+    if conditional:
+        nz = a[a != 0.0]
+        if nz.size == 0:
+            return float("nan")
+        return float(np.mean(nz < 0.0))
     return float(np.mean(a < 0.0))
+
+
+def p_adverse_unconditional(drifts: Sequence[float]) -> float:
+    """Unconditional P(drift < 0) = N(drift < 0) / N(valid fills), treating zero moves as non-adverse."""
+    return p_adverse(drifts, conditional=False)
 
 
 def pre_fill_drift(
@@ -470,7 +486,9 @@ def _stats(d: np.ndarray, h: int) -> dict[str, float]:
         "se_nw": t["se"],
         "t_nw": t["t"],
         "p_value": t["p"],
-        "p_adverse": p_adverse(d),
+        "p_adverse": p_adverse(d, conditional=True),
+        "p_adverse_conditional": p_adverse(d, conditional=True),
+        "p_adverse_unconditional": p_adverse(d, conditional=False),
     }
 
 
