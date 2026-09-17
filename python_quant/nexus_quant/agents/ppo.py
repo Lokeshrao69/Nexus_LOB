@@ -215,15 +215,20 @@ def compute_gae(
     values: np.ndarray,
     gamma: float,
     lam: float,
+    trunc: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """GAE(λ) advantages; returns = adv + V(s). Terminal → no bootstrap."""
+    """GAE(λ) advantages; returns = adv + V(s). Terminal → no bootstrap; Truncated → bootstrap V(s_T), no backward trace."""
     n = len(rew)
     adv = np.zeros(n)
     running = 0.0
     for t in range(n - 1, -1, -1):
+        is_trunc = bool(trunc[t]) if trunc is not None else False
         if term[t]:
             delta = rew[t] - values[t]
             running = delta  # don't carry advantage across a terminal boundary
+        elif is_trunc:
+            delta = rew[t] + gamma * next_val[t] - values[t]
+            running = delta  # bootstrap next_val at time limit, but cut off advantage trace from future episode
         else:
             delta = rew[t] + gamma * next_val[t] - values[t]
             running = delta + gamma * lam * running
@@ -251,7 +256,7 @@ def ppo_update(
     act = buf["act"]
     old_logp = buf["logp"]
     adv, returns = compute_gae(
-        buf["rew"], buf["term"], buf["next_val"], policy.value(obs), cfg.gamma, cfg.lam
+        buf["rew"], buf["term"], buf["next_val"], policy.value(obs), cfg.gamma, cfg.lam, trunc=buf.get("trunc")
     )
     adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
@@ -271,7 +276,15 @@ def ppo_update(
             pg_loss = -float(np.mean(surr))
             ent = policy.entropy()
 
-            mask = (ratio > 1.0 - cfg.clip) & (ratio < 1.0 + cfg.clip)
+            # Standard PPO surrogate objective gradient mask:
+            # d/d(ratio) min(r*A, clip(r)*A) is A when unclipped, 0 when clipped.
+            # ad >= 0: unclipped when ratio <= 1 + clip (clipped above)
+            # ad < 0: unclipped when ratio >= 1 - clip (clipped below)
+            mask = np.where(
+                ad >= 0,
+                ratio <= 1.0 + cfg.clip,
+                ratio >= 1.0 - cfg.clip,
+            )
             dlogp = -ad * ratio * mask                      # dL/dlogp per sample
             dlogp_dmu = (ac - mu) / (sigma * sigma)         # dlogp/dμ
             d_out = dlogp * dlogp_dmu / m                   # dL/d(actor out), mean

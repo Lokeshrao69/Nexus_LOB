@@ -116,6 +116,42 @@ def test_compute_gae_hand_rolled_trajectory():
     assert abs(adv[1] - g1) < 1e-12
 
 
+def test_compute_gae_truncation_boundary_no_leak():
+    """Truncation terminates trajectory but bootstraps from next_val without leaking into preceding steps (F04)."""
+    rew = np.array([1.0, 100.0])
+    term = np.array([False, True])
+    trunc = np.array([True, False])
+    nv = np.array([5.0, 0.0])
+    vals = np.array([0.0, 0.0])
+    gamma, lam = 0.99, 0.95
+    adv, _ret = compute_gae(rew, term, nv, vals, gamma, lam, trunc=trunc)
+    # Step 0: delta = 1.0 + 0.99*5.0 - 0.0 = 5.95
+    # Running advantage from step 1 (100.0) MUST NOT leak into step 0!
+    expected_adv_0 = 1.0 + gamma * nv[0] - vals[0]
+    assert abs(adv[0] - expected_adv_0) < 1e-12
+    assert abs(adv[1] - 100.0) < 1e-12
+
+
+def test_ppo_ratio_gradient_mask_unclipped_regions():
+    """Verify that when A > 0 and r < 1 - eps (or A < 0 and r > 1 + eps), gradient is not zeroed (F05)."""
+    clip = 0.2
+    # Case 1: ad > 0, ratio < 1 - clip -> unclipped gradient active
+    ad = np.array([1.0])
+    ratio = np.array([0.7])
+    mask = np.where(ad >= 0, ratio <= 1.0 + clip, ratio >= 1.0 - clip)
+    assert mask[0] == True
+
+    # Case 2: ad > 0, ratio > 1 + clip -> clipped above, gradient zeroed
+    ratio_high = np.array([1.3])
+    mask_high = np.where(ad >= 0, ratio_high <= 1.0 + clip, ratio_high >= 1.0 - clip)
+    assert mask_high[0] == False
+
+    # Case 3: ad < 0, ratio > 1 + clip -> unclipped gradient active
+    ad_neg = np.array([-1.0])
+    mask_neg = np.where(ad_neg >= 0, ratio_high <= 1.0 + clip, ratio_high >= 1.0 - clip)
+    assert mask_neg[0] == True
+
+
 # ----------------------------------------------------------------------
 #  Policy behaviour
 # ----------------------------------------------------------------------

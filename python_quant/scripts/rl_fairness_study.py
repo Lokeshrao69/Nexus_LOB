@@ -48,7 +48,6 @@ sys.path.insert(0, str(_ROOT / "python_quant"))
 from nexus_quant.agents import (
     PPOConfig,
     PPOPolicy,
-    ci_from_rows,
     format_regime_table,
     paired_difference_ci,
     run_regime_episodes,
@@ -66,7 +65,9 @@ METRICS = ("shortfall_bps", "vwap_slip_bps", "completion", "fill_rate", "mdd_tic
 
 
 def _train(mode: str, seed: int, iters: int, episodes: int, out_dir: Path) -> PPOPolicy:
-    path = out_dir / f"policy_{mode}_seed{seed}.npz"
+    path_versioned = out_dir / f"policy_{mode}_seed{seed}_it{iters}_ep{episodes}.npz"
+    path_legacy = out_dir / f"policy_{mode}_seed{seed}.npz"
+    path = path_versioned if path_versioned.exists() else path_legacy
     if path.exists():
         return PPOPolicy.load(str(path))
     factory = regime_factories((TRAIN_REGIME,), costs=True, vol_feature=(mode == "volsym"))[TRAIN_REGIME]
@@ -74,8 +75,19 @@ def _train(mode: str, seed: int, iters: int, episodes: int, out_dir: Path) -> PP
                     seed=0xACE + seed, unit_seed=0x2717 + 100_000 * seed)
     t0 = time.time()
     policy, _ = train_ppo(factory, cfg)
-    policy.save(str(path))
-    print(f"  trained {mode} seed {seed}: {iters} iters in {time.time() - t0:.0f}s -> {path.name}")
+    policy.save(str(path_versioned))
+    policy.save(str(path_legacy))
+    meta_path = out_dir / f"policy_{mode}_seed{seed}_meta.json"
+    meta_path.write_text(json.dumps({
+        "mode": mode,
+        "seed": seed,
+        "iters": iters,
+        "episodes": episodes,
+        "unit_seed": cfg.unit_seed,
+        "gamma": cfg.gamma,
+        "clip": cfg.clip,
+    }, indent=2), encoding="utf-8")
+    print(f"  trained {mode} seed {seed}: {iters} iters in {time.time() - t0:.0f}s -> {path_versioned.name}")
     return policy
 
 
@@ -110,24 +122,14 @@ def run(args: argparse.Namespace) -> dict:
         for metric in METRICS:
             mode_res["per_metric"][metric] = {}
             for r in regimes_all:
-                seeds_ci = [_ci_dict(ci_from_rows(ae[r]["ppo"], metric=metric, name="ppo", regime=r,
-                                                  n_boot=args.n_boot)) for ae in agent_eps]
-                mode_res["per_metric"][metric][r] = {
-                    "ppo_seeds": seeds_ci,
-                    "ppo_pooled_mean": float(np.mean([d["mean"] for d in seeds_ci])),
-                    "ppo_seed_std": float(np.std([d["mean"] for d in seeds_ci])),
-                    "baselines": {
-                        b: _ci_dict(ci_from_rows(base_eps[r][b], metric=metric, name=b, regime=r, n_boot=args.n_boot))
-                        for b in ALL_BASELINES
-                    },
-                }
-        table = {
-            r: {b: ci_from_rows(base_eps[r][b], metric="shortfall_bps", name=b, regime=r, n_boot=args.n_boot)
-                for b in ALL_BASELINES}
-            for r in regimes_all
-        }
-        print(format_regime_table(table))
+                all_episodes = {r: {**base_eps[r], "ppo_seeds": [ae[r]["ppo"] for ae in agent_eps]}}
+                mode_res["per_metric"][metric][r] = format_regime_table(
+                    metric, {r: factories[r]}, baselines=ALL_BASELINES, agent_name="ppo",
+                    episodes=all_episodes, n_boot=args.n_boot, **common
+                )[r]
+
         # paired per-episode difference vs the best baseline and vs VWAP, per training seed
+        n_regimes = len(regimes_all)
         for r in regimes_all:
             bl = mode_res["per_metric"]["shortfall_bps"][r]["baselines"]
             best = min(bl, key=lambda b: bl[b]["mean"])
@@ -143,10 +145,13 @@ def run(args: argparse.Namespace) -> dict:
             ppo_mean = mode_res["per_metric"]["shortfall_bps"][r]["ppo_pooled_mean"]
             sig = sum(1 for d in entry["vs_best"] if d["lo"] > 0)
             worse = sum(1 for d in entry["vs_best"] if d["hi"] < 0)
+            # Bonferroni adjustment across evaluated regimes
+            bonf_multiplier = float(np.sqrt(2.0 * np.log(max(2, n_regimes) / 0.05)))
+            bonf_sig = sum(1 for d in entry["vs_best"] if (d["mean"] - d["se"] * bonf_multiplier) > 0)
             print(f"  {r:<16} ppo {ppo_mean:6.3f} vs best baseline {best} {bl[best]['mean']:6.3f} | "
                   f"paired Δ(best−ppo) per seed: "
                   + " ".join(f"{d['mean']:+.2f}[{d['lo']:+.2f},{d['hi']:+.2f}]" for d in entry["vs_best"])
-                  + f" | sig better {sig}/{len(policies)}, sig worse {worse}/{len(policies)}")
+                  + f" | sig better {sig}/{len(policies)} (bonf: {bonf_sig}), sig worse {worse}/{len(policies)}")
         result["modes"][mode] = mode_res
     return result
 
