@@ -209,6 +209,13 @@ moment the opposite side traded through the level, and if the level is consumed
 the mid steps against the order at that very event. The h=5/h=25 persistence is
 the economically relevant part.
 
+### 6.3 Methodology notes: Event clock filtering & control design (M03)
+
+- **Microstructure Event Clock**: The event clock index advances strictly on quote-affecting or depth-affecting order book messages (`EventType.ADD`, `EXECUTE`, `CANCEL`, `DELETE`, `REPLACE`). Off-market cross prints and non-cross trade reports (`EventType.TRADE` / ITCH `P`) execute against non-displayed liquidity without mutating visible depth or quotes, and are filtered out via `filter_book_events` / `is_book_affecting` so they do not artificially accelerate the event clock.
+- **Control Group Formulation**:
+  - *Pre-fill trend benchmark (`pre_fill_drift`)*: Measures signed drift over `[t-1-h, t-1]` immediately prior to the fill. It quantifies whether the market was already moving into the resting order, allowing `post − pre` to isolate excess post-fill adverse selection from pre-trade momentum.
+  - *Matched unexecuted control (`matched_unexecuted_control_drift`)*: Measures counterfactual drift over `[t, t+h]` for unexecuted resting orders matched by side, price level, and decision timestamp.
+
 ## 7. E7 — execution: fair RL re-verification (`docs/results/rl_fairness.md`)
 
 Setup (plan_2.md §6, all six items): PPO trained **only** on the `highvol`

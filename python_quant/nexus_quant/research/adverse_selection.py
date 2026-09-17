@@ -31,10 +31,34 @@ from typing import Any
 import numpy as np
 
 from ..book_state import Side
+from ..itch_parser import EventType, NormalizedEvent
 from .experiments import bootstrap_ci, hac_se, normal_cdf
 from .queue_dynamics import FillRecord, QueueTracker
 
 _View = Any
+
+
+def is_book_affecting(ev: NormalizedEvent) -> bool:
+    """True if event mutates visible order book depth or quotes.
+
+    Off-market prints, cross trades, and hidden executions (e.g. ITCH 'P' TRADE
+    messages) do not alter displayed depth or quotes and must not advance the
+    microstructure event clock.
+    """
+    return ev.kind in (
+        EventType.ADD,
+        EventType.ADD_MPID,
+        EventType.EXECUTE,
+        EventType.EXECUTE_PX,
+        EventType.CANCEL,
+        EventType.DELETE,
+        EventType.REPLACE,
+    )
+
+
+def filter_book_events(events: Sequence[NormalizedEvent]) -> list[NormalizedEvent]:
+    """Filter event stream to retain only depth- or quote-affecting book events."""
+    return [ev for ev in events if is_book_affecting(ev)]
 
 
 def side_str(side: Side) -> str:
@@ -385,13 +409,21 @@ def pre_fill_drift(
     mids: Sequence[float],
     h: int,
 ) -> np.ndarray:
-    """Matched control: the same signed drift over the ``h`` events *before* the fill.
+    """Pre-fill benchmark: the same signed drift over the ``h`` events *before* the fill.
 
     ``s·(mid[t−1] − mid[t−1−h])`` — the window ends strictly before the fill
     event, so it excludes the fill's own mechanical BBO move (a fully consumed
     level shifts the mid at ``t`` itself). ``post − pre`` is the fill-conditional
     excess drift: it nets out a tape that was already trending into the fill,
     so E6 reports selection, not momentum.
+
+    Methodological Note (M03):
+    This control serves as a pre-fill trend benchmark. Because it evaluates the
+    same order's pre-execution trajectory rather than a counterfactual unexecuted
+    resting order, it benchmarks prevailing market momentum immediately prior to
+    trade arrival. For comparing executed passive orders directly against matched
+    unexecuted resting orders over the forward window [t, t+h], use
+    ``matched_unexecuted_control_drift``.
     """
     m = _mids(mids)
     out = np.full(len(fills), np.nan, dtype=np.float64)
@@ -403,6 +435,20 @@ def pre_fill_drift(
         s = 1.0 if f.side == Side.Bid else -1.0
         out[i] = s * (m[b] - m[a])
     return out
+
+
+def matched_unexecuted_control_drift(
+    controls: Sequence[PassiveFill],
+    mids: Sequence[float],
+    h: int,
+) -> np.ndarray:
+    """Matched unexecuted control: signed drift over ``[t, t+h]`` for unexecuted orders.
+
+    Measures forward price drift over ``[t, t+h]`` for unexecuted control orders
+    (e.g., cancelled or resting orders matched by side, price, queue position, and
+    decision time), providing a clean counterfactual comparison against filled orders.
+    """
+    return _post_fill_drift_mids(controls, mids, h)
 
 
 def _bucket_ofi(v: float) -> str:
