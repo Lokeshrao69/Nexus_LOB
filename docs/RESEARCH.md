@@ -149,6 +149,29 @@ dominated by *where* the order is placed (distance to the touch — the stronges
 coefficient on QQQ is `opp_dist −1.05`) more than by queue position; 94–98 % of
 orders are cancelled before they ever trade.
 
+### 5.3 Competing risks & Cumulative Incidence Function (CIF)
+
+**The Kaplan–Meier Estimand Limitation:**
+Standard Kaplan–Meier survival curves treat order cancellations as non-informative right-censoring. In limit order books, this assumption is fundamentally violated: cancellations are endogenous, strategic actions by informed traders or market makers updating quotes in response to adverse order flow. 
+
+Treating cancellations as standard right-censoring estimates the counterfactual estimand:
+> *"What would the time-to-fill distribution be in an imaginary world where traders are never permitted to cancel?"*
+
+Because cancelled orders are treated as if they could still fill in the future with the same hazard as surviving orders, Kaplan–Meier systematically overestimates queue fill probabilities ($P_{\text{KM}}(\tau) \ge CIF_{\text{fill}}(\tau)$). In electronic markets where 94–98 % of orders are cancelled before execution, this upward bias is substantial over longer horizons.
+
+**Aalen–Johansen Cumulative Incidence Framework:**
+To model realistic execution without censoring bias, order lifecycles are formulated as a competing-risks process with two absorbing terminal states:
+1. **Execution / Fill** ($k = 1$)
+2. **Cancellation / Deletion** ($k = 2$)
+
+Orders remaining in the book at the end of the session are right-censored. The Aalen–Johansen estimator tracks the Cumulative Incidence Function $CIF_k(t)$:
+$$CIF_k(t) = \sum_{t_j \le t} S(t_{j-1}) \frac{d_k(t_j)}{n(t_j)}$$
+where $S(t) = \prod_{t_j \le t} \left(1 - \frac{d_1(t_j) + d_2(t_j)}{n(t_j)}\right)$ is the probability that an order has neither filled nor cancelled by time $t$.
+
+This guarantees the exact conservation identity:
+$$CIF_{\text{fill}}(t) + CIF_{\text{cancel}}(t) = 1 - S(t)$$
+and accurately bounds the empirical fill probability $CIF_{\text{fill}}(t) \le P_{\text{KM}}(t)$. Both estimators are implemented in `nexus_quant.research.queue_dynamics` via `cumulative_incidence_competing_risks` and `fill_prob_survival`.
+
 ## 6. E6 — adverse selection after passive fills
 
 ### 6.1 Synthetic control baseline (Phase 3 vignette)

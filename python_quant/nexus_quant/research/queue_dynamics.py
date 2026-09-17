@@ -1459,6 +1459,7 @@ def _fill_prob_survival_tracked(
     Returns ``{"tau": [...], "survival": [...], "p_fill": [...], "n": int,
     "n_fill": int, "n_cancel": int, "median_fill_time": float | None}``.
     """
+    orders = list(orders)
     times: list[float] = []
     fills: list[bool] = []
     n_cancel = 0
@@ -1482,8 +1483,10 @@ def _fill_prob_survival_tracked(
     t_arr = np.asarray(times, dtype=np.float64)
     f_arr = np.asarray(fills, dtype=bool)
     n = int(t_arr.size)
+    cif = cumulative_incidence_competing_risks(orders, horizons=horizons, clock=clock)
     out: dict[str, Any] = {"tau": [float(h) for h in horizons], "n": n,
-                           "n_fill": int(f_arr.sum()), "n_cancel": n_cancel}
+                           "n_fill": int(f_arr.sum()), "n_cancel": n_cancel,
+                           "cif_fill": cif["cif_fill"], "cif_cancel": cif["cif_cancel"]}
     if n == 0:
         out.update({"survival": [1.0] * len(horizons), "p_fill": [0.0] * len(horizons),
                     "median_fill_time": None})
@@ -1515,6 +1518,167 @@ def _fill_prob_survival_tracked(
             median = t
             break
     out.update({"survival": surv, "p_fill": [1.0 - v for v in surv], "median_fill_time": median})
+    return out
+
+
+def cumulative_incidence_competing_risks(
+    orders: Iterable[Any],
+    *,
+    horizons: Sequence[float],
+    clock: str = "events",
+) -> dict[str, Any]:
+    """Compute the Cumulative Incidence Function (CIF) under competing risks (Aalen-Johansen).
+
+    In an order book queue, an order lifecycle terminates either via execution (Fill)
+    or via cancellation / deletion (Cancel). Treating cancellations as standard non-informative
+    right-censoring under Kaplan-Meier estimates a counterfactual:
+    "What would fill probability be if cancelling were prohibited?"
+    Because cancellations are endogenous and frequent (94-98% of orders), Kaplan-Meier
+    systematically overestimates the real-world probability of execution.
+
+    The Aalen-Johansen estimator tracks Fill (cause 1) and Cancel (cause 2) as distinct
+    competing endpoints alongside right-censored resting orders (cause 0).
+    The resulting CIF satisfy the exact identity:
+        CIF_fill(t) + CIF_cancel(t) = 1 - S(t)
+    and CIF_fill(t) <= P_KM(t).
+
+    Returns:
+        {
+            "tau": list[float],
+            "cif_fill": list[float],
+            "cif_cancel": list[float],
+            "survival": list[float],
+            "n": int,
+            "n_fill": int,
+            "n_cancel": int,
+            "n_censored": int,
+        }
+    """
+    times: list[float] = []
+    events: list[int] = []
+
+    for o in orders:
+        if isinstance(o, TrackedOrder) or (hasattr(o, "outcome") and hasattr(o, "idx_add")):
+            if o.idx_end is None and o.ts_end is None:
+                continue
+            if o.outcome == "filled":
+                i_end = o.idx_first_fill if o.idx_first_fill is not None else o.idx_end
+                t_end = o.ts_first_fill if o.ts_first_fill is not None else o.ts_end
+                t = float(i_end - o.idx_add) if clock == "events" else float(t_end - o.ts_add)
+                times.append(max(0.0, t))
+                events.append(1)
+            elif o.outcome == "cancelled":
+                t = float(o.idx_end - o.idx_add) if clock == "events" else float(o.ts_end - o.ts_add)
+                times.append(max(0.0, t))
+                events.append(2)
+            else:
+                t = float(o.idx_end - o.idx_add) if clock == "events" else float(o.ts_end - o.ts_add)
+                times.append(max(0.0, t))
+                events.append(0)
+        elif isinstance(o, OrderLife) or (hasattr(o, "end_kind") and hasattr(o, "born_index")):
+            if o.end_index is None:
+                continue
+            t = float(o.end_index - o.born_index)
+            times.append(max(0.0, t))
+            if o.end_kind == "fill":
+                events.append(1)
+            elif o.end_kind in ("cancel", "delete", "replace"):
+                events.append(2)
+            else:
+                events.append(0)
+        elif isinstance(o, (tuple, list)) and len(o) >= 2:
+            t = float(o[0])
+            times.append(max(0.0, t))
+            ev = o[1]
+            if ev in (1, "fill", "filled"):
+                events.append(1)
+            elif ev in (2, "cancel", "cancelled", "delete", "replace"):
+                events.append(2)
+            else:
+                events.append(0)
+        elif isinstance(o, dict) and "time" in o:
+            t = float(o["time"])
+            times.append(max(0.0, t))
+            ev = o.get("event", o.get("outcome", o.get("status", 0)))
+            if ev in (1, "fill", "filled"):
+                events.append(1)
+            elif ev in (2, "cancel", "cancelled", "delete", "replace"):
+                events.append(2)
+            else:
+                events.append(0)
+
+    t_arr = np.asarray(times, dtype=np.float64)
+    ev_arr = np.asarray(events, dtype=np.int64)
+    n = int(t_arr.size)
+    n_fill = int(np.sum(ev_arr == 1))
+    n_cancel = int(np.sum(ev_arr == 2))
+    n_censored = int(np.sum(ev_arr == 0))
+
+    hz = [float(h) for h in horizons]
+    out: dict[str, Any] = {
+        "tau": hz,
+        "n": n,
+        "n_fill": n_fill,
+        "n_cancel": n_cancel,
+        "n_censored": n_censored,
+    }
+
+    if n == 0:
+        out.update({
+            "cif_fill": [0.0] * len(hz),
+            "cif_cancel": [0.0] * len(hz),
+            "survival": [1.0] * len(hz),
+        })
+        return out
+
+    ev_mask = (ev_arr == 1) | (ev_arr == 2)
+    uniq_times = np.sort(np.unique(t_arr[ev_mask])) if ev_mask.any() else np.empty(0)
+
+    s_cur = 1.0
+    cif1_cur = 0.0
+    cif2_cur = 0.0
+    steps: list[tuple[float, float, float, float]] = []
+
+    for t in uniq_times:
+        at_risk = int(np.sum(t_arr >= t))
+        if at_risk <= 0:
+            continue
+        d1 = int(np.sum((t_arr == t) & (ev_arr == 1)))
+        d2 = int(np.sum((t_arr == t) & (ev_arr == 2)))
+        d = d1 + d2
+
+        h1 = d1 / at_risk
+        h2 = d2 / at_risk
+        cif1_cur += s_cur * h1
+        cif2_cur += s_cur * h2
+        s_cur *= (1.0 - d / at_risk)
+
+        steps.append((float(t), s_cur, cif1_cur, cif2_cur))
+
+    cif_fill_list = []
+    cif_cancel_list = []
+    survival_list = []
+
+    for h in hz:
+        s_val = 1.0
+        c1_val = 0.0
+        c2_val = 0.0
+        for t, s_st, c1_st, c2_st in steps:
+            if t <= h:
+                s_val = s_st
+                c1_val = c1_st
+                c2_val = c2_st
+            else:
+                break
+        survival_list.append(float(s_val))
+        cif_fill_list.append(float(c1_val))
+        cif_cancel_list.append(float(c2_val))
+
+    out.update({
+        "cif_fill": cif_fill_list,
+        "cif_cancel": cif_cancel_list,
+        "survival": survival_list,
+    })
     return out
 
 
