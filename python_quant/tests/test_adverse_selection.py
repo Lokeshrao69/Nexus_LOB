@@ -19,6 +19,9 @@ from nexus_quant.research.adverse_selection import (
     adverse_selection_report,
     drift_ticks,
     fills_from_tracker,
+    filter_book_events,
+    is_book_affecting,
+    matched_unexecuted_control_drift,
     nw_tstat,
     p_adverse,
     p_adverse_unconditional,
@@ -326,4 +329,64 @@ def test_fills_from_tracker_and_adverse_selection_sorted_by_execution_time():
     mids = [100.0] * 10
     rep = adverse_selection_report(scrambled, mids, horizons=(1,))
     assert rep["n_fills"] == 2
+
+
+def test_off_market_trade_messages_do_not_advance_book_event_clock():
+    """Verify that off-market trade messages (EventType.TRADE) do not advance the book event clock.
+
+    Regression test for M03 (#37).
+    """
+    tr = QueueTracker()
+    tr.on_event(NormalizedEvent(EventType.ADD, 1, 1, Side.Bid, 100, 10))
+    seq_start = tr.seq
+    mids_start = len(tr.mid_history)
+    assert seq_start == 1 and mids_start == 1
+
+    # Off-market trade print (EventType.TRADE)
+    tr.on_event(NormalizedEvent(EventType.TRADE, 2, 0, Side.Bid, 100, 5))
+    # Must NOT advance clock or append duplicate mid
+    assert tr.seq == seq_start
+    assert len(tr.mid_history) == mids_start
+
+    # Book-affecting event (EXECUTE) advances the clock
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 3, 1, Side.Bid, 100, 10))
+    assert tr.seq == seq_start + 1
+    assert len(tr.mid_history) == mids_start + 1
+
+    # OrderLevelTracker with count_trades_in_clock=False
+    olt = OrderLevelTracker(count_trades_in_clock=False)
+    olt.on_event(NormalizedEvent(EventType.ADD, 1, 1, Side.Bid, 100, 10))
+    assert olt.index == 1
+    olt.on_event(NormalizedEvent(EventType.TRADE, 2, 0, Side.Bid, 100, 5))
+    assert olt.index == 1
+    assert olt.stats["trades"] == 1
+    olt.on_event(NormalizedEvent(EventType.EXECUTE, 3, 1, Side.Bid, 100, 10))
+    assert olt.index == 2
+
+    # is_book_affecting and filter_book_events
+    events = [
+        NormalizedEvent(EventType.ADD, 1, 1, Side.Bid, 100, 10),
+        NormalizedEvent(EventType.TRADE, 2, 0, Side.Bid, 100, 5),
+        NormalizedEvent(EventType.EXECUTE, 3, 1, Side.Bid, 100, 10),
+    ]
+    assert is_book_affecting(events[0]) is True
+    assert is_book_affecting(events[1]) is False
+    assert is_book_affecting(events[2]) is True
+
+    filtered = filter_book_events(events)
+    assert len(filtered) == 2
+    assert [e.kind for e in filtered] == [EventType.ADD, EventType.EXECUTE]
+
+
+def test_matched_unexecuted_control_drift():
+    mids = [100.0, 101.0, 102.0, 105.0, 108.0]
+    controls = [
+        PassiveFill(idx=0, side=Side.Bid),
+        PassiveFill(idx=1, side=Side.Ask),
+    ]
+    d = matched_unexecuted_control_drift(controls, mids, h=2)
+    # Bid at 0 over h=2: mids[2] - mids[0] = 102 - 100 = 2.0
+    # Ask at 1 over h=2: -(mids[3] - mids[1]) = -(105 - 101) = -4.0
+    np.testing.assert_allclose(d, [2.0, -4.0])
+
 

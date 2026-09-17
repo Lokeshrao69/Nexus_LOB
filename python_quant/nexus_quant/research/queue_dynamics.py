@@ -142,7 +142,8 @@ class QueueTracker:
     back of its price level.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, count_trades_in_clock: bool = False) -> None:
+        self.count_trades_in_clock = count_trades_in_clock
         self._orders: dict[int, RestingOrder] = {}
         self._levels: dict[Side, dict[int, _Level]] = {Side.Bid: {}, Side.Ask: {}}
         self._side_levels_owner = self._levels  # (kept for clarity/tests)
@@ -175,7 +176,8 @@ class QueueTracker:
         elif kind == EventType.REPLACE:
             self._replace(ev)
         elif kind == EventType.TRADE:
-            pass  # a print — no queue effect
+            if not self.count_trades_in_clock:
+                return  # off-market / hidden trade does not advance book event clock (M03)
         else:  # pragma: no cover — defensive
             self.issues.append(f"seq{self.seq}: unhandled kind {kind}")
         self.seq += 1
@@ -1279,7 +1281,8 @@ class OrderLevelTracker:
     survival and logistic models consume.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, count_trades_in_clock: bool = True) -> None:
+        self.count_trades_in_clock = count_trades_in_clock
         self.orders: dict[int, TrackedOrder] = {}
         self.levels: dict[tuple[int, int], _TrackedLevel] = {}
         # lazy-deletion heaps for O(log n) best-price lookups: bids keyed by -price
@@ -1302,6 +1305,8 @@ class OrderLevelTracker:
             self.on_replace(ev)
         elif k == EventType.TRADE:
             self.on_trade(ev)
+            if not self.count_trades_in_clock:
+                return
         self.index += 1
 
     def on_add(self, ev: NormalizedEvent) -> TrackedOrder:

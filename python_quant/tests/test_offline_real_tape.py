@@ -188,8 +188,6 @@ def test_extended_sample_tapes_catalogue() -> None:
     assert extended["05152026"].endswith("/itch50_05_15.gz")
     assert extended["12132018"].endswith("/S121318-v50.txt.gz")
 
-
-<<<<<<< HEAD
 def test_replay_tracks_applied_and_failed_events(tmp_path: Path) -> None:
     ts = 34_200_000_000_000
     events = [
