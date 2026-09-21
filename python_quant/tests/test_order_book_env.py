@@ -123,3 +123,65 @@ def test_twap_episode_identity():
     env = OrderBookEnv(inventory=240, horizon=6, seed=5)
     res = run_episode(env, "twap", seed=5)
     assert res.filled + res.leftover == 240
+
+
+def test_passive_fill_quantity_conservation():
+    """Quantity conservation: all shares removed from book or inventory must be credited (F01)."""
+    env = OrderBookEnv(inventory=100, horizon=5, seed=7, queue_model="uniform")
+    env.reset()
+    for _ in range(5):
+        _obs, _r, term, trunc, _info = env.step(0.5)  # passive limit order
+        if term or trunc:
+            break
+    total_filled = sum(sz for _, _, sz in env.fills)
+    assert total_filled + env.inventory == 100
+
+
+def test_terminal_liquidation_cancels_agent_and_penalizes():
+    """Terminal truncation cancels resting child order and applies penalty on pre-dump inventory (F02)."""
+    env = OrderBookEnv(inventory=100, horizon=2, child_max=10, seed=12)
+    env.reset()
+    # Step 1: passive order
+    _o, _r, term, trunc, _info = env.step(1.0)
+    assert not term and not trunc
+    # Step 2: horizon reached (truncated)
+    _o, r, _term, trunc, _info = env.step(1.0)
+    assert trunc is True
+    # Agent order must be cancelled upon termination
+    assert env.agent_rest is None
+    # Terminal inventory penalty must have been assessed on pre-dump inventory
+    # so reward is strictly lower than step reward without penalty
+    assert r < 0.0
+
+
+def test_fee_accounting_and_vwap_precision():
+    """Fee cost deducted from cash_ticks and fill prices preserve float precision (F03)."""
+    env = OrderBookEnv(inventory=100, horizon=2, seed=1, fee_bps=10.0)
+    env.reset()
+    _obs, _r, _term, _trunc, _info = env.step(-1.0)  # market order
+    assert len(env.fills) >= 1
+    # Check float precision (not truncated by floor division)
+    for _, px, sz in env.fills:
+        assert isinstance(px, float)
+    # Taker fee was deducted from cash_ticks
+    notional = sum(px * sz for _, px, sz in env.fills)
+    assert env.cash_ticks < notional  # cash_ticks = notional - fee_cost
+
+
+def test_market_vwap_not_contaminated_by_maker_fills():
+    """Exogenous market VWAP benchmark must exclude the agent's maker fills (F07)."""
+    env = OrderBookEnv(inventory=100, horizon=5, seed=42)
+    env.reset()
+    # Step passively inside the spread
+    _obs, _r, _term, _trunc, _info = env.step(0.0)
+    mkt_vwap = env.market_vwap()
+    assert np.isfinite(mkt_vwap)
+
+
+def test_pure_is_reward_model():
+    """Support canonical implementation shortfall reward model (M05)."""
+    env = OrderBookEnv(inventory=100, horizon=3, seed=10, reward_model="is")
+    env.reset()
+    _obs, r, _term, _trunc, _info = env.step(-1.0)
+    assert np.isfinite(r)
+

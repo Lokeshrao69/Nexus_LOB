@@ -209,6 +209,22 @@ def test_walk_forward_blocks_disjoint_in_time() -> None:
     assert test[0].ts > val[-1].ts + gap
 
 
+def test_walk_forward_negative_gap_raises() -> None:
+    rows = [Row(ts=i, features={"x": float(i)}, label=float(i), split="") for i in range(20)]
+    with pytest.raises(ValueError, match="gap must be non-negative"):
+        make_split(rows, gap=-1)
+
+
+def test_walk_forward_identical_timestamps_deterministic() -> None:
+    rows_a = [Row(ts=10, features={"x": float(i)}, label=float(i), split="") for i in range(100)]
+    rows_b = [Row(ts=10, features={"x": float(i)}, label=float(i), split="") for i in range(100)]
+    split_a = make_split(rows_a, train=0.6, val=0.2)
+    split_b = make_split(rows_b, train=0.6, val=0.2)
+    assert [r.features["x"] for r in split_a["train"]] == [r.features["x"] for r in split_b["train"]]
+    assert [r.features["x"] for r in split_a["val"]] == [r.features["x"] for r in split_b["val"]]
+    assert [r.features["x"] for r in split_a["test"]] == [r.features["x"] for r in split_b["test"]]
+
+
 def test_event_frame_labels_and_tail(filled_book: StubOrderBook) -> None:
     events = [
         (Side.Bid, 15000 + i, 100 + i) for i in range(1, 20)
@@ -282,6 +298,22 @@ def test_rank_ic_zero_on_white_noise() -> None:
     assert decile_spread(y, pred) is not None
 
 
+def test_decile_spread_quantile_and_count() -> None:
+    y = list(range(1000))
+    pred = list(range(1000))
+    # Default q=0.10: top 100 mean is 949.5, bottom 100 mean is 49.5 -> spread 900.0
+    spread_10pct = decile_spread(y, pred)
+    assert pytest.approx(spread_10pct, abs=1e-6) == 900.0
+
+    # Explicit count n=10: top 10 mean is 994.5, bottom 10 mean is 4.5 -> spread 990.0
+    spread_10rows = decile_spread(y, pred, n=10)
+    assert pytest.approx(spread_10rows, abs=1e-6) == 990.0
+
+    # Edge cases: too small sample
+    assert math.isnan(decile_spread([1.0], [1.0]))
+    assert math.isnan(decile_spread([1.0, 2.0], [1.0, 2.0], n=5))
+
+
 # ---------------------------------------------------------------------------
 # (f) bootstrap CI coverage
 # ---------------------------------------------------------------------------
@@ -296,6 +328,21 @@ def test_bootstrap_ci_covers_true_mean() -> None:
         if ci["lo"] <= true_mean <= ci["hi"]:
             covered += 1
     assert covered / trials >= 0.8  # nominal 95%; allow MC slack
+
+
+def test_bootstrap_ci_replicate_length_exact() -> None:
+    n = 25
+    x = list(range(n))
+    lengths: list[int] = []
+
+    def check_len(sample: np.ndarray) -> float:
+        lengths.append(sample.size)
+        return float(np.mean(sample))
+
+    ci = bootstrap_ci(x, n_boot=100, kind="block", block=4, seed=42, stat_fn=check_len)
+    assert len(lengths) == 100
+    assert all(length == n for length in lengths)
+    assert ci["mean"] is not None
 
 
 # ---------------------------------------------------------------------------
@@ -341,3 +388,28 @@ def test_icir_and_hit_rate_smoke() -> None:
     y = [1.0] * 100
     assert hit_rate(y, y) == pytest.approx(1.0)
     assert zscore([1.0, 1.0, 1.0]).sum() == pytest.approx(0.0)
+
+
+def test_icir_zero_variance_and_single_sample() -> None:
+    assert icir([0.05, 0.05, 0.05]) == 0.0
+    assert math.isnan(icir([0.05]))
+
+
+def test_event_frame_view_snapshot_isolation() -> None:
+    events = [(Side.Bid, 15000 + i, 100) for i in range(5)]
+    shared_view = {}
+
+    def mutating_apply(ev: tuple[Side, int, int]) -> dict:
+        _side, px, sz = ev
+        shared_view["bid_px"] = np.array([px], dtype=np.int64)
+        shared_view["ask_px"] = np.array([px + 2], dtype=np.int64)
+        shared_view["bid_sz"] = np.array([sz], dtype=np.uint64)
+        shared_view["ask_sz"] = np.array([sz], dtype=np.uint64)
+        shared_view["seq"] = px
+        return shared_view
+
+    fns = {"spread": spread_bps}
+    rows = event_frame(events, mutating_apply, feature_fns=fns, h=1)
+    assert len(rows) == 4
+    ts_values = [r.ts for r in rows]
+    assert ts_values == [15000, 15001, 15002, 15003]

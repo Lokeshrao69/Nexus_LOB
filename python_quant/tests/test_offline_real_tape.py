@@ -20,7 +20,9 @@ parity exact over the pre-market prefix (7,037 frames) — see ``progress_b.md``
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 import os
 import sys
 import time
@@ -185,6 +187,124 @@ def test_extended_sample_tapes_catalogue() -> None:
     assert extended["10182019"].endswith("/S101819-v50.txt.gz")
     assert extended["05152026"].endswith("/itch50_05_15.gz")
     assert extended["12132018"].endswith("/S121318-v50.txt.gz")
+
+def test_replay_tracks_applied_and_failed_events(tmp_path: Path) -> None:
+    ts = 34_200_000_000_000
+    events = [
+        NormalizedEvent(EventType.ADD, ts + 1, 100, Side.Bid, 10_000, 50),
+        NormalizedEvent(EventType.DELETE, ts + 2, 100, Side.NONE, 0, 0),
+        NormalizedEvent(EventType.DELETE, ts + 3, 999, Side.NONE, 0, 0),  # non-existent order
+    ]
+    rep = ReplayEngine(events, StubBookAdapter())
+    f1 = rep.step()
+    assert f1 is not None and f1.applied is True
+    f2 = rep.step()
+    assert f2 is not None and f2.applied is True
+    f3 = rep.step()
+    assert f3 is not None and f3.applied is False
+    assert rep.applied == 2
+    assert rep.skipped == 1
+
+    itch_file = tmp_path / "AAPL.itch"
+    itch_file.write_bytes(
+        b"".join([
+            encode_event(NormalizedEvent(EventType.ADD, ts + 1, 100, Side.Bid, 10_000, 50)),
+            encode_event(NormalizedEvent(EventType.DELETE, ts + 2, 100, Side.NONE, 0, 0)),
+            encode_event(NormalizedEvent(EventType.DELETE, ts + 3, 999, Side.NONE, 0, 0)),
+        ])
+    )
+    spec = importlib.util.spec_from_file_location(
+        "run_research", _ROOT / "python_quant" / "scripts" / "run_research.py"
+    )
+    assert spec is not None and spec.loader is not None
+    rr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rr)
+    res = rr.replay_symbol(itch_file)
+    assert res["events_applied"] == 2
+    assert res["events_failed"] == 1
+
+
+def test_fill_study_isolates_regular_session() -> None:
+    spec = importlib.util.spec_from_file_location(
+        "run_research", _ROOT / "python_quant" / "scripts" / "run_research.py"
+    )
+    assert spec is not None and spec.loader is not None
+    rr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rr)
+
+    tr = OrderLevelTracker()
+    ts_open = rr.REGULAR_OPEN_NS
+    ts_close = rr.REGULAR_CLOSE_NS
+
+    # Order 1: added at 15:59:59, fills at 16:00:05 (post-close fill)
+    tr.on_event(NormalizedEvent(EventType.ADD, ts_close - 1_000_000_000, 1, Side.Bid, 10_000, 10))
+    # Order 2: added at 10:00:00, fills at 10:05:00 (regular-session fill)
+    tr.on_event(NormalizedEvent(EventType.ADD, ts_open + 1_800_000_000_000, 2, Side.Bid, 10_000, 10))
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, ts_open + 2_100_000_000_000, 2, Side.NONE, 0, 10))
+    # Order 1 fills at 16:00:05
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, ts_close + 5_000_000_000, 1, Side.NONE, 0, 10))
+
+    events = [
+        NormalizedEvent(EventType.ADD, ts_close - 1_000_000_000, 1, Side.Bid, 10_000, 10),
+        NormalizedEvent(EventType.ADD, ts_open + 1_800_000_000_000, 2, Side.Bid, 10_000, 10),
+        NormalizedEvent(EventType.EXECUTE, ts_open + 2_100_000_000_000, 2, Side.NONE, 0, 10),
+        NormalizedEvent(EventType.EXECUTE, ts_close + 5_000_000_000, 1, Side.NONE, 0, 10),
+    ]
+    rep = {"tracker": tr, "events": events}
+    res = rr.fill_study(rep, horizons_events=(1, 2, 5))
+
+    # Order 1 must NOT count as a completed fill in regular session
+    assert res["outcomes"] == {"filled": 1}  # only Order 2
+    assert res["n_still_open_at_close"] == 1  # Order 1 is still open at close
+    assert res["n_orders_regular"] == 2
+
+
+def test_manifest_provenance_verification(tmp_path: Path) -> None:
+    spec = importlib.util.spec_from_file_location(
+        "run_research", _ROOT / "python_quant" / "scripts" / "run_research.py"
+    )
+    assert spec is not None and spec.loader is not None
+    rr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rr)
+
+    day_dir = tmp_path / "12302019"
+    day_dir.mkdir(parents=True)
+    itch_file = day_dir / "AAPL.itch"
+    itch_bytes = b"sample itch data for testing"
+    itch_file.write_bytes(itch_bytes)
+
+    valid_sha = hashlib.sha256(itch_bytes).hexdigest()
+    manifest_data = {
+        "day": "12302019",
+        "symbols": {
+            "AAPL": {
+                "file": "AAPL.itch",
+                "bytes": len(itch_bytes),
+                "sha256": valid_sha,
+            }
+        },
+    }
+    manifest_path = day_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    # 1. Valid manifest passes verification without error
+    rr.verify_manifest_provenance(itch_file)
+
+    # 2. Corrupted file content (modified bytes / mismatched hash) raises ValueError
+    itch_file.write_bytes(b"corrupted itch data")
+    with pytest.raises(ValueError, match="SHA-256 mismatch|File size mismatch"):
+        rr.verify_manifest_provenance(itch_file)
+
+    # 3. Size mismatch raises ValueError
+    manifest_data["symbols"]["AAPL"]["sha256"] = hashlib.sha256(b"corrupted itch data").hexdigest()
+    manifest_data["symbols"]["AAPL"]["bytes"] = 999999
+    manifest_path.write_text(json.dumps(manifest_data), encoding="utf-8")
+    with pytest.raises(ValueError, match="File size mismatch"):
+        rr.verify_manifest_provenance(itch_file)
+
+    # 4. Running CLI main with mismatched hash halts with ValueError
+    with pytest.raises(ValueError):
+        rr.main(["--data", str(tmp_path), "--day", "12302019", "--symbols", "AAPL"])
 
 
 @pytest.mark.skipif(not _TAPE.exists(), reason=f"real tape not fetched: {_TAPE} (run scripts/fetch_itch.py)")

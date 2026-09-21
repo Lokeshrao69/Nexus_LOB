@@ -58,9 +58,11 @@ def icir(ic_series: Sequence[float], annualize: float = 1.0) -> float:
     x = np.asarray(ic_series, dtype=np.float64)
     if x.size < 2:
         return float("nan")
-    s = x.std(ddof=1)
-    if s <= 0:
-        return float("nan")
+    if np.allclose(x, x[0]):
+        return 0.0
+    s = float(x.std(ddof=1))
+    if s <= 1e-12 or np.isnan(s):
+        return 0.0
     return float(x.mean() / s * np.sqrt(x.size) * annualize)
 
 
@@ -73,16 +75,29 @@ def hit_rate(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
     return float(np.mean(np.sign(b) == np.sign(a)))
 
 
-def decile_spread(y_true: Sequence[float], y_pred: Sequence[float], n: int = 10) -> float:
-    """mean(label of top pred decile) − mean(label of bottom pred decile)."""
+def decile_spread(
+    y_true: Sequence[float],
+    y_pred: Sequence[float],
+    n: int | None = None,
+    q: float = 0.10,
+) -> float:
+    """mean(label of top pred decile) − mean(label of bottom pred decile).
+
+    If ``n`` is None, the bucket size is computed from quantile ``q``
+    (default 0.10 for deciles: ``max(1, int(len(a) * q))``). If an explicit
+    count ``n`` is provided, that fixed count is used instead.
+    """
     a = np.asarray(y_true, dtype=np.float64)
     b = np.asarray(y_pred, dtype=np.float64)
-    if a.size != b.size or a.size < 2 * n:
+    if a.size != b.size:
+        return float("nan")
+    k = n if n is not None else max(1, int(a.size * q))
+    if a.size < 2 * k or k < 1:
         return float("nan")
     order = np.argsort(b, kind="mergesort")
     a_sorted = a[order]
-    top = a_sorted[-n:].mean()
-    bot = a_sorted[:n].mean()
+    top = a_sorted[-k:].mean()
+    bot = a_sorted[:k].mean()
     return float(top - bot)
 
 
@@ -122,10 +137,8 @@ def bootstrap_ci(
         if kind == "block":
             starts = rng.integers(0, n, size=n_blocks)
             idx = np.concatenate(
-                [np.arange(s, min(s + blen, n), dtype=np.int64) for s in starts]
+                [(s + np.arange(blen, dtype=np.int64)) % n for s in starts]
             )[:n]
-            if idx.size == 0:
-                idx = np.arange(n)
             sample = x[idx]
         else:  # iid
             sample = x[rng.integers(0, n, size=n)]
@@ -307,10 +320,12 @@ def _one_result(yt: np.ndarray, yp: np.ndarray, n_boot: int, seed: int) -> dict:
     ic = rank_ic(yt, yp)
     ci = _rank_ic_bootstrap(yt, yp, n_boot=n_boot, seed=seed)
     ic_clean = None if (isnan(ic) or isinf(ic)) else float(ic)
+    val_icir = icir([ic]) if ic_clean is not None else float("nan")
+    icir_clean = None if (ic_clean is None or np.isnan(val_icir)) else float(val_icir)
     return {
         "n": n,
         "rank_ic": ic_clean,
-        "icir": None if ic_clean is None else icir([ic]),
+        "icir": icir_clean,
         "hit_rate": hit_rate(yt, yp),
         "decile_spread": decile_spread(yt, yp),
         "ci95": {"lo": ci["lo"], "hi": ci["hi"], "mean": ci["mean"]},
@@ -340,7 +355,7 @@ def _rank_ic_bootstrap(
     for b in range(n_boot):
         starts = rng.integers(0, n, size=n_blocks)
         idx = np.concatenate(
-            [np.arange(s, min(s + blen, n), dtype=np.int64) for s in starts]
+            [(s + np.arange(blen, dtype=np.int64)) % n for s in starts]
         )[:n]
         stats[b] = rank_ic(yt[idx], yp[idx])
     lo, hi = np.quantile(stats, [alpha / 2, 1 - alpha / 2])

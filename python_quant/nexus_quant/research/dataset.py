@@ -55,7 +55,13 @@ def event_frame(
     prev_feature_fns = prev_feature_fns or {}
     views: list[_View] = []
     for ev in events:
-        views.append(apply(ev))
+        v = apply(ev)
+        if isinstance(v, dict):
+            views.append({k: (val.copy() if hasattr(val, "copy") else val) for k, val in v.items()})
+        elif hasattr(v, "copy"):
+            views.append(v.copy())
+        else:
+            views.append(v)
 
     rows: list[Row] = []
     for i in range(len(views) - h):
@@ -95,8 +101,10 @@ def make_split(
         raise ValueError(f"unsupported split mode: {mode!r}")
     if not 0.0 < train < 1.0 or not 0.0 < val < 1.0 or train + val >= 1.0:
         raise ValueError("train and val must satisfy 0 < train, val < 1 and train+val < 1")
+    if gap < 0:
+        raise ValueError(f"gap must be non-negative, got {gap}")
 
-    ordered = sorted(rows, key=lambda r: (r.ts, id(r)))  # stable in ts
+    ordered = [r for _, r in sorted(enumerate(rows), key=lambda item: (item[1].ts, item[0]))]
     n = len(ordered)
     if n == 0:
         return {"train": [], "val": [], "test": []}
@@ -105,8 +113,8 @@ def make_split(
     idx_val = idx_train + int(n * val)
     # gap drops are taken from the tail of train and the head of val so the
     # remaining boundaries are at least ``gap`` rows apart.
-    train_rows = ordered[: idx_train - gap]
-    val_rows = ordered[idx_train + gap : idx_val - gap]
+    train_rows = ordered[: max(0, idx_train - gap)]
+    val_rows = ordered[idx_train + gap : max(idx_train + gap, idx_val - gap)]
     test_rows = ordered[idx_val + gap :]
 
     out: dict[str, list[Row]] = {"train": [], "val": [], "test": []}

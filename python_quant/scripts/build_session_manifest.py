@@ -49,7 +49,12 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 import fetch_itch
-from batch_research_itch import RESEARCH_MANIFEST_NAME, _pipeline_fingerprint
+from batch_research_itch import (
+    RESEARCH_MANIFEST_NAME,
+    _pipeline_fingerprint,
+    check_completed_research,
+    check_source_manifest,
+)
 from nexus_quant.research.multi_day_aggregation import (
     aggregate_multi_day_results,
     extract_session_metrics,
@@ -182,8 +187,8 @@ def build_records(*, data_dir: Path, results_dir: Path, probe_path: Path) -> lis
             records.append(rec)
             continue
 
-        src = _read_json(data_dir / day / "manifest.json")
-        if src is None:
+        manifest_file = data_dir / day / "manifest.json"
+        if not manifest_file.is_file():
             rec.update({
                 "size_bytes": None, "download_status": "not_downloaded", "complete_session": None,
                 "regular_session_coverage": None, "AAPL_events": None, "QQQ_events": None,
@@ -193,20 +198,80 @@ def build_records(*, data_dir: Path, results_dir: Path, probe_path: Path) -> lis
             records.append(rec)
             continue
 
-        complete_stream = bool(src.get("gzip_stream_complete")) and not bool(src.get("range_limited"))
+        src = _read_json(manifest_file)
+        if src is None:
+            rec.update({
+                "size_bytes": None, "download_status": "corrupt", "complete_session": False,
+                "regular_session_coverage": None, "AAPL_events": None, "QQQ_events": None,
+                "analysis_status": "not_run", "included_in_aggregation": False,
+                "exclusion_reason": f"source manifest corrupt or invalid JSON: {manifest_file}", "status_class": "CORRUPT",
+            })
+            records.append(rec)
+            continue
+
+        # Recheck source manifest provenance, slice file existence, sizes, and SHA-256 hashes
+        base = fetch_itch.DEFAULT_BASE
+        source_url = src.get("source_url")
+        if isinstance(source_url, str) and not source_url.startswith(fetch_itch.DEFAULT_BASE):
+            expected_name = audit["filename"] if day not in fetch_itch.PUBLIC_SAMPLE_DAYS else f"{day}.NASDAQ_ITCH50.gz"
+            if source_url.endswith(expected_name):
+                base = source_url[:-len(expected_name)]
+            elif "/" in source_url:
+                base = source_url.rsplit("/", 1)[0] + "/"
+
+        valid_src, src_errors = check_source_manifest(
+            day, list(SYMBOLS), data_dir, max_gz_bytes=None, base=base
+        )
+
+        is_corrupt_slice = any("mismatch" in err.lower() for err in src_errors)
+        is_missing_slice = any("missing" in err.lower() and "slice" in err.lower() for err in src_errors) or any(
+            "no requested" in err.lower() and "slice" in err.lower() for err in src_errors
+        )
+        is_incomplete_fetch = any(
+            "did not reach the end" in err.lower() or "range_limited" in err.lower() for err in src_errors
+        )
+
+        complete_stream = (
+            bool(src.get("gzip_stream_complete"))
+            and not bool(src.get("range_limited"))
+            and not is_incomplete_fetch
+        )
         rec["size_bytes"] = src.get("gz_bytes_fetched")
         rec["gz_sha256"] = src.get("gz_sha256")
         rec["messages_framed"] = src.get("messages_framed")
-        rec["last_tape_clock_hours"] = round(src.get("last_tape_ts_ns", 0) / 3.6e12, 4)
-        rec["download_status"] = "complete" if complete_stream else ("partial_prefix" if src.get("range_limited") else "interrupted")
+        rec["last_tape_clock_hours"] = (
+            round(src.get("last_tape_ts_ns", 0) / 3.6e12, 4) if src.get("last_tape_ts_ns") is not None else None
+        )
+
+        if is_corrupt_slice:
+            rec["download_status"] = "corrupt"
+        elif is_missing_slice:
+            rec["download_status"] = "slice_missing"
+        elif complete_stream:
+            rec["download_status"] = "complete"
+        elif src.get("range_limited"):
+            rec["download_status"] = "partial_prefix"
+        else:
+            rec["download_status"] = "interrupted"
+
         rec["symbols_not_found"] = src.get("symbols_not_found", [])
-        sym_entries = src.get("symbols", {})
+        sym_entries = src.get("symbols", {}) if isinstance(src.get("symbols"), dict) else {}
         for s in SYMBOLS:
             e = sym_entries.get(s)
-            rec[f"{s}_slice_messages"] = sum(e["messages"].values()) if e else None
-            rec[f"{s}_slice_sha256"] = e["sha256"] if e else None
+            rec[f"{s}_slice_messages"] = (
+                sum(e["messages"].values()) if (isinstance(e, dict) and isinstance(e.get("messages"), dict)) else None
+            )
+            rec[f"{s}_slice_sha256"] = e.get("sha256") if isinstance(e, dict) else None
 
         research = _read_json(results_dir / day / RESEARCH_MANIFEST_NAME)
+        res_errors: list[str] = []
+        if research is not None and valid_src is not None:
+            _, res_errors = check_completed_research(
+                day, list(SYMBOLS), data_dir, results_dir, valid_src
+            )
+        elif research is not None and valid_src is None:
+            res_errors.append("research cannot be validated because source manifest/slices failed integrity checks")
+
         session: dict[str, Any] = {}
         events: dict[str, int | None] = {s: None for s in SYMBOLS}
         analysis_status = "not_run"
@@ -240,8 +305,11 @@ def build_records(*, data_dir: Path, results_dir: Path, probe_path: Path) -> lis
         session_complete = bool(session) and all(
             isinstance(v, dict) and v.get("regular_session_complete") for v in session.values()
         ) and set(session) == set(SYMBOLS)
+
         reasons: list[str] = []
-        if not complete_stream:
+        if src_errors:
+            reasons.extend(src_errors)
+        if not complete_stream and not any("gzip" in r.lower() or "stream" in r.lower() for r in reasons):
             reasons.append("source GZIP stream did not reach EOF on an unbounded fetch")
         if rec["symbols_not_found"]:
             reasons.append(f"symbols missing from the stock directory: {rec['symbols_not_found']}")
@@ -251,21 +319,36 @@ def build_records(*, data_dir: Path, results_dir: Path, probe_path: Path) -> lis
             reasons.append(f"analysis status {analysis_status}")
         elif pipeline_current is False:
             reasons.append("analysis predates the current pipeline fingerprint")
-        if research is not None and not session_complete:
+        if res_errors:
+            for re_err in res_errors:
+                if re_err not in reasons:
+                    reasons.append(re_err)
+        if research is not None and not session_complete and not any("regular session" in r.lower() for r in reasons):
             reasons.append("regular session not complete for every symbol (see regular_session_coverage)")
-        rec["complete_session"] = bool(complete_stream and session_complete) if research is not None else None
+
+        has_integrity_failure = bool(src_errors or res_errors)
+        if has_integrity_failure or not complete_stream:
+            rec["complete_session"] = False
+        elif research is not None:
+            rec["complete_session"] = bool(session_complete)
+        else:
+            rec["complete_session"] = None
+
         rec["included_in_aggregation"] = not reasons
         rec["exclusion_reason"] = "; ".join(reasons) if reasons else None
+
         if not reasons:
             rec["status_class"] = "FULL"
-        elif not complete_stream:
+        elif is_corrupt_slice or any("mismatch" in r.lower() for r in reasons):
+            rec["status_class"] = "CORRUPT"
+        elif is_missing_slice or any("missing" in r.lower() and "slice" in r.lower() for r in reasons):
+            rec["status_class"] = "INVALID"
+        elif not complete_stream or (research is not None and not session_complete):
             rec["status_class"] = "PARTIAL"
+        elif analysis_status == "failed" or res_errors:
+            rec["status_class"] = "PROCESSING_FAILED"
         elif research is None:
             rec["status_class"] = "OTHER"
-        elif analysis_status == "failed":
-            rec["status_class"] = "PROCESSING_FAILED"
-        elif not session_complete:
-            rec["status_class"] = "PARTIAL"
         else:
             rec["status_class"] = "OTHER"
         records.append(rec)

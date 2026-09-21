@@ -36,6 +36,7 @@ Output: ``docs/results/real_tape_<day>_<SYMBOL>.json`` + ``docs/results/real_tap
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import sys
@@ -71,8 +72,8 @@ from nexus_quant.research.features import (
 )
 from nexus_quant.research.queue_dynamics import (
     OrderLevelTracker,
-    censor_open_orders,
     fill_prob_survival,
+    filter_session_orders,
     logistic_fill_model,
     order_features,
 )
@@ -115,8 +116,56 @@ def order_level_ofi(ev, live_before) -> float:
     return -qty if int(live_before.side) == 0 else qty
 
 
-def replay_symbol(path: Path, *, max_events: int | None = None, log=print) -> dict:
+def verify_manifest_provenance(path: Path, manifest_path: Path | None = None, symbol: str | None = None) -> None:
+    """Verify file size and SHA-256 checksum against manifest.json if present.
+
+    Raises ValueError if size or SHA-256 does not match the manifest.
+    """
+    if manifest_path is None:
+        manifest_path = path.parent / "manifest.json"
+    if not manifest_path.is_file():
+        return
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        raise ValueError(f"Failed to read manifest {manifest_path}: {e}") from e
+
+    sym = symbol or path.stem
+    sym_entry = manifest.get("symbols", {}).get(sym)
+    if sym_entry is None:
+        return
+
+    expected_bytes = sym_entry.get("bytes")
+    if expected_bytes is not None:
+        actual_bytes = path.stat().st_size
+        if actual_bytes != expected_bytes:
+            raise ValueError(
+                f"File size mismatch for {path}: expected {expected_bytes} bytes from manifest, got {actual_bytes} bytes"
+            )
+
+    expected_sha = sym_entry.get("sha256")
+    if expected_sha:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            while chunk := f.read(65536):
+                h.update(chunk)
+        actual_sha = h.hexdigest()
+        if actual_sha != expected_sha:
+            raise ValueError(
+                f"SHA-256 mismatch for {path}: expected {expected_sha} from manifest, got {actual_sha}"
+            )
+
+
+def replay_symbol(
+    path: Path,
+    *,
+    max_events: int | None = None,
+    verify_manifest: bool = True,
+    log=print,
+) -> dict:
     """Parse + replay one symbol file, computing per-event features inline."""
+    if verify_manifest:
+        verify_manifest_provenance(path)
     stats = ItchParseStats()
     t0 = time.time()
     events = list(iter_itch_events(path, stats=stats))
@@ -131,12 +180,17 @@ def replay_symbol(path: Path, *, max_events: int | None = None, log=print) -> di
     issues: Counter = Counter()
     prev_view = None
     t0 = time.time()
+    applied_count = 0
+    failed_count = 0
     for i, ev in enumerate(events):
         live_before = None
         if ev.kind not in (EventType.ADD, EventType.ADD_MPID, EventType.TRADE):
             live_before = tracker.orders.get(int(ev.order_id))
         e_n = order_level_ofi(ev, live_before)
-        rep.apply(ev)
+        if rep.apply(ev):
+            applied_count += 1
+        else:
+            failed_count += 1
         tracker.on_event(ev)
         if not (REGULAR_OPEN_NS <= ev.ts_ns < REGULAR_CLOSE_NS):
             continue
@@ -162,11 +216,13 @@ def replay_symbol(path: Path, *, max_events: int | None = None, log=print) -> di
     log(
         f"  {path.name}: {stats.messages:,} msgs → {stats.emitted:,} events, truncated={stats.truncated}, "
         f"parse {t_parse:.1f}s, replay+track+features {t_replay:.1f}s; regular-session rows {n:,}; "
-        f"integrity issues {dict(issues) or 'none'}; tracker unknown ids {tracker.stats['unknown_id']}"
+        f"integrity issues {dict(issues) or 'none'}; tracker unknown ids {tracker.stats['unknown_id']}; "
+        f"events applied={applied_count:,}, failed={failed_count:,}"
     )
     return {
         "events": events, "stats": stats, "features": arr, "mids": np.asarray(mids), "ts": np.asarray(ts),
         "tape_idx": np.asarray(tape_idx), "tracker": tracker, "issues": dict(issues), "n_regular": n,
+        "events_applied": applied_count, "events_failed": failed_count,
         "t_parse": t_parse, "t_replay": t_replay,
     }
 
@@ -250,12 +306,19 @@ def _z(x: np.ndarray, ref: np.ndarray) -> np.ndarray:
 def fill_study(rep: dict, *, horizons_events: tuple[int, ...]) -> dict:
     """E5: KM survival + logistic fill model on the tracker's regular-session orders."""
     tracker: OrderLevelTracker = rep["tracker"]
-    def in_session(o) -> bool:
-        return REGULAR_OPEN_NS <= o.ts_add < REGULAR_CLOSE_NS
+    events = rep.get("events", [])
+    close_idx = len(events)
+    for i, ev in enumerate(events):
+        if ev.ts_ns >= REGULAR_CLOSE_NS:
+            close_idx = i
+            break
 
-    completed = [o for o in tracker.completed if in_session(o)]
-    last_ts = rep["events"][-1].ts_ns if rep["events"] else 0
-    censored = [o for o in censor_open_orders(tracker, last_ts) if in_session(o)]
+    completed, censored = filter_session_orders(
+        tracker,
+        ts_open=REGULAR_OPEN_NS,
+        ts_close=REGULAR_CLOSE_NS,
+        idx_close=close_idx,
+    )
     km = fill_prob_survival(completed + censored, horizons=horizons_events)
     out: dict = {
         "n_orders_regular": len(completed) + len(censored),
@@ -265,14 +328,17 @@ def fill_study(rep: dict, *, horizons_events: tuple[int, ...]) -> dict:
                "n_fill": km["n_fill"], "n_cancel": km["n_cancel"],
                "median_fill_time_events": km["median_fill_time"]},
     }
+    completed.sort(key=lambda o: (o.ts_add, getattr(o, "idx_add", 0)))
     X: dict[str, list[float]] = {}
     y: list[bool] = []
+    ts_list: list[int] = []
     for o in completed:
         for k, v in order_features(o).items():
             X.setdefault(k, []).append(v)
         y.append(o.outcome == "filled")
+        ts_list.append(o.ts_add)
     if len(y) >= 200 and 5 <= sum(y) <= len(y) - 5:
-        m = logistic_fill_model(X, y, holdout=0.3)
+        m = logistic_fill_model(X, y, timestamps=ts_list, holdout=0.3)
         out["logistic"] = {k: m[k] for k in ("n_train", "n_test", "base_rate", "brier", "brier_base_rate",
                                              "brier_skill", "calibration_slope", "coefs", "calibration_table")}
     return out
@@ -294,6 +360,7 @@ def adverse_study(rep: dict, *, horizons: tuple[int, ...]) -> dict:
             continue
         fills.append(PassiveFill(idx=j, side=f.side, price=f.price, size=f.size,
                                  ofi=float(ofi_w[j - 1]) if j > 0 else 0.0, queue_frac=f.queue_frac))
+    fills.sort(key=lambda f: f.idx)
     return adverse_selection_report(fills, rep["mids"], horizons=horizons, min_group=30)
 
 
@@ -375,23 +442,24 @@ def render_md(day: str, per_symbol: dict[str, dict]) -> str:
              "`s·(mid[t+h] − mid[t])` in ticks, s = +1 for a filled bid (bought), −1 for a filled ask; negative = "
              "adverse. `post − pre` nets out the drift over the h events *before* the fill (matched control on the "
              "same tape)."), "",
-            "| h | n | mean post drift | NW t | P(adverse) | mean pre drift | post − pre | NW t |",
-            "|---|---|---|---|---|---|---|---|",
+            "| h | n | mean post drift | NW t | P(adv|Δ≠0) | P(adv uncond) | mean pre drift | post − pre | NW t |",
+            "|---|---|---|---|---|---|---|---|---|",
         ]
         for h, blk in e6.get("horizons", {}).items():
             o, p, x = blk["overall"], blk["pre_fill"], blk["post_minus_pre"]
             lines.append(f"| {h} | {o['n']} | {fmt(o['mean_drift'], 1, 8, 2)} | {fmt(o['t_nw'], 1, 6, 2)} | "
-                         f"{fmt(o['p_adverse'], 1, 6, 3)} | {fmt(p['mean_drift'], 1, 8, 2)} | "
+                         f"{fmt(o['p_adverse'], 1, 6, 3)} | {fmt(o.get('p_adverse_unconditional'), 1, 6, 3)} | "
+                         f"{fmt(p['mean_drift'], 1, 8, 2)} | "
                          f"{fmt(x['mean_drift'], 1, 8, 2)} | {fmt(x['t_nw'], 1, 6, 2)} |")
         lines.append("")
         hz = e6.get("horizons", {})
         blk5 = hz.get(5) or hz.get("5") or (next(iter(hz.values())) if hz else None)
         if blk5 and blk5["groups"]:
             lines += ["Conditioned on side / rolling order-flow imbalance sign / queue position at placement (h = 5):", "",
-                      "| group | n | mean drift | NW t | P(adverse) |", "|---|---|---|---|---|"]
+                      "| group | n | mean drift | NW t | P(adv|Δ≠0) | P(adv uncond) |", "|---|---|---|---|---|---|"]
             for g, st in blk5["groups"].items():
                 lines.append(f"| {g} | {st['n']} | {fmt(st['mean_drift'], 1, 8, 2)} | {fmt(st['t_nw'], 1, 6, 2)} | "
-                             f"{fmt(st['p_adverse'], 1, 6, 3)} |")
+                             f"{fmt(st['p_adverse'], 1, 6, 3)} | {fmt(st.get('p_adverse_unconditional'), 1, 6, 3)} |")
             lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -416,8 +484,9 @@ def main(argv: list[str] | None = None) -> int:
         if not path.exists():
             print(f"missing {path} — run scripts/fetch_itch.py --day {args.day} --symbols {sym}")
             continue
+        verify_manifest_provenance(path, symbol=sym)
         print(f"== {sym} ==")
-        rep = replay_symbol(path, max_events=args.max_events)
+        rep = replay_symbol(path, max_events=args.max_events, verify_manifest=False)
         t0 = time.time()
         ic = ic_study(rep, horizons=tuple(args.horizons), train=args.train, val=args.val, n_boot=args.n_boot)
         print(f"  E1–E4 done in {time.time() - t0:.1f}s")
@@ -437,24 +506,26 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  E6 done in {time.time() - t0:.1f}s: {adverse.get('n_fills', 0)} passive fills")
         for h, blk in adverse.get("horizons", {}).items():
             o, x = blk["overall"], blk["post_minus_pre"]
-            print(f"    h={h:<3} post drift {o['mean_drift']:+.2f} (t {o['t_nw']:+.2f}, P(adv) {o['p_adverse']:.3f}); "
-                  f"post−pre {x['mean_drift']:+.2f} (t {x['t_nw']:+.2f})")
+            print(f"    h={h:<3} post drift {o['mean_drift']:+.2f} (t {o['t_nw']:+.2f}, P(adv|Δ≠0) {o['p_adverse']:.3f}, "
+                  f"P(adv uncond) {o.get('p_adverse_unconditional', 0.0):.3f}); post−pre {x['mean_drift']:+.2f} (t {x['t_nw']:+.2f})")
         st = rep["stats"]
         per_symbol[sym] = {
             "tape": {"messages": st.messages, "events": st.emitted, "truncated": st.truncated,
                      "skipped_type": st.skipped_type, "regular_events": rep["n_regular"],
                      "integrity_issues": rep["issues"], "tracker_unknown_id": rep["tracker"].stats["unknown_id"],
+                     "events_applied": rep["events_applied"], "events_failed": rep["events_failed"],
                      "t_parse_s": rep["t_parse"], "t_replay_s": rep["t_replay"]},
             "ic": ic, "fill": fill, "adverse": adverse,
         }
         args.out_dir.mkdir(parents=True, exist_ok=True)
         (args.out_dir / f"real_tape_{args.day}_{sym}.json").write_text(
-            json.dumps(per_symbol[sym], indent=1, default=float) + "\n"
+            json.dumps(per_symbol[sym], indent=1, default=float) + "\n",
+            encoding="utf-8",
         )
         del rep
     if per_symbol:
         md = args.out_dir / f"real_tape_{args.day}.md"
-        md.write_text(render_md(args.day, per_symbol))
+        md.write_text(render_md(args.day, per_symbol), encoding="utf-8")
         print(f"\nwrote {md} ({time.time() - t_all:.0f}s total)")
     return 0
 

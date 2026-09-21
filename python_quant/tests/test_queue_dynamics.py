@@ -17,18 +17,23 @@ from nexus_quant.itch_parser import (
     iter_itch_events,
 )
 from nexus_quant.research.queue_dynamics import (
+    REGULAR_CLOSE_NS,
+    REGULAR_OPEN_NS,
     FillRow,
     LogisticFillModel,
     OrderLevelTracker,
     OrderLife,
     QueueTracker,
     RestingOrder,
+    TrackedOrder,
     _decision_features,
     brier_score,
     calibration_table,
     censor_open_orders,
+    cumulative_incidence_competing_risks,
     fill_dataset,
     fill_prob_survival,
+    filter_session_orders,
     logistic_fill_model,
     order_features,
     queue_ahead_walk,
@@ -512,6 +517,207 @@ def test_kaplan_meier_empty_input_is_safe():
     assert km["n"] == 0 and km["p_fill"] == [0.0, 0.0] and km["median_fill_time"] is None
 
 
+def test_censor_open_orders_never_exceeds_session_close():
+    """Survival duration must never exceed REGULAR_CLOSE_NS - ts_add, even if tape continues after hours."""
+    tr = OrderLevelTracker()
+    ts1 = REGULAR_CLOSE_NS - 60_000_000_000  # 15:59:00
+    ts2 = REGULAR_CLOSE_NS - 1_000_000_000   # 15:59:59
+    ts_post = REGULAR_CLOSE_NS + 10_000_000_000  # 16:00:10 (after close add)
+
+    tr.on_event(_ev_tracked(EventType.ADD, 10, px=100, sz=10, ts=ts1))
+    tr.on_event(_ev_tracked(EventType.ADD, 20, px=100, sz=10, ts=ts2))
+    tr.on_event(_ev_tracked(EventType.ADD, 30, px=100, sz=10, ts=ts_post))
+
+    censored = censor_open_orders(tr, ts_end=REGULAR_CLOSE_NS)
+    # Order 30 added after close must be ignored
+    assert {o.order_id for o in censored} == {10, 20}
+    for c in censored:
+        assert c.ts_end == REGULAR_CLOSE_NS
+        assert c.ts_end - c.ts_add <= REGULAR_CLOSE_NS - c.ts_add
+        assert c.outcome == "cancelled"
+
+
+def test_post_close_fills_marked_as_censored_at_regular_close():
+    """Orders submitted before 16:00 that fill at 16:00:05 must NOT count as regular-session fills."""
+    tr = OrderLevelTracker()
+    # Order 1: placed at 15:59:59, fills at 16:00:05 (after-hours fill)
+    ts_add1 = REGULAR_CLOSE_NS - 1_000_000_000  # 15:59:59
+    ts_fill1 = REGULAR_CLOSE_NS + 5_000_000_000  # 16:00:05
+    tr.on_event(_ev_tracked(EventType.ADD, 1, px=100, sz=10, ts=ts_add1))
+
+    # Order 2: placed at 15:30:00, fills at 15:45:00 (regular fill)
+    ts_add2 = REGULAR_OPEN_NS + 15 * 60 * 1_000_000_000
+    ts_fill2 = REGULAR_OPEN_NS + 30 * 60 * 1_000_000_000
+    tr.on_event(_ev_tracked(EventType.ADD, 2, px=100, sz=10, ts=ts_add2))
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 2, sz=10, ts=ts_fill2))
+
+    # Order 3: placed at 15:40:00, cancels at 15:50:00 (regular cancel)
+    ts_add3 = REGULAR_OPEN_NS + 20 * 60 * 1_000_000_000
+    ts_cancel3 = REGULAR_OPEN_NS + 30 * 60 * 1_000_000_000
+    tr.on_event(_ev_tracked(EventType.ADD, 3, px=100, sz=10, ts=ts_add3))
+    tr.on_event(_ev_tracked(EventType.DELETE, 3, sz=0, ts=ts_cancel3))
+
+    # Now Order 1 fills after close
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 1, sz=10, ts=ts_fill1))
+
+    # Order 4: placed at 16:05:00, fills at 16:10:00 (entirely post-close)
+    ts_add4 = REGULAR_CLOSE_NS + 300_000_000_000
+    ts_fill4 = REGULAR_CLOSE_NS + 600_000_000_000
+    tr.on_event(_ev_tracked(EventType.ADD, 4, px=100, sz=10, ts=ts_add4))
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 4, sz=10, ts=ts_fill4))
+
+    # Partition session orders
+    completed, censored = filter_session_orders(tr, ts_open=REGULAR_OPEN_NS, ts_close=REGULAR_CLOSE_NS)
+
+    # Order 1 (filled post-close) must NOT be in completed; it must be censored at close
+    completed_ids = {o.order_id for o in completed}
+    assert completed_ids == {2, 3}
+    assert {o.order_id: o.outcome for o in completed} == {2: "filled", 3: "cancelled"}
+
+    censored_ids = {o.order_id for o in censored}
+    assert censored_ids == {1}
+    o1_censored = censored[0]
+    assert o1_censored.order_id == 1
+    assert o1_censored.outcome == "cancelled"
+    assert o1_censored.ts_end == REGULAR_CLOSE_NS
+    assert o1_censored.ts_first_fill is None
+    assert o1_censored.ts_end - o1_censored.ts_add == 1_000_000_000
+
+    # Also test censor_open_orders with include_post_cutoff=True
+    post_censored = censor_open_orders(tr, ts_end=REGULAR_CLOSE_NS, include_post_cutoff=True)
+    assert 1 in {o.order_id for o in post_censored}
+
+
+def test_cumulative_incidence_hand_computed():
+    """Exact Aalen-Johansen CIF check on the 5-order queue from test_kaplan_meier_fits_hand_computed_survival.
+
+    Orders:
+      1: t=2, fill
+      2: t=3, cancel
+      3: t=4, fill
+      4: t=3, cancel
+      5: t=3, fill
+
+    At t=2: at_risk=5, d_fill=1, d_cancel=0 -> S=0.8, CIF_fill=0.2, CIF_cancel=0.0
+    At t=3: at_risk=4, d_fill=1, d_cancel=2 -> S=0.2, CIF_fill=0.4, CIF_cancel=0.4
+    At t=4: at_risk=1, d_fill=1, d_cancel=0 -> S=0.0, CIF_fill=0.6, CIF_cancel=0.4
+
+    KM P(fill) at t=4 is 1.0 (censoring assumption), whereas CIF_fill is 0.6 (true competing risk).
+    """
+    tr = OrderLevelTracker()
+    tr.on_event(_ev_tracked(EventType.ADD, 1, px=100, sz=10, ts=1))      # idx 0
+    tr.on_event(_ev_tracked(EventType.ADD, 2, px=100, sz=10, ts=2))      # idx 1
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 1, sz=10, ts=3))          # idx 2 -> order1 fill t=2
+    tr.on_event(_ev_tracked(EventType.ADD, 3, px=100, sz=10, ts=4))      # idx 3
+    tr.on_event(_ev_tracked(EventType.CANCEL, 2, sz=10, ts=5))           # idx 4 -> order2 cancel t=3
+    tr.on_event(_ev_tracked(EventType.ADD, 4, px=100, sz=10, ts=6))      # idx 5
+    tr.on_event(_ev_tracked(EventType.ADD, 5, px=100, sz=10, ts=7))      # idx 6
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 3, sz=10, ts=8))          # idx 7 -> order3 fill t=4
+    tr.on_event(_ev_tracked(EventType.DELETE, 4, ts=9))                  # idx 8 -> order4 cancel t=3
+    tr.on_event(_ev_tracked(EventType.EXECUTE, 5, sz=10, ts=10))         # idx 9 -> order5 fill t=3
+
+    horizons = [1, 2, 3, 4, 10]
+    cif = cumulative_incidence_competing_risks(tr.completed, horizons=horizons)
+    assert cif["n"] == 5 and cif["n_fill"] == 3 and cif["n_cancel"] == 2
+    np.testing.assert_allclose(cif["cif_fill"], [0.0, 0.2, 0.4, 0.6, 0.6], atol=1e-12)
+    np.testing.assert_allclose(cif["cif_cancel"], [0.0, 0.0, 0.4, 0.4, 0.4], atol=1e-12)
+    np.testing.assert_allclose(cif["survival"], [1.0, 0.8, 0.2, 0.0, 0.0], atol=1e-12)
+
+    # CIF additivity identity holds exactly: CIF_fill(t) + CIF_cancel(t) == 1 - S(t)
+    sum_cif = np.array(cif["cif_fill"]) + np.array(cif["cif_cancel"])
+    np.testing.assert_allclose(sum_cif, 1.0 - np.array(cif["survival"]), atol=1e-12)
+
+    # fill_prob_survival also bundles CIF results
+    km = fill_prob_survival(tr.completed, horizons=horizons)
+    np.testing.assert_allclose(km["cif_fill"], cif["cif_fill"], atol=1e-12)
+    np.testing.assert_allclose(km["cif_cancel"], cif["cif_cancel"], atol=1e-12)
+    # Kaplan-Meier P(fill) overestimates CIF_fill: at t=4, KM=1.0 vs CIF=0.6
+    assert km["p_fill"][3] == pytest.approx(1.0)
+    assert cif["cif_fill"][3] == pytest.approx(0.6)
+
+
+def test_cumulative_incidence_competing_risks_identity_and_bound():
+    """Simulated queue data with 85% cancellation rate.
+
+    Verifies:
+      1. CIF_fill(t) + CIF_cancel(t) == 1 - S(t) (conservation identity)
+      2. CIF_fill(t) <= P_KM(t) (KM upward bias bound)
+      3. Monotonicity of CIF functions
+    """
+    rng = np.random.default_rng(42)
+    n = 1000
+    horizons = [5.0, 10.0, 20.0, 50.0, 100.0, 200.0]
+
+    # Generate synthetic order lifecycles: 85% cancelled, 15% filled
+    orders = []
+    for i in range(n):
+        is_fill = rng.random() < 0.15
+        outcome = "filled" if is_fill else "cancelled"
+        # Fills take longer on average than quick cancels
+        dur = rng.exponential(30.0) if is_fill else rng.exponential(15.0)
+        dur = max(1, int(dur))
+        o = TrackedOrder(
+            order_id=i + 1,
+            side=Side.Bid,
+            price=100,
+            size=10,
+            size0=10,
+            ts_add=1000,
+            idx_add=0,
+            ahead_at_add=50,
+            ahead=0,
+            idx_end=dur,
+            ts_end=1000 + dur * 10,
+            idx_first_fill=dur if is_fill else None,
+            ts_first_fill=1000 + dur * 10 if is_fill else None,
+            outcome=outcome,
+        )
+        orders.append(o)
+
+    cif = cumulative_incidence_competing_risks(orders, horizons=horizons)
+    km = fill_prob_survival(orders, horizons=horizons)
+
+    cif_f = np.array(cif["cif_fill"])
+    cif_c = np.array(cif["cif_cancel"])
+    surv = np.array(cif["survival"])
+    km_p = np.array(km["p_fill"])
+
+    # 1. Total terminated probability identity
+    np.testing.assert_allclose(cif_f + cif_c, 1.0 - surv, atol=1e-12)
+
+    # 2. CIF_fill <= KM_p_fill everywhere
+    assert np.all(cif_f <= km_p + 1e-12)
+    # Over long horizons with high cancellation rate, KM is strictly higher
+    assert km_p[-1] > cif_f[-1] + 0.1
+
+    # 3. Monotonicity
+    assert np.all(np.diff(cif_f) >= -1e-12)
+    assert np.all(np.diff(cif_c) >= -1e-12)
+    assert np.all(np.diff(surv) <= 1e-12)
+
+
+def test_cumulative_incidence_empty_and_edge_cases():
+    res = cumulative_incidence_competing_risks([], horizons=[1, 5, 10])
+    assert res["n"] == 0
+    assert res["cif_fill"] == [0.0, 0.0, 0.0]
+    assert res["cif_cancel"] == [0.0, 0.0, 0.0]
+    assert res["survival"] == [1.0, 1.0, 1.0]
+
+    # All-censored
+    censored_orders = [
+        TrackedOrder(
+            order_id=1, side=Side.Bid, price=100, size=10, size0=10,
+            ts_add=0, idx_add=0, ahead_at_add=0, ahead=0,
+            idx_end=10, ts_end=10, outcome="resting",
+        )
+    ]
+    res_c = cumulative_incidence_competing_risks(censored_orders, horizons=[5, 15])
+    assert res_c["n"] == 1 and res_c["n_censored"] == 1 and res_c["n_fill"] == 0 and res_c["n_cancel"] == 0
+    assert res_c["cif_fill"] == [0.0, 0.0]
+    assert res_c["cif_cancel"] == [0.0, 0.0]
+    assert res_c["survival"] == [1.0, 1.0]
+
+
 # --------------------------------------------------------------------------- logistic
 def test_logistic_fill_model_recovers_a_known_logistic_queue():
     """Truth: P(fill) = σ(1.0 − 0.9·log_ahead). Calibration slope must be ≈ 1 out of sample."""
@@ -565,3 +771,39 @@ def test_brier_and_calibration_helpers():
     assert np.isnan(brier_score([], []))
     rows = calibration_table(np.array([0.1, 0.9, 0.2, 0.8]), np.array([0, 1, 0, 1]), bins=2)
     assert [r["n"] for r in rows] == [2, 2] and rows[0]["realized"] == 0.0 and rows[1]["realized"] == 1.0
+
+
+def test_completed_chronological_ordering():
+    """Early arrival orders must appear before late arrival orders in completed_chronological."""
+    tr = OrderLevelTracker()
+    # Order 1 placed early at t=100
+    tr.on_event(NormalizedEvent(EventType.ADD, 100, 1, Side.Bid, 100, 50))
+    # Order 2 placed later at t=200
+    tr.on_event(NormalizedEvent(EventType.ADD, 200, 2, Side.Bid, 100, 50))
+    # Order 2 fills immediately at t=210 (finishes first)
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 210, 2, Side.NONE, 0, 50))
+    # Order 1 fills late at t=500 (finishes second)
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 500, 1, Side.NONE, 0, 50))
+
+    # Raw completed list is in completion order: [Order 2, Order 1]
+    assert [o.order_id for o in tr.completed] == [2, 1]
+
+    # completed_chronological sorts by (ts_add, idx_add): [Order 1, Order 2]
+    chrono = tr.completed_chronological()
+    assert [o.order_id for o in chrono] == [1, 2]
+    assert chrono[0].ts_add <= chrono[1].ts_add
+
+
+def test_logistic_fill_model_enforces_temporal_consistency():
+    """Walk-forward splits must strictly guarantee max(ts_train) <= min(ts_test)."""
+    rng = np.random.default_rng(42)
+    n = 100
+    # Scrambled timestamps from 1000 to 2000
+    timestamps = rng.permutation(np.linspace(1000, 2000, n))
+    x = rng.normal(size=n)
+    y = rng.choice([True, False], size=n)
+
+    m = logistic_fill_model({"x": x}, y, timestamps=timestamps, holdout=0.3)
+    assert m["max_ts_train"] is not None and m["min_ts_test"] is not None
+    assert m["max_ts_train"] <= m["min_ts_test"]
+

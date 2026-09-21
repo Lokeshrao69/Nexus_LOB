@@ -19,8 +19,12 @@ from nexus_quant.research.adverse_selection import (
     adverse_selection_report,
     drift_ticks,
     fills_from_tracker,
+    filter_book_events,
+    is_book_affecting,
+    matched_unexecuted_control_drift,
     nw_tstat,
     p_adverse,
+    p_adverse_unconditional,
     post_fill_drift,
     pre_fill_drift,
 )
@@ -171,6 +175,30 @@ def test_p_adverse_excludes_ties_and_nans():
     assert np.isnan(p_adverse([0.0, np.nan]))
 
 
+def test_p_adverse_conditional_and_unconditional_distinction():
+    """Verify conditional (1.0) vs unconditional (0.20) on 80% zero-move and 20% adverse series."""
+    # 80 zeros, 20 adverse (-1.0)
+    drifts = [0.0] * 80 + [-1.0] * 20
+    # Conditional on |ΔP| > 0: all 20 non-zero moves are adverse -> 1.0
+    assert p_adverse(drifts, conditional=True) == 1.0
+    # Unconditional: 20 adverse out of 100 total fills -> 0.20
+    assert p_adverse(drifts, conditional=False) == 0.20
+    assert p_adverse_unconditional(drifts) == 0.20
+
+    # Also test in adverse_selection_report
+    fills = [PassiveFill(idx=i, side=Side.Bid) for i in range(100)]
+    # Construct mids such that first 80 fills have 0 change and last 20 fills have adverse drop
+    mids = [100.0] * 105
+    for i in range(80, 100):
+        mids[i + 1] = mids[i] - 1.0  # each step drops 1 tick -> adverse for Bid
+    rep = adverse_selection_report(fills, mids, horizons=(1,))
+    ov = rep["horizons"][1]["overall"]
+    assert ov["p_adverse"] == 1.0
+    assert ov["p_adverse_conditional"] == 1.0
+    assert ov["p_adverse_unconditional"] == 0.20
+
+
+
 def test_newey_west_matches_hand_computation():
     x = np.array([1.0, 3.0, 2.0, 4.0, 3.0, 5.0])
     n = x.size
@@ -271,3 +299,94 @@ def test_fills_from_tracker_uses_first_fill_index_and_queue_fraction():
     assert len(fills) == 1
     f = fills[0]
     assert f.idx == 2 and f.side == Side.Ask and f.size == 100 and f.ofi == -2.0 and f.queue_frac == 0.0
+
+
+def test_fills_from_tracker_and_adverse_selection_sorted_by_execution_time():
+    """Fills must be strictly sorted by execution index, even if orders completed out-of-order."""
+    tr = OrderLevelTracker()
+    # Order 1: added at ts=100 (idx=0), partial fill at ts=105 (idx=1), full fill at ts=500 (idx=4)
+    tr.on_event(NormalizedEvent(EventType.ADD, 100, 1, Side.Bid, 100, 50))      # idx 0
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 105, 1, Side.NONE, 0, 10))  # idx 1 (first fill)
+
+    # Order 2: added at ts=200 (idx=2), full fill at ts=210 (idx=3)
+    tr.on_event(NormalizedEvent(EventType.ADD, 200, 2, Side.Ask, 101, 50))      # idx 2
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 210, 2, Side.NONE, 0, 50))  # idx 3 (Order 2 finishes here!)
+
+    # Order 1 finally finishes at ts=500
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 500, 1, Side.NONE, 0, 40))  # idx 4 (Order 1 finishes here!)
+
+    # Completed orders list has Order 2 first, then Order 1
+    assert [o.order_id for o in tr.completed] == [2, 1]
+
+    # fills_from_tracker must sort by execution event idx (Order 1 first at idx 1, Order 2 second at idx 3)
+    fills = fills_from_tracker(tr.completed)
+    assert len(fills) == 2
+    assert fills[0].idx == 1 and fills[0].side == Side.Bid
+    assert fills[1].idx == 3 and fills[1].side == Side.Ask
+
+    # adverse_selection_report must also handle out-of-order fills safely
+    scrambled = [fills[1], fills[0]]
+    mids = [100.0] * 10
+    rep = adverse_selection_report(scrambled, mids, horizons=(1,))
+    assert rep["n_fills"] == 2
+
+
+def test_off_market_trade_messages_do_not_advance_book_event_clock():
+    """Verify that off-market trade messages (EventType.TRADE) do not advance the book event clock.
+
+    Regression test for M03 (#37).
+    """
+    tr = QueueTracker()
+    tr.on_event(NormalizedEvent(EventType.ADD, 1, 1, Side.Bid, 100, 10))
+    seq_start = tr.seq
+    mids_start = len(tr.mid_history)
+    assert seq_start == 1 and mids_start == 1
+
+    # Off-market trade print (EventType.TRADE)
+    tr.on_event(NormalizedEvent(EventType.TRADE, 2, 0, Side.Bid, 100, 5))
+    # Must NOT advance clock or append duplicate mid
+    assert tr.seq == seq_start
+    assert len(tr.mid_history) == mids_start
+
+    # Book-affecting event (EXECUTE) advances the clock
+    tr.on_event(NormalizedEvent(EventType.EXECUTE, 3, 1, Side.Bid, 100, 10))
+    assert tr.seq == seq_start + 1
+    assert len(tr.mid_history) == mids_start + 1
+
+    # OrderLevelTracker with count_trades_in_clock=False
+    olt = OrderLevelTracker(count_trades_in_clock=False)
+    olt.on_event(NormalizedEvent(EventType.ADD, 1, 1, Side.Bid, 100, 10))
+    assert olt.index == 1
+    olt.on_event(NormalizedEvent(EventType.TRADE, 2, 0, Side.Bid, 100, 5))
+    assert olt.index == 1
+    assert olt.stats["trades"] == 1
+    olt.on_event(NormalizedEvent(EventType.EXECUTE, 3, 1, Side.Bid, 100, 10))
+    assert olt.index == 2
+
+    # is_book_affecting and filter_book_events
+    events = [
+        NormalizedEvent(EventType.ADD, 1, 1, Side.Bid, 100, 10),
+        NormalizedEvent(EventType.TRADE, 2, 0, Side.Bid, 100, 5),
+        NormalizedEvent(EventType.EXECUTE, 3, 1, Side.Bid, 100, 10),
+    ]
+    assert is_book_affecting(events[0]) is True
+    assert is_book_affecting(events[1]) is False
+    assert is_book_affecting(events[2]) is True
+
+    filtered = filter_book_events(events)
+    assert len(filtered) == 2
+    assert [e.kind for e in filtered] == [EventType.ADD, EventType.EXECUTE]
+
+
+def test_matched_unexecuted_control_drift():
+    mids = [100.0, 101.0, 102.0, 105.0, 108.0]
+    controls = [
+        PassiveFill(idx=0, side=Side.Bid),
+        PassiveFill(idx=1, side=Side.Ask),
+    ]
+    d = matched_unexecuted_control_drift(controls, mids, h=2)
+    # Bid at 0 over h=2: mids[2] - mids[0] = 102 - 100 = 2.0
+    # Ask at 1 over h=2: -(mids[3] - mids[1]) = -(105 - 101) = -4.0
+    np.testing.assert_allclose(d, [2.0, -4.0])
+
+
