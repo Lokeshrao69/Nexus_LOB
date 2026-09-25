@@ -94,7 +94,7 @@ py::array_t<T> view_1d(const T* ptr, std::size_t n, py::handle owner) {
     auto arr = py::array_t<T>({static_cast<py::ssize_t>(n)},
                               {static_cast<py::ssize_t>(sizeof(T))},
                               ptr, owner);
-    reinterpret_cast<PyArrayObject*>(arr.ptr())->flags &= ~NPY_ARRAY_WRITEABLE;
+    arr.attr("flags").attr("writeable") = false;
     return arr;
 }
 

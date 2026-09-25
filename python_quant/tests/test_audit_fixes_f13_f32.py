@@ -11,8 +11,6 @@ Covers:
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from nexus_quant.dashboard import _SHM_CTRL, _SHM_CTRL_N, read_shm_ring_latest
 from nexus_quant.envs.regimes import regime_factories
