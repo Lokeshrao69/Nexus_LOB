@@ -37,6 +37,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <chrono>
 
 #include "nexus/book_state.hpp"
 
@@ -81,8 +82,17 @@ public:
             ctrl_->state.store(kReady, std::memory_order_release);
         } else {
             // Wait for the producer to publish the control block.
-            while (ctrl_->state.load(std::memory_order_acquire) != kReady)
-                std::this_thread::yield();
+            // F28 fix: bounded timeout instead of indefinite spin to detect
+            // a dead or absent producer.
+            constexpr int kMaxAttachWaitMs = 5000;
+            int waited_ms = 0;
+            while (ctrl_->state.load(std::memory_order_acquire) != kReady) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                waited_ms += 10;
+                if (waited_ms >= kMaxAttachWaitMs)
+                    throw std::runtime_error(
+                        "ShmRing: timed out waiting for producer initialization");
+            }
             if (ctrl_->capacity != capacity || ctrl_->slot_bytes != kSlotBytes)
                 throw std::runtime_error(
                     "ShmRing: existing segment capacity/ABI mismatch");
@@ -102,7 +112,10 @@ public:
     // if the consumer hasn't drained the ring — the publisher never blocks.
     bool publish(const BookStateView& v) noexcept {
         const std::uint64_t w = ctrl_->write_seq.load(std::memory_order_relaxed);
-        const std::uint64_t r = ctrl_->read_seq.load(std::memory_order_relaxed);
+        // F27 fix: use acquire ordering to establish a happens-before edge
+        // with the consumer's release store, ensuring safe slot reuse on
+        // weakly ordered architectures.
+        const std::uint64_t r = ctrl_->read_seq.load(std::memory_order_acquire);
         if (w - r >= ctrl_->capacity) {           // full -> drop the NEW event
             ctrl_->dropped.fetch_add(1, std::memory_order_relaxed);
             return false;

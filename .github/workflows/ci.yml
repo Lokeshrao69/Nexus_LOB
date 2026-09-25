@@ -11,18 +11,20 @@ concurrency:
 
 jobs:
   # Tier 1 — pure-Python tests (no C++ build needed).
+  # F30 fix: test across Python 3.10, 3.11, and 3.12 matrix on both OS platforms.
   python-tests:
-    name: python tests
+    name: python tests (py${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -61,9 +63,6 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -j
       - name: CTest
-        # windows-latest defaults to the multi-config Visual Studio generator, so
-        # test configs live under build/Release/ and ctest needs -C. Ubuntu's
-        # single-config generator ignores the flag.
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then
@@ -74,7 +73,7 @@ jobs:
       - name: Parity + diff tests (needs compiled module in bindings/)
         run: python -m pytest python_quant/tests bindings/tests -v
 
-  # Lint — new code must be clean; sweep widens as the research layer lands.
+  # Lint — F30 fix: lint all Python codebase with pinned ruff version
   lint:
     name: lint
     runs-on: ubuntu-latest
@@ -83,7 +82,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install ruff
-        run: python -m pip install ruff
-      - name: ruff check
-        run: ruff check python_quant/nexus_quant/ bindings/
+      - name: Install ruff (pinned via requirements-dev)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: ruff check (all Python modules)
+        run: ruff check python_quant/ bindings/ --exclude="*.ipynb"

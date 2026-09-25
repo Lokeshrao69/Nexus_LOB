@@ -974,10 +974,30 @@
     refresh('all');
   })();
   document.querySelectorAll('.sys .head').forEach(function(h){
-    h.addEventListener('click',function(){ h.parentElement.classList.toggle('open'); });
+    h.setAttribute('role', 'button');
+    h.setAttribute('tabindex', '0');
+    h.setAttribute('aria-expanded', 'false');
+    var toggleH = function(){
+      var open = h.parentElement.classList.toggle('open');
+      h.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    h.addEventListener('click', toggleH);
+    h.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleH(); }
+    });
   });
   document.querySelectorAll('.testrow').forEach(function(t){
-    t.addEventListener('click',function(){ t.classList.toggle('open'); });
+    t.setAttribute('role', 'button');
+    t.setAttribute('tabindex', '0');
+    t.setAttribute('aria-expanded', 'false');
+    var toggleT = function(){
+      var open = t.classList.toggle('open');
+      t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    t.addEventListener('click', toggleT);
+    t.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleT(); }
+    });
   });
 
   /* ---- start ---- */

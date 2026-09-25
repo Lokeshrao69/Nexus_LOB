@@ -243,7 +243,8 @@ the economically relevant part.
 
 Setup (plan_2.md §6, all six items): PPO trained **only** on the `highvol`
 regime; evaluated on `highvol` + five hold-outs (`calm`, `lowvol`,
-`highvol_null` — the random-walk null arm with symmetric gaps, `trending`,
+`highvol_null` — the **symmetric liquidity-shock control arm** (M04: balanced
+spread-widening and jump directions rather than an unconstrained random walk), `trending`,
 `liquidity_shock`); **fees + queue model on**; **symmetric information** in both
 modes (`novol`: nobody sees a regime flag; `volsym`: the flag is in `obs[44]`
 *and* every baseline reads it); fair baselines `schedule_twap` (U-shaped volume
@@ -265,13 +266,13 @@ The `volsym` mode gives the same picture (1/5 better and 1/5 worse on highvol,
 4/5 better on liquidity_shock, 5/5 worse on calm/lowvol).
 
 **Conclusion.** Against a defensible baseline with symmetric information and
-costs on, the PPO agent has **no significant edge** in the regime it was trained
-on or on the null arm, is **significantly worse** on the calm hold-outs, and is
+costs on, the PPO agent has **no statistically significant edge** in the regime it was trained
+on or on the symmetric control arm, is **significantly worse** on the calm hold-outs, and is
 significantly better **only** when liquidity evaporates (it learned to cross
 early when the book thins — the one regime where a static schedule is
-genuinely wrong). The Part-1 "+50.4 % lower slippage than VWAP" compared
+suboptimal). The Part-1 "+50.4 % lower slippage than VWAP" compared
 against a 2-line heuristic that could not see the regime; that number is
-retired. The random-walk null arm behaves as designed (PPO ≈ baselines).
+retired. The symmetric control arm behaves as designed (PPO ≈ baselines).
 
 ## 8. Negative results (what we tried that did not work)
 

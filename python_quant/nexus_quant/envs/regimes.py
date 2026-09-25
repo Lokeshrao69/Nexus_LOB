@@ -6,13 +6,14 @@ is **identical** across regimes and only the exogenous flow differs. The
 agent is trained on ONE regime (``highvol`` by default) and evaluated on all
 of them; everything except the training regime is a hold-out.
 
-``highvol_null`` is the **random-walk null arm**: the high-vol regime with
-symmetric gap direction (``gap_down_prob=0.5``). The Part-1 headline regime
-gapped *down* 75% of the time — a directional drift a seller can learn to
-front-run. Under the null arm there is no drift to exploit, so an agent whose
-edge is real *timing skill* keeps it while one whose edge is *drift
-anticipation* falls back to the baselines. "PPO ≈ baselines" is the correct
-result here, not a failure.
+``highvol_null`` is the **symmetric liquidity-shock control arm** (M04): the
+high-vol regime with symmetric gap direction (``gap_down_prob=0.5``), balancing
+spread-widening and jump directions rather than removing order-book microstructure.
+The Part-1 headline regime gapped *down* 75% of the time — a directional drift
+a seller can learn to front-run. Under the symmetric control arm there is no net
+drift to exploit, so an agent whose edge is real *timing skill* keeps it while
+one whose edge is *drift anticipation* falls back to the baselines. "PPO ≈ baselines"
+is the correct result here, not a failure.
 
 ``COSTS_ON`` is the fees + queue overlay every reported number must use
 (work package §3.3 item 4).

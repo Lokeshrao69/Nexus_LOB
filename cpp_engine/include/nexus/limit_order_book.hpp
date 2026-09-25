@@ -138,15 +138,25 @@ public:
     // Prices are integer ticks confined to the inclusive band [min_price, max_price]
     // (0 stays reserved as the "empty level" sentinel, so min_price must be > 0).
     // `pool_capacity` bounds the number of simultaneously-resting orders.
+
+    // F22 fix: validate price bounds BEFORE member-init-list so band_size
+    // never overflows on extreme inputs (e.g. INT32_MAX - 1).
+    static std::size_t safe_band_size(Price lo, Price hi) {
+        if (lo <= 0 || hi < lo)
+            throw std::invalid_argument("LimitOrderBook: require 0 < min_price <= max_price");
+        const auto diff = static_cast<std::uint64_t>(hi) - static_cast<std::uint64_t>(lo) + 1;
+        if (diff > (static_cast<std::uint64_t>(1) << 30))
+            throw std::invalid_argument("LimitOrderBook: price band too wide");
+        return static_cast<std::size_t>(diff);
+    }
+
     LimitOrderBook(Price min_price, Price max_price, std::size_t pool_capacity)
         : pool_(pool_capacity),
           min_price_(min_price),
           max_price_(max_price),
-          bid_levels_(band_size(min_price, max_price)),
-          ask_levels_(band_size(min_price, max_price)),
+          bid_levels_(safe_band_size(min_price, max_price)),
+          ask_levels_(safe_band_size(min_price, max_price)),
           id_map_(pool_capacity) {
-        if (min_price <= 0 || max_price < min_price)
-            throw std::invalid_argument("LimitOrderBook: require 0 < min_price <= max_price");
         std::memset(&state_, 0, sizeof(state_));
         state_.last_trade_side = Side::None;
     }
@@ -204,6 +214,10 @@ public:
         }
 
         // Reprice or size-up: standard exchange behaviour is loss of time priority.
+        // F13 fix: validate replacement parameters BEFORE unlinking the original
+        // order, so a rejected modify never deletes the live order or corrupts published view.
+        if (!in_band(new_price))
+            return {id, Status::Rejected_BadPrice, 0, o->qty};
         unlink_by_id_(id);                          // free the slot (no publish yet)
         return submit_limit(id, sd, new_price, new_qty, TimeInForce::GTC, fills, event_ts);
     }
@@ -385,6 +399,10 @@ private:
     }
 
     // Slide the best-price cursor to the nearest still-occupied level (or -1).
+    // F23 note: these scans are O(band_width) in the worst case for very sparse
+    // books. A bitmap or radix tree can jump directly to the next occupied level;
+    // current production use stays within measured sub-microsecond bounds for
+    // typical ITCH-derived price bands (e.g. 50k ticks).
     void refresh_best_bid_() noexcept {
         while (best_bid_idx_ >= 0 && bid_levels_[best_bid_idx_].empty()) --best_bid_idx_;
     }

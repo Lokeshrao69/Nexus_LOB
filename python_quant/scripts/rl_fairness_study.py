@@ -11,7 +11,7 @@ re-runs the comparison with every one of those fixed:
   flag, obs dim 44) and ``volsym`` (the flag is in ``obs[44]`` AND every
   baseline reads the same flag via ``baselines.regime_indicator``).
 * **Hold-out regimes** — the agent trains on ``highvol`` only and is scored on
-  ``calm``, ``lowvol``, ``highvol_null`` (random-walk null arm), ``trending``,
+  ``calm``, ``lowvol``, ``highvol_null`` (symmetric liquidity-shock control arm, M04), ``trending``,
   ``liquidity_shock`` as well.
 * **Fees + queue ON** for every reported number (``envs.regimes.COSTS_ON``).
 * **Fair baselines** — ``schedule_twap`` / ``adaptive_pov`` / ``is_aware``

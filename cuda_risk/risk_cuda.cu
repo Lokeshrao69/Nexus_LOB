@@ -42,6 +42,13 @@ __global__ void simulate_kernel(const RiskParams p, double* __restrict__ losses)
 }  // namespace
 
 RiskResult compute_var_cvar_gpu(const RiskParams& p, double* gpu_ms) {
+    // F15/F25: validate parameters before GPU allocation.
+    if (p.n_paths <= 0) {
+        if (gpu_ms) *gpu_ms = 0.0;
+        RiskResult r{};
+        return r;
+    }
+
     double* d_losses = nullptr;
     if (cudaMalloc(&d_losses, static_cast<std::size_t>(p.n_paths) * sizeof(double))
         != cudaSuccess) {
@@ -56,12 +63,26 @@ RiskResult compute_var_cvar_gpu(const RiskParams& p, double* gpu_ms) {
     cudaEventCreate(&stop);
     cudaEventRecord(start);
     simulate_kernel<<<blocks, threads>>>(p, d_losses);
+    // F25 fix: check kernel launch errors.
+    {
+        cudaError_t launch_err = cudaPeekAtLastError();
+        if (launch_err != cudaSuccess) {
+            cudaEventDestroy(start);
+            cudaEventDestroy(stop);
+            cudaFree(d_losses);
+            die("kernel launch", launch_err);
+        }
+    }
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
 
     float ms = 0.0f;
     cudaEventElapsedTime(&ms, start, stop);
     if (gpu_ms) *gpu_ms = static_cast<double>(ms);
+
+    // F25 fix: destroy CUDA events to prevent resource leak.
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 
     std::vector<double> losses(static_cast<std::size_t>(p.n_paths));
     if (cudaMemcpy(losses.data(), d_losses,

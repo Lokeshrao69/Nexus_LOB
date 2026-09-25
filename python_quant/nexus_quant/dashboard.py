@@ -257,23 +257,60 @@ _SHM_CTRL_N = 48
 
 
 def read_shm_ring_latest(name: str) -> dict[str, Any] | None:
-    """Newest published 448-byte slot from a live C++ ShmRing, or None."""
+    """Newest published 448-byte slot from a live C++ ShmRing, or None.
+
+    F16 fix: advances ``read_seq`` in the shared-memory control block after
+    reading so the C++ producer can free ring slots for future snapshots.
+    Without this, the ring fills after ``capacity`` writes and drops all
+    subsequent events permanently.
+    """
     path = Path("/dev/shm") / name.lstrip("/")
     if not path.is_file():
         return None
-    data = path.read_bytes()
-    if len(data) < _SHM_CTRL_N + BOOK_STATE_DTYPE.itemsize:
-        return None
-    write_seq, _read, _drop, cap, slot_bytes, state, _pad = _SHM_CTRL.unpack_from(data, 0)
-    if state != 1 or cap == 0 or int(slot_bytes) != BOOK_STATE_DTYPE.itemsize:
-        return None
-    if write_seq == 0:
-        return None
-    idx = (int(write_seq) - 1) % int(cap)
-    off = _SHM_CTRL_N + idx * int(slot_bytes)
-    if off + int(slot_bytes) > len(data):
-        return None
-    return decode_slot(data[off : off + int(slot_bytes)])
+    try:
+        import mmap as _mmap
+        with open(path, "r+b") as fh:
+            mm = _mmap.mmap(fh.fileno(), 0)
+            data = bytes(mm[:])
+            if len(data) < _SHM_CTRL_N + BOOK_STATE_DTYPE.itemsize:
+                mm.close()
+                return None
+            write_seq, _read, _drop, cap, slot_bytes, state, _pad = (
+                _SHM_CTRL.unpack_from(data, 0)
+            )
+            if state != 1 or cap == 0 or int(slot_bytes) != BOOK_STATE_DTYPE.itemsize:
+                mm.close()
+                return None
+            if write_seq == 0:
+                mm.close()
+                return None
+            idx = (int(write_seq) - 1) % int(cap)
+            off = _SHM_CTRL_N + idx * int(slot_bytes)
+            if off + int(slot_bytes) > len(data):
+                mm.close()
+                return None
+            result = decode_slot(data[off : off + int(slot_bytes)])
+            _SHM_CTRL.pack_into(
+                mm, 0, write_seq, write_seq, _drop, cap, slot_bytes, state, _pad
+            )
+            mm.close()
+            return result
+    except (OSError, ValueError):
+        data = path.read_bytes()
+        if len(data) < _SHM_CTRL_N + BOOK_STATE_DTYPE.itemsize:
+            return None
+        write_seq, _read, _drop, cap, slot_bytes, state, _pad = (
+            _SHM_CTRL.unpack_from(data, 0)
+        )
+        if state != 1 or cap == 0 or int(slot_bytes) != BOOK_STATE_DTYPE.itemsize:
+            return None
+        if write_seq == 0:
+            return None
+        idx = (int(write_seq) - 1) % int(cap)
+        off = _SHM_CTRL_N + idx * int(slot_bytes)
+        if off + int(slot_bytes) > len(data):
+            return None
+        return decode_slot(data[off : off + int(slot_bytes)])
 
 
 _PAGE = """<!doctype html>

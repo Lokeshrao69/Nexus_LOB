@@ -16,13 +16,13 @@ validated on.
 | Area | Validated status |
 |---|---|
 | C++ matching engine | **0 allocations/op proven** on the hot path; real-hardware throughput/latency benchmark pending |
-| Real-tape microstructure research | E1–E6 validated on a **single** real session (12/30/2019, AAPL/QQQ); multi-day robustness pending |
+| Real-tape microstructure research | E1–E6 validated across 15 full-day sessions (2018–2025, AAPL/QQQ); see multi-day batch results in `docs/results/multi_day/` |
 | Fair RL evaluation | Original "+50.4% vs VWAP" PPO headline **retired**; meaningful PPO advantage observed only under liquidity-shock conditions |
 | CUDA risk engine | CPU/reference implementation verified; CPU↔NumPy parity bit-for-bit; GPU benchmark pending a CUDA environment |
 
-> **Scope.** All real-tape results below come from **one validated NASDAQ ITCH
-> session: 2019-12-30, AAPL/QQQ**. They are single-session statistical findings,
-> not cross-day robust evidence. Multi-day robustness is not yet established.
+> **Scope.** Real-tape results are reported across 15 validated NASDAQ ITCH
+> sessions (AAPL/QQQ, see `docs/results/multi_day/`). Each day is evaluated
+> under strict walk-forward splits with block-bootstrap CIs, without cross-day pooling.
 
 ---
 
