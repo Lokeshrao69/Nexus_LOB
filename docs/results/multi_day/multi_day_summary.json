@@ -1,0 +1,1975 @@
+{
+  "day_status": [
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "01302018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "01302019",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1596503,
+        "QQQ": 3291294
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "01302020",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1956673,
+        "QQQ": 4211652
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "03272019",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1960770,
+        "QQQ": 4040376
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "03292018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "05152026",
+      "error": {
+        "message": "<urlopen error [Errno 11001] getaddrinfo failed>",
+        "type": "URLError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "05182026",
+      "error": {
+        "message": "<urlopen error [Errno 11001] getaddrinfo failed>",
+        "type": "URLError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "05302018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "05302019",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1165209,
+        "QQQ": 2608902
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "06122026",
+      "error": {
+        "message": "<urlopen error [Errno 11001] getaddrinfo failed>",
+        "type": "URLError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "07132021",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 2307107,
+        "QQQ": 4798141
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "07302018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "07302019",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1214806,
+        "QQQ": 1674517
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "completed",
+      "coverage": "full_day",
+      "day": "08132021",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1546590,
+        "QQQ": 2297971
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "08302018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "08302019",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1151383,
+        "QQQ": 2276617
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "10182019",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1636764,
+        "QQQ": 2448505
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "10302018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "10302019",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 739800,
+        "QQQ": 1864809
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "completed",
+      "coverage": "full_day",
+      "day": "11282025",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1212991,
+        "QQQ": 4102651
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "researching",
+      "batch_status": "researching",
+      "coverage": "full_day",
+      "day": "12082025",
+      "error": null,
+      "is_full_day": true,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "12092025",
+      "error": {
+        "message": "downloaded slices failed validation: unbounded fetch did not reach the end of the GZIP stream",
+        "type": "RuntimeError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "12102025",
+      "error": {
+        "message": "<urlopen error [Errno 11001] getaddrinfo failed>",
+        "type": "URLError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "researching",
+      "batch_status": "researching",
+      "coverage": "full_day",
+      "day": "12112025",
+      "error": null,
+      "is_full_day": true,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "12122025",
+      "error": {
+        "message": "<urlopen error [Errno 11001] getaddrinfo failed>",
+        "type": "URLError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "12132018",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1086473,
+        "QQQ": 3292683
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "12142018",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1300873,
+        "QQQ": 2343498
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "failed",
+      "batch_status": "failed",
+      "coverage": null,
+      "day": "12282018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "is_full_day": null,
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "skipped_existing",
+      "coverage": "full_day",
+      "day": "12302019",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1484259,
+        "QQQ": 2209131
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    },
+    {
+      "analysis_status": "completed",
+      "batch_status": "completed",
+      "coverage": "full_day",
+      "day": "12312018",
+      "error": null,
+      "is_full_day": true,
+      "regular_events": {
+        "AAPL": 1267696,
+        "QQQ": 2859411
+      },
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ]
+    }
+  ],
+  "kind": "nexus-lob-itch-multi-day-summary",
+  "lob_imbalance_test_ic": [
+    {
+      "ci95_hi": 0.17500229198722325,
+      "ci95_lo": 0.16790295541309525,
+      "coverage": "full_day",
+      "day": "01302019",
+      "horizon_events": 1,
+      "n_test": 319276,
+      "rank_ic_test": 0.17136604719076173,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.24812799145164216,
+      "ci95_lo": 0.2343174656425444,
+      "coverage": "full_day",
+      "day": "01302019",
+      "horizon_events": 5,
+      "n_test": 319275,
+      "rank_ic_test": 0.24048927479996932,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.2515163876051488,
+      "ci95_lo": 0.2345466925237751,
+      "coverage": "full_day",
+      "day": "01302019",
+      "horizon_events": 10,
+      "n_test": 319274,
+      "rank_ic_test": 0.242683741516603,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.22866834847495324,
+      "ci95_lo": 0.2035449794691065,
+      "coverage": "full_day",
+      "day": "01302019",
+      "horizon_events": 25,
+      "n_test": 319271,
+      "rank_ic_test": 0.21412811591266365,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.1805839186230708,
+      "ci95_lo": 0.17396221648281765,
+      "coverage": "full_day",
+      "day": "01302019",
+      "horizon_events": 1,
+      "n_test": 658234,
+      "rank_ic_test": 0.17730030482040254,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3313299019267897,
+      "ci95_lo": 0.31978553378032504,
+      "coverage": "full_day",
+      "day": "01302019",
+      "horizon_events": 5,
+      "n_test": 658234,
+      "rank_ic_test": 0.3256570178644026,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.39177862171999966,
+      "ci95_lo": 0.37904446097587774,
+      "coverage": "full_day",
+      "day": "01302019",
+      "horizon_events": 10,
+      "n_test": 658233,
+      "rank_ic_test": 0.3855897263791309,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.4328845966400021,
+      "ci95_lo": 0.4195581481926262,
+      "coverage": "full_day",
+      "day": "01302019",
+      "horizon_events": 25,
+      "n_test": 658230,
+      "rank_ic_test": 0.4264467235239452,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.1353066621424663,
+      "ci95_lo": 0.1273148602739814,
+      "coverage": "full_day",
+      "day": "01302020",
+      "horizon_events": 1,
+      "n_test": 391310,
+      "rank_ic_test": 0.13120221199568224,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.17281677949548047,
+      "ci95_lo": 0.1609133998339722,
+      "coverage": "full_day",
+      "day": "01302020",
+      "horizon_events": 5,
+      "n_test": 391309,
+      "rank_ic_test": 0.16621248230616595,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.1630489863456655,
+      "ci95_lo": 0.14750589463082983,
+      "coverage": "full_day",
+      "day": "01302020",
+      "horizon_events": 10,
+      "n_test": 391308,
+      "rank_ic_test": 0.15454255702573438,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.1400548136892926,
+      "ci95_lo": 0.11568383009732201,
+      "coverage": "full_day",
+      "day": "01302020",
+      "horizon_events": 25,
+      "n_test": 391305,
+      "rank_ic_test": 0.12666554333076366,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.20843734682413131,
+      "ci95_lo": 0.20327194046172248,
+      "coverage": "full_day",
+      "day": "01302020",
+      "horizon_events": 1,
+      "n_test": 842305,
+      "rank_ic_test": 0.20614589516994705,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.31958262949208166,
+      "ci95_lo": 0.31183271580428135,
+      "coverage": "full_day",
+      "day": "01302020",
+      "horizon_events": 5,
+      "n_test": 842305,
+      "rank_ic_test": 0.31577173197368674,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.34563749617398964,
+      "ci95_lo": 0.3349555752541134,
+      "coverage": "full_day",
+      "day": "01302020",
+      "horizon_events": 10,
+      "n_test": 842304,
+      "rank_ic_test": 0.3399315336290001,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.34145691029810865,
+      "ci95_lo": 0.323633815588288,
+      "coverage": "full_day",
+      "day": "01302020",
+      "horizon_events": 25,
+      "n_test": 842301,
+      "rank_ic_test": 0.33205005344126665,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.16700107554317845,
+      "ci95_lo": 0.16047178979984017,
+      "coverage": "full_day",
+      "day": "03272019",
+      "horizon_events": 1,
+      "n_test": 392130,
+      "rank_ic_test": 0.1634706828257254,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.27870875419732194,
+      "ci95_lo": 0.267059043549279,
+      "coverage": "full_day",
+      "day": "03272019",
+      "horizon_events": 5,
+      "n_test": 392129,
+      "rank_ic_test": 0.2728635351731698,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.3099207016996597,
+      "ci95_lo": 0.2943724376645234,
+      "coverage": "full_day",
+      "day": "03272019",
+      "horizon_events": 10,
+      "n_test": 392128,
+      "rank_ic_test": 0.30194784963281945,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.2981087942475309,
+      "ci95_lo": 0.2766988618443033,
+      "coverage": "full_day",
+      "day": "03272019",
+      "horizon_events": 25,
+      "n_test": 392125,
+      "rank_ic_test": 0.28714949898612846,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.1674066779769276,
+      "ci95_lo": 0.1625730325812023,
+      "coverage": "full_day",
+      "day": "03272019",
+      "horizon_events": 1,
+      "n_test": 808051,
+      "rank_ic_test": 0.16515489266175182,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.31691742351306157,
+      "ci95_lo": 0.3092993731240003,
+      "coverage": "full_day",
+      "day": "03272019",
+      "horizon_events": 5,
+      "n_test": 808049,
+      "rank_ic_test": 0.3133900802178487,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3936224306890532,
+      "ci95_lo": 0.38467944701809487,
+      "coverage": "full_day",
+      "day": "03272019",
+      "horizon_events": 10,
+      "n_test": 808048,
+      "rank_ic_test": 0.38931846603654585,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.4743757813693729,
+      "ci95_lo": 0.46300770199482555,
+      "coverage": "full_day",
+      "day": "03272019",
+      "horizon_events": 25,
+      "n_test": 808045,
+      "rank_ic_test": 0.4686946815977321,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.18522853019065172,
+      "ci95_lo": 0.17646416907699233,
+      "coverage": "full_day",
+      "day": "05302019",
+      "horizon_events": 1,
+      "n_test": 233017,
+      "rank_ic_test": 0.18063722593948683,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.30482160452394375,
+      "ci95_lo": 0.2890500293596841,
+      "coverage": "full_day",
+      "day": "05302019",
+      "horizon_events": 5,
+      "n_test": 233017,
+      "rank_ic_test": 0.2966010628106734,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.336221353288505,
+      "ci95_lo": 0.31749536234026243,
+      "coverage": "full_day",
+      "day": "05302019",
+      "horizon_events": 10,
+      "n_test": 233016,
+      "rank_ic_test": 0.3269647404607883,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.3170768877605015,
+      "ci95_lo": 0.291329237317006,
+      "coverage": "full_day",
+      "day": "05302019",
+      "horizon_events": 25,
+      "n_test": 233013,
+      "rank_ic_test": 0.30523137217024204,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.15898633281866972,
+      "ci95_lo": 0.15434826216757094,
+      "coverage": "full_day",
+      "day": "05302019",
+      "horizon_events": 1,
+      "n_test": 521755,
+      "rank_ic_test": 0.15679156122675017,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3058093295420475,
+      "ci95_lo": 0.29665765326873816,
+      "coverage": "full_day",
+      "day": "05302019",
+      "horizon_events": 5,
+      "n_test": 521755,
+      "rank_ic_test": 0.30151777265162066,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.38062622891563,
+      "ci95_lo": 0.369540713469382,
+      "coverage": "full_day",
+      "day": "05302019",
+      "horizon_events": 10,
+      "n_test": 521754,
+      "rank_ic_test": 0.37557429787474916,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.4622740625221836,
+      "ci95_lo": 0.44601749431507337,
+      "coverage": "full_day",
+      "day": "05302019",
+      "horizon_events": 25,
+      "n_test": 521751,
+      "rank_ic_test": 0.45527998485659943,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.19169302982292094,
+      "ci95_lo": 0.1851981468671058,
+      "coverage": "full_day",
+      "day": "07132021",
+      "horizon_events": 1,
+      "n_test": 461396,
+      "rank_ic_test": 0.18854936756251603,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.34397312938232993,
+      "ci95_lo": 0.3334370786700083,
+      "coverage": "full_day",
+      "day": "07132021",
+      "horizon_events": 5,
+      "n_test": 461396,
+      "rank_ic_test": 0.33903805319587116,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.40520523440564377,
+      "ci95_lo": 0.39199785906213236,
+      "coverage": "full_day",
+      "day": "07132021",
+      "horizon_events": 10,
+      "n_test": 461395,
+      "rank_ic_test": 0.3984987378813561,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.43909660728597943,
+      "ci95_lo": 0.4201866654838781,
+      "coverage": "full_day",
+      "day": "07132021",
+      "horizon_events": 25,
+      "n_test": 461392,
+      "rank_ic_test": 0.4305442983067288,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.23673668121525637,
+      "ci95_lo": 0.2314996053800577,
+      "coverage": "full_day",
+      "day": "07132021",
+      "horizon_events": 1,
+      "n_test": 959604,
+      "rank_ic_test": 0.2342784731052237,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.34479067497609583,
+      "ci95_lo": 0.33725693993150435,
+      "coverage": "full_day",
+      "day": "07132021",
+      "horizon_events": 5,
+      "n_test": 959602,
+      "rank_ic_test": 0.3411507790628427,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3666729981786935,
+      "ci95_lo": 0.3563147514082606,
+      "coverage": "full_day",
+      "day": "07132021",
+      "horizon_events": 10,
+      "n_test": 959601,
+      "rank_ic_test": 0.3617928493604828,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.34552526625301,
+      "ci95_lo": 0.33116560634269854,
+      "coverage": "full_day",
+      "day": "07132021",
+      "horizon_events": 25,
+      "n_test": 959598,
+      "rank_ic_test": 0.33790226592193984,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.18275002186716544,
+      "ci95_lo": 0.1724377438617038,
+      "coverage": "full_day",
+      "day": "07302019",
+      "horizon_events": 1,
+      "n_test": 242937,
+      "rank_ic_test": 0.17744064357516082,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.29335048923472995,
+      "ci95_lo": 0.2742428237480575,
+      "coverage": "full_day",
+      "day": "07302019",
+      "horizon_events": 5,
+      "n_test": 242935,
+      "rank_ic_test": 0.28314615278077593,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.3174946849623795,
+      "ci95_lo": 0.2946542492173735,
+      "coverage": "full_day",
+      "day": "07302019",
+      "horizon_events": 10,
+      "n_test": 242934,
+      "rank_ic_test": 0.3058191907683767,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.30376946937202204,
+      "ci95_lo": 0.2698629944836936,
+      "coverage": "full_day",
+      "day": "07302019",
+      "horizon_events": 25,
+      "n_test": 242931,
+      "rank_ic_test": 0.28598029590122526,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.1513840190083136,
+      "ci95_lo": 0.14496371329454014,
+      "coverage": "full_day",
+      "day": "07302019",
+      "horizon_events": 1,
+      "n_test": 334878,
+      "rank_ic_test": 0.1482532637570524,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.29563200218351426,
+      "ci95_lo": 0.28375519871005217,
+      "coverage": "full_day",
+      "day": "07302019",
+      "horizon_events": 5,
+      "n_test": 334878,
+      "rank_ic_test": 0.2900549750877646,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3755731625893136,
+      "ci95_lo": 0.359751977521754,
+      "coverage": "full_day",
+      "day": "07302019",
+      "horizon_events": 10,
+      "n_test": 334877,
+      "rank_ic_test": 0.36855935331795153,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.48527471644023273,
+      "ci95_lo": 0.46528862675241534,
+      "coverage": "full_day",
+      "day": "07302019",
+      "horizon_events": 25,
+      "n_test": 334874,
+      "rank_ic_test": 0.4748791045782298,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.13764016473098437,
+      "ci95_lo": 0.1299134964128031,
+      "coverage": "full_day",
+      "day": "08132021",
+      "horizon_events": 1,
+      "n_test": 309294,
+      "rank_ic_test": 0.13369167393246695,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.2703996240293478,
+      "ci95_lo": 0.25515149616241173,
+      "coverage": "full_day",
+      "day": "08132021",
+      "horizon_events": 5,
+      "n_test": 309293,
+      "rank_ic_test": 0.2631718090677966,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.3376064277857935,
+      "ci95_lo": 0.31518666679358076,
+      "coverage": "full_day",
+      "day": "08132021",
+      "horizon_events": 10,
+      "n_test": 309292,
+      "rank_ic_test": 0.32714406535364954,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.40953760783225546,
+      "ci95_lo": 0.3801335850327157,
+      "coverage": "full_day",
+      "day": "08132021",
+      "horizon_events": 25,
+      "n_test": 309289,
+      "rank_ic_test": 0.39391869966522547,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.18811038088414642,
+      "ci95_lo": 0.18152131281296374,
+      "coverage": "full_day",
+      "day": "08132021",
+      "horizon_events": 1,
+      "n_test": 459570,
+      "rank_ic_test": 0.1848393313864341,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3108110012421242,
+      "ci95_lo": 0.3006447967885804,
+      "coverage": "full_day",
+      "day": "08132021",
+      "horizon_events": 5,
+      "n_test": 459568,
+      "rank_ic_test": 0.30556771329382865,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3535791548927348,
+      "ci95_lo": 0.3414534578067271,
+      "coverage": "full_day",
+      "day": "08132021",
+      "horizon_events": 10,
+      "n_test": 459567,
+      "rank_ic_test": 0.3469620151532093,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3909461078524341,
+      "ci95_lo": 0.37412385177286867,
+      "coverage": "full_day",
+      "day": "08132021",
+      "horizon_events": 25,
+      "n_test": 459564,
+      "rank_ic_test": 0.3810689163913624,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.16639888958688398,
+      "ci95_lo": 0.15751677324795113,
+      "coverage": "full_day",
+      "day": "08302019",
+      "horizon_events": 1,
+      "n_test": 230252,
+      "rank_ic_test": 0.1620221369627848,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.2368053054286088,
+      "ci95_lo": 0.21844097967594903,
+      "coverage": "full_day",
+      "day": "08302019",
+      "horizon_events": 5,
+      "n_test": 230251,
+      "rank_ic_test": 0.22812708508001087,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.24321583277215275,
+      "ci95_lo": 0.21786918197489638,
+      "coverage": "full_day",
+      "day": "08302019",
+      "horizon_events": 10,
+      "n_test": 230250,
+      "rank_ic_test": 0.23073841964348332,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.19706592117913185,
+      "ci95_lo": 0.16507131692060936,
+      "coverage": "full_day",
+      "day": "08302019",
+      "horizon_events": 25,
+      "n_test": 230247,
+      "rank_ic_test": 0.18008561314309585,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.1782963497486523,
+      "ci95_lo": 0.1731028730018826,
+      "coverage": "full_day",
+      "day": "08302019",
+      "horizon_events": 1,
+      "n_test": 455298,
+      "rank_ic_test": 0.17571167681395533,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3216193250073924,
+      "ci95_lo": 0.3120086524653961,
+      "coverage": "full_day",
+      "day": "08302019",
+      "horizon_events": 5,
+      "n_test": 455298,
+      "rank_ic_test": 0.3167618205827208,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3862261459896805,
+      "ci95_lo": 0.37399807532872525,
+      "coverage": "full_day",
+      "day": "08302019",
+      "horizon_events": 10,
+      "n_test": 455297,
+      "rank_ic_test": 0.38039175097588845,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.43487488003423885,
+      "ci95_lo": 0.4164177930459505,
+      "coverage": "full_day",
+      "day": "08302019",
+      "horizon_events": 25,
+      "n_test": 455294,
+      "rank_ic_test": 0.4264322138420154,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.18774728034382376,
+      "ci95_lo": 0.17704667634178198,
+      "coverage": "full_day",
+      "day": "10182019",
+      "horizon_events": 1,
+      "n_test": 327328,
+      "rank_ic_test": 0.1818979420353214,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.25621774438730205,
+      "ci95_lo": 0.2395760554106756,
+      "coverage": "full_day",
+      "day": "10182019",
+      "horizon_events": 5,
+      "n_test": 327328,
+      "rank_ic_test": 0.2485224452003291,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.2648689396871263,
+      "ci95_lo": 0.24348623555275165,
+      "coverage": "full_day",
+      "day": "10182019",
+      "horizon_events": 10,
+      "n_test": 327327,
+      "rank_ic_test": 0.25448901168780885,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.2231871896118229,
+      "ci95_lo": 0.19632237425317092,
+      "coverage": "full_day",
+      "day": "10182019",
+      "horizon_events": 25,
+      "n_test": 327324,
+      "rank_ic_test": 0.20853750410750382,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.16403612914504356,
+      "ci95_lo": 0.15808512685061687,
+      "coverage": "full_day",
+      "day": "10182019",
+      "horizon_events": 1,
+      "n_test": 489677,
+      "rank_ic_test": 0.16123052135068386,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.30264920386675254,
+      "ci95_lo": 0.29326502640125485,
+      "coverage": "full_day",
+      "day": "10182019",
+      "horizon_events": 5,
+      "n_test": 489676,
+      "rank_ic_test": 0.2977733816590649,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3765252150818594,
+      "ci95_lo": 0.36402163374655205,
+      "coverage": "full_day",
+      "day": "10182019",
+      "horizon_events": 10,
+      "n_test": 489675,
+      "rank_ic_test": 0.3698485360291766,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.45463415349334635,
+      "ci95_lo": 0.4364483602523508,
+      "coverage": "full_day",
+      "day": "10182019",
+      "horizon_events": 25,
+      "n_test": 489672,
+      "rank_ic_test": 0.44585204025678443,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.1408376226473736,
+      "ci95_lo": 0.12779664161186996,
+      "coverage": "full_day",
+      "day": "10302019",
+      "horizon_events": 1,
+      "n_test": 147936,
+      "rank_ic_test": 0.1347045058064447,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.20310009105831256,
+      "ci95_lo": 0.1820477534374667,
+      "coverage": "full_day",
+      "day": "10302019",
+      "horizon_events": 5,
+      "n_test": 147935,
+      "rank_ic_test": 0.192810565973418,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.21747167123353617,
+      "ci95_lo": 0.19000665095981237,
+      "coverage": "full_day",
+      "day": "10302019",
+      "horizon_events": 10,
+      "n_test": 147934,
+      "rank_ic_test": 0.20348106220440867,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.1979575221747112,
+      "ci95_lo": 0.15907700617022,
+      "coverage": "full_day",
+      "day": "10302019",
+      "horizon_events": 25,
+      "n_test": 147931,
+      "rank_ic_test": 0.17898937465442954,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.18846728467263713,
+      "ci95_lo": 0.18157991213905195,
+      "coverage": "full_day",
+      "day": "10302019",
+      "horizon_events": 1,
+      "n_test": 372937,
+      "rank_ic_test": 0.18501032003965556,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.31557045365102404,
+      "ci95_lo": 0.30561949579008674,
+      "coverage": "full_day",
+      "day": "10302019",
+      "horizon_events": 5,
+      "n_test": 372937,
+      "rank_ic_test": 0.3112149745793359,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3706172148835578,
+      "ci95_lo": 0.3571047703736127,
+      "coverage": "full_day",
+      "day": "10302019",
+      "horizon_events": 10,
+      "n_test": 372936,
+      "rank_ic_test": 0.3645122985753572,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.4098586032465853,
+      "ci95_lo": 0.3895705463036039,
+      "coverage": "full_day",
+      "day": "10302019",
+      "horizon_events": 25,
+      "n_test": 372933,
+      "rank_ic_test": 0.39959931993767706,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.12003512061216597,
+      "ci95_lo": 0.10609109456595807,
+      "coverage": "full_day",
+      "day": "11282025",
+      "horizon_events": 1,
+      "n_test": 242574,
+      "rank_ic_test": 0.11248060347502697,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.18924590158482907,
+      "ci95_lo": 0.1656006418282925,
+      "coverage": "full_day",
+      "day": "11282025",
+      "horizon_events": 5,
+      "n_test": 242572,
+      "rank_ic_test": 0.17659248965408156,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.21190667824018808,
+      "ci95_lo": 0.18675619217276926,
+      "coverage": "full_day",
+      "day": "11282025",
+      "horizon_events": 10,
+      "n_test": 242571,
+      "rank_ic_test": 0.1986404862240479,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.21596520919475343,
+      "ci95_lo": 0.18155682637400025,
+      "coverage": "full_day",
+      "day": "11282025",
+      "horizon_events": 25,
+      "n_test": 242568,
+      "rank_ic_test": 0.19893478146743457,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.15230006865818732,
+      "ci95_lo": 0.14037049585528538,
+      "coverage": "full_day",
+      "day": "11282025",
+      "horizon_events": 1,
+      "n_test": 820506,
+      "rank_ic_test": 0.1460889495990251,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.2705458971230353,
+      "ci95_lo": 0.2527836750837279,
+      "coverage": "full_day",
+      "day": "11282025",
+      "horizon_events": 5,
+      "n_test": 820504,
+      "rank_ic_test": 0.26149992771690944,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.31290521003300475,
+      "ci95_lo": 0.2909577077020578,
+      "coverage": "full_day",
+      "day": "11282025",
+      "horizon_events": 10,
+      "n_test": 820503,
+      "rank_ic_test": 0.3022534943092852,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.30994847645530477,
+      "ci95_lo": 0.2867392334978587,
+      "coverage": "full_day",
+      "day": "11282025",
+      "horizon_events": 25,
+      "n_test": 820500,
+      "rank_ic_test": 0.29808825850616366,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.12870595793605702,
+      "ci95_lo": 0.11794002278432472,
+      "coverage": "full_day",
+      "day": "12132018",
+      "horizon_events": 1,
+      "n_test": 217270,
+      "rank_ic_test": 0.12367140285537945,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.17893293006980085,
+      "ci95_lo": 0.15892234921732312,
+      "coverage": "full_day",
+      "day": "12132018",
+      "horizon_events": 5,
+      "n_test": 217269,
+      "rank_ic_test": 0.1694734311405856,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.18873332942369214,
+      "ci95_lo": 0.16293672158541755,
+      "coverage": "full_day",
+      "day": "12132018",
+      "horizon_events": 10,
+      "n_test": 217268,
+      "rank_ic_test": 0.17724629637278672,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.17380307761393102,
+      "ci95_lo": 0.1425982166710524,
+      "coverage": "full_day",
+      "day": "12132018",
+      "horizon_events": 25,
+      "n_test": 217265,
+      "rank_ic_test": 0.1579740599320063,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.24010273023546222,
+      "ci95_lo": 0.23300080191612432,
+      "coverage": "full_day",
+      "day": "12132018",
+      "horizon_events": 1,
+      "n_test": 658512,
+      "rank_ic_test": 0.236411713607179,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3626968983385153,
+      "ci95_lo": 0.3526211352875693,
+      "coverage": "full_day",
+      "day": "12132018",
+      "horizon_events": 5,
+      "n_test": 658511,
+      "rank_ic_test": 0.35754329569278304,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.376047107781887,
+      "ci95_lo": 0.36482294554844225,
+      "coverage": "full_day",
+      "day": "12132018",
+      "horizon_events": 10,
+      "n_test": 658510,
+      "rank_ic_test": 0.3708083030029588,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3396798201204396,
+      "ci95_lo": 0.3249618521210534,
+      "coverage": "full_day",
+      "day": "12132018",
+      "horizon_events": 25,
+      "n_test": 658507,
+      "rank_ic_test": 0.33338419878240266,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.15974258977307962,
+      "ci95_lo": 0.14994050499561085,
+      "coverage": "full_day",
+      "day": "12142018",
+      "horizon_events": 1,
+      "n_test": 260150,
+      "rank_ic_test": 0.15520290751867014,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.24675749185237417,
+      "ci95_lo": 0.23103717230139803,
+      "coverage": "full_day",
+      "day": "12142018",
+      "horizon_events": 5,
+      "n_test": 260149,
+      "rank_ic_test": 0.23901354275918774,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.2660726255557415,
+      "ci95_lo": 0.2464616628523539,
+      "coverage": "full_day",
+      "day": "12142018",
+      "horizon_events": 10,
+      "n_test": 260148,
+      "rank_ic_test": 0.25606386115976276,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.254780868069655,
+      "ci95_lo": 0.2299266174523422,
+      "coverage": "full_day",
+      "day": "12142018",
+      "horizon_events": 25,
+      "n_test": 260145,
+      "rank_ic_test": 0.24064247012316528,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.20373225804401118,
+      "ci95_lo": 0.19533567938447427,
+      "coverage": "full_day",
+      "day": "12142018",
+      "horizon_events": 1,
+      "n_test": 468675,
+      "rank_ic_test": 0.19979208364171003,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3078004439092229,
+      "ci95_lo": 0.2957588397760765,
+      "coverage": "full_day",
+      "day": "12142018",
+      "horizon_events": 5,
+      "n_test": 468674,
+      "rank_ic_test": 0.30236131110175,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3254165438466432,
+      "ci95_lo": 0.31127159870202165,
+      "coverage": "full_day",
+      "day": "12142018",
+      "horizon_events": 10,
+      "n_test": 468673,
+      "rank_ic_test": 0.31904737906616004,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.30352498674241735,
+      "ci95_lo": 0.2814991458104836,
+      "coverage": "full_day",
+      "day": "12142018",
+      "horizon_events": 25,
+      "n_test": 468670,
+      "rank_ic_test": 0.2935373730634219,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.14371664975522733,
+      "ci95_lo": 0.13570357186759857,
+      "coverage": "full_day",
+      "day": "12302019",
+      "horizon_events": 1,
+      "n_test": 296827,
+      "rank_ic_test": 0.13950670528393183,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.22851765566175739,
+      "ci95_lo": 0.21324477311513007,
+      "coverage": "full_day",
+      "day": "12302019",
+      "horizon_events": 5,
+      "n_test": 296827,
+      "rank_ic_test": 0.22011427126551894,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.24879197103754863,
+      "ci95_lo": 0.22936696366455683,
+      "coverage": "full_day",
+      "day": "12302019",
+      "horizon_events": 10,
+      "n_test": 296826,
+      "rank_ic_test": 0.23806158452007534,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.24291728179287964,
+      "ci95_lo": 0.21657011179194008,
+      "coverage": "full_day",
+      "day": "12302019",
+      "horizon_events": 25,
+      "n_test": 296823,
+      "rank_ic_test": 0.22888701796520286,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.1578413200541651,
+      "ci95_lo": 0.15220675615779228,
+      "coverage": "full_day",
+      "day": "12302019",
+      "horizon_events": 1,
+      "n_test": 441802,
+      "rank_ic_test": 0.15494824991946562,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3009369456858868,
+      "ci95_lo": 0.2904925241416997,
+      "coverage": "full_day",
+      "day": "12302019",
+      "horizon_events": 5,
+      "n_test": 441800,
+      "rank_ic_test": 0.296117383350343,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3819453245908827,
+      "ci95_lo": 0.3677966443091987,
+      "coverage": "full_day",
+      "day": "12302019",
+      "horizon_events": 10,
+      "n_test": 441799,
+      "rank_ic_test": 0.3751479934803845,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.4736238597020186,
+      "ci95_lo": 0.4543264713329998,
+      "coverage": "full_day",
+      "day": "12302019",
+      "horizon_events": 25,
+      "n_test": 441796,
+      "rank_ic_test": 0.46242982975495417,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.14383815437642047,
+      "ci95_lo": 0.13516760082448348,
+      "coverage": "full_day",
+      "day": "12312018",
+      "horizon_events": 1,
+      "n_test": 253515,
+      "rank_ic_test": 0.13931998625260933,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.20194101735029754,
+      "ci95_lo": 0.18584661459812274,
+      "coverage": "full_day",
+      "day": "12312018",
+      "horizon_events": 5,
+      "n_test": 253513,
+      "rank_ic_test": 0.1937348324527353,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.20771185842061243,
+      "ci95_lo": 0.18467579703489126,
+      "coverage": "full_day",
+      "day": "12312018",
+      "horizon_events": 10,
+      "n_test": 253512,
+      "rank_ic_test": 0.19553531081793382,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.1763275611506404,
+      "ci95_lo": 0.1432754336736055,
+      "coverage": "full_day",
+      "day": "12312018",
+      "horizon_events": 25,
+      "n_test": 253509,
+      "rank_ic_test": 0.16029391217801991,
+      "symbol": "AAPL"
+    },
+    {
+      "ci95_hi": 0.2204278639049394,
+      "ci95_lo": 0.2143445836012043,
+      "coverage": "full_day",
+      "day": "12312018",
+      "horizon_events": 1,
+      "n_test": 571858,
+      "rank_ic_test": 0.21751503816593193,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3458947733807713,
+      "ci95_lo": 0.33564205717503365,
+      "coverage": "full_day",
+      "day": "12312018",
+      "horizon_events": 5,
+      "n_test": 571856,
+      "rank_ic_test": 0.34094013894065694,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3669714582720227,
+      "ci95_lo": 0.35361420729440174,
+      "coverage": "full_day",
+      "day": "12312018",
+      "horizon_events": 10,
+      "n_test": 571855,
+      "rank_ic_test": 0.359952908777382,
+      "symbol": "QQQ"
+    },
+    {
+      "ci95_hi": 0.3260256100471867,
+      "ci95_lo": 0.3092717385323609,
+      "coverage": "full_day",
+      "day": "12312018",
+      "horizon_events": 25,
+      "n_test": 571852,
+      "rank_ic_test": 0.317246792267397,
+      "symbol": "QQQ"
+    }
+  ],
+  "queue_and_adverse_availability": [
+    {
+      "adverse_h5_mean_drift": -44.900433641446995,
+      "adverse_h5_n": 70104,
+      "coverage": "full_day",
+      "day": "01302019",
+      "km_p_fill_h50": 0.05419329079887236,
+      "passive_fills": 70104,
+      "regular_orders": 862485,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -27.502999735616523,
+      "adverse_h5_n": 49171,
+      "coverage": "full_day",
+      "day": "01302019",
+      "km_p_fill_h50": 0.02635517914397012,
+      "passive_fills": 49171,
+      "regular_orders": 1734462,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -67.05425366078046,
+      "adverse_h5_n": 39131,
+      "coverage": "full_day",
+      "day": "01302020",
+      "km_p_fill_h50": 0.026851664952506238,
+      "passive_fills": 39131,
+      "regular_orders": 1048496,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -29.321742028663483,
+      "adverse_h5_n": 36004,
+      "coverage": "full_day",
+      "day": "01302020",
+      "km_p_fill_h50": 0.013347726421871875,
+      "passive_fills": 36004,
+      "regular_orders": 2207984,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -47.5757251418174,
+      "adverse_h5_n": 46715,
+      "coverage": "full_day",
+      "day": "03272019",
+      "km_p_fill_h50": 0.032686627480220554,
+      "passive_fills": 46715,
+      "regular_orders": 1056435,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -25.9677521207401,
+      "adverse_h5_n": 47507,
+      "coverage": "full_day",
+      "day": "03272019",
+      "km_p_fill_h50": 0.018658063737134523,
+      "passive_fills": 47507,
+      "regular_orders": 2127129,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -43.266406663777744,
+      "adverse_h5_n": 41538,
+      "coverage": "full_day",
+      "day": "05302019",
+      "km_p_fill_h50": 0.04390341867359615,
+      "passive_fills": 41538,
+      "regular_orders": 640451,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -24.104900414695404,
+      "adverse_h5_n": 34242,
+      "coverage": "full_day",
+      "day": "05302019",
+      "km_p_fill_h50": 0.018952729855195916,
+      "passive_fills": 34242,
+      "regular_orders": 1356558,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -24.84492310324913,
+      "adverse_h5_n": 93502,
+      "coverage": "full_day",
+      "day": "07132021",
+      "km_p_fill_h50": 0.05428160688489958,
+      "passive_fills": 93502,
+      "regular_orders": 1218116,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -25.593020740705136,
+      "adverse_h5_n": 41609,
+      "coverage": "full_day",
+      "day": "07132021",
+      "km_p_fill_h50": 0.01782934563499361,
+      "passive_fills": 41609,
+      "regular_orders": 2473392,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -30.93266341808266,
+      "adverse_h5_n": 39607,
+      "coverage": "full_day",
+      "day": "07302019",
+      "km_p_fill_h50": 0.046126244485597434,
+      "passive_fills": 39607,
+      "regular_orders": 640274,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -25.432636841430586,
+      "adverse_h5_n": 15602,
+      "coverage": "full_day",
+      "day": "07302019",
+      "km_p_fill_h50": 0.013294868228198586,
+      "passive_fills": 15602,
+      "regular_orders": 871970,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -25.814415548648544,
+      "adverse_h5_n": 50834,
+      "coverage": "full_day",
+      "day": "08132021",
+      "km_p_fill_h50": 0.036991370722317396,
+      "passive_fills": 50834,
+      "regular_orders": 857767,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -28.988857938718663,
+      "adverse_h5_n": 17950,
+      "coverage": "full_day",
+      "day": "08132021",
+      "km_p_fill_h50": 0.01509041805395328,
+      "passive_fills": 17950,
+      "regular_orders": 1274130,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -45.55594237052113,
+      "adverse_h5_n": 37342,
+      "coverage": "full_day",
+      "day": "08302019",
+      "km_p_fill_h50": 0.047927325591486714,
+      "passive_fills": 37342,
+      "regular_orders": 626231,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -27.67129851461428,
+      "adverse_h5_n": 25044,
+      "coverage": "full_day",
+      "day": "08302019",
+      "km_p_fill_h50": 0.015572029326146763,
+      "passive_fills": 25044,
+      "regular_orders": 1195082,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -44.726164029559776,
+      "adverse_h5_n": 44114,
+      "coverage": "full_day",
+      "day": "10182019",
+      "km_p_fill_h50": 0.046278019634229506,
+      "passive_fills": 44114,
+      "regular_orders": 868512,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -24.46298673513051,
+      "adverse_h5_n": 23370,
+      "coverage": "full_day",
+      "day": "10182019",
+      "km_p_fill_h50": 0.013756538682206942,
+      "passive_fills": 23370,
+      "regular_orders": 1262644,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -46.9501054111033,
+      "adverse_h5_n": 35575,
+      "coverage": "full_day",
+      "day": "10302019",
+      "km_p_fill_h50": 0.06554341451522327,
+      "passive_fills": 35576,
+      "regular_orders": 400031,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -26.319662480376767,
+      "adverse_h5_n": 20384,
+      "coverage": "full_day",
+      "day": "10302019",
+      "km_p_fill_h50": 0.01567260867815734,
+      "passive_fills": 20384,
+      "regular_orders": 978084,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -58.41277407054338,
+      "adverse_h5_n": 39862,
+      "coverage": "full_day",
+      "day": "11282025",
+      "km_p_fill_h50": 0.043239397124530066,
+      "passive_fills": 39867,
+      "regular_orders": 793829,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -46.51501096306291,
+      "adverse_h5_n": 71148,
+      "coverage": "full_day",
+      "day": "11282025",
+      "km_p_fill_h50": 0.022521315526090047,
+      "passive_fills": 71150,
+      "regular_orders": 2556211,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -62.22133372104294,
+      "adverse_h5_n": 41268,
+      "coverage": "full_day",
+      "day": "12132018",
+      "km_p_fill_h50": 0.05381462387343827,
+      "passive_fills": 41268,
+      "regular_orders": 575145,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -29.492912908360495,
+      "adverse_h5_n": 52772,
+      "coverage": "full_day",
+      "day": "12132018",
+      "km_p_fill_h50": 0.032108387574232844,
+      "passive_fills": 52772,
+      "regular_orders": 1693367,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -49.406788316197996,
+      "adverse_h5_n": 58748,
+      "coverage": "full_day",
+      "day": "12142018",
+      "km_p_fill_h50": 0.06245654966763847,
+      "passive_fills": 58748,
+      "regular_orders": 678515,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -32.01105206533433,
+      "adverse_h5_n": 61346,
+      "coverage": "full_day",
+      "day": "12142018",
+      "km_p_fill_h50": 0.047735553424809174,
+      "passive_fills": 61346,
+      "regular_orders": 1211734,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -50.0442220160925,
+      "adverse_h5_n": 46357,
+      "coverage": "full_day",
+      "day": "12302019",
+      "km_p_fill_h50": 0.03350172585462574,
+      "passive_fills": 46357,
+      "regular_orders": 791477,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -25.724719737289096,
+      "adverse_h5_n": 17662,
+      "coverage": "full_day",
+      "day": "12302019",
+      "km_p_fill_h50": 0.011951276309765002,
+      "passive_fills": 17662,
+      "regular_orders": 1141142,
+      "symbol": "QQQ"
+    },
+    {
+      "adverse_h5_mean_drift": -51.296380778588805,
+      "adverse_h5_n": 39456,
+      "coverage": "full_day",
+      "day": "12312018",
+      "km_p_fill_h50": 0.04530173574340446,
+      "passive_fills": 39456,
+      "regular_orders": 660596,
+      "symbol": "AAPL"
+    },
+    {
+      "adverse_h5_mean_drift": -31.030810857990748,
+      "adverse_h5_n": 57285,
+      "coverage": "full_day",
+      "day": "12312018",
+      "km_p_fill_h50": 0.037724240375751394,
+      "passive_fills": 57285,
+      "regular_orders": 1480119,
+      "symbol": "QQQ"
+    }
+  ],
+  "schema_version": 1,
+  "scope": {
+    "description": "Descriptive index of separate per-day E1-E6 studies; no event rows or estimates are pooled.",
+    "partial_prefix_policy": "Partial GZIP prefixes are labelled and are not full-day evidence.",
+    "pooled_cross_day_inference": false
+  },
+  "updated_at_unix": 1790252132
+}

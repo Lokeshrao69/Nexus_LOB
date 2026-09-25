@@ -1,0 +1,93 @@
+{
+  "completed_at_unix": 1790141014,
+  "coverage": {
+    "gz_bytes_fetched": 5510131732,
+    "gzip_stream_complete": true,
+    "is_full_day": true,
+    "kind": "full_day",
+    "last_tape_ts_ns": 72300000033611,
+    "max_gz_bytes_requested": null,
+    "range_limited": false
+  },
+  "day": "03272019",
+  "kind": "nexus-lob-itch-day-research",
+  "markdown": {
+    "file": "real_tape_03272019.md",
+    "sha256": "de1d82fd5f6dd7594e759318e93817d5836712d4437197d415ce1aa46d8cd3fa"
+  },
+  "pipeline": {
+    "adverse_horizons_events": [
+      1,
+      5,
+      25
+    ],
+    "experiments": [
+      "E1-E4",
+      "E5",
+      "E6"
+    ],
+    "fill_horizons_events": [
+      10,
+      50,
+      100,
+      500,
+      1000,
+      5000
+    ],
+    "horizons": [
+      1,
+      5,
+      10,
+      25
+    ],
+    "n_boot": 200,
+    "pooled_cross_day_inference": false,
+    "regular_session_only": true,
+    "source_script": "python_quant/scripts/run_research.py",
+    "source_sha256": "17a5ba28f5d8bdb37aecc26b1499c3d2711b26226df789d6982fd46b018a7090"
+  },
+  "requested_symbols": [
+    "AAPL",
+    "QQQ"
+  ],
+  "schema_version": 1,
+  "source": {
+    "gz_sha256": "7997025b9e09dd6c2ecb0bfa48a856197e6e800711ab67367ee0f2ab724b9ba8",
+    "manifest_file": "manifest.json",
+    "manifest_sha256": "ce7f84812e828d1e0e2c3b329b49d0a1a3fc60eacac7b0ef334e87fbafc428c9",
+    "slices": {
+      "AAPL": {
+        "bytes": 61005651,
+        "file": "AAPL.itch",
+        "sha256": "8a844c11ac7633d3a421d2b2634504f9853ec9aa8bbaee7513a4590c67d2da4a"
+      },
+      "QQQ": {
+        "bytes": 125233010,
+        "file": "QQQ.itch",
+        "sha256": "780a2784b63882aec199afdc0ef67d9f10fdc685cea5a12bcf180d7104573a36"
+      }
+    },
+    "source_url": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/03272019.NASDAQ_ITCH50.gz"
+  },
+  "status": "completed",
+  "symbols": {
+    "AAPL": {
+      "e1_e4_rows": 28,
+      "e5_orders": 1056435,
+      "e6_passive_fills": 46715,
+      "file": "real_tape_03272019_AAPL.json",
+      "regular_events": 1960770,
+      "regular_session_complete": true,
+      "sha256": "f997f4b92299409eff80d50df1f33a164694545b0f4729a4ea947bd5142459fc"
+    },
+    "QQQ": {
+      "e1_e4_rows": 28,
+      "e5_orders": 2127129,
+      "e6_passive_fills": 47507,
+      "file": "real_tape_03272019_QQQ.json",
+      "regular_events": 4040376,
+      "regular_session_complete": true,
+      "sha256": "399eb6ead1e81549428a1ed630d08c7677f2bb7455df9256c4ae92acea7ba295"
+    }
+  }
+}
