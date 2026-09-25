@@ -1,0 +1,554 @@
+{
+  "days": {
+    "01302018": {
+      "analysis_status": "failed",
+      "day": "01302018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236836
+    },
+    "01302019": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 4764426091,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000033998,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "01302019",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236845
+    },
+    "01302020": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 5597158940,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000039817,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "01302020",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236854
+    },
+    "03272019": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 5510131732,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000033611,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "03272019",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236860
+    },
+    "03292018": {
+      "analysis_status": "failed",
+      "day": "03292018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236862
+    },
+    "05152026": {
+      "analysis_status": "failed",
+      "day": "05152026",
+      "error": {
+        "message": "<urlopen error [Errno 11001] getaddrinfo failed>",
+        "type": "URLError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790021127
+    },
+    "05182026": {
+      "analysis_status": "failed",
+      "day": "05182026",
+      "error": {
+        "message": "<urlopen error [Errno 11001] getaddrinfo failed>",
+        "type": "URLError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790021128
+    },
+    "05302018": {
+      "analysis_status": "failed",
+      "day": "05302018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236863
+    },
+    "05302019": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 4246501580,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000036296,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "05302019",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236867
+    },
+    "06122026": {
+      "analysis_status": "failed",
+      "day": "06122026",
+      "error": {
+        "message": "<urlopen error [Errno 11001] getaddrinfo failed>",
+        "type": "URLError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790021128
+    },
+    "07132021": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 5996745270,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000024521,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "07132021",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790240610
+    },
+    "07302018": {
+      "analysis_status": "failed",
+      "day": "07302018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236868
+    },
+    "07302019": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 3662140094,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000037782,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "07302019",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236871
+    },
+    "08132021": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 4889328604,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000027527,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "08132021",
+      "status": "completed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790245363
+    },
+    "08302018": {
+      "analysis_status": "failed",
+      "day": "08302018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236873
+    },
+    "08302019": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 4075649457,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000037069,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "08302019",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236876
+    },
+    "10182019": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 3951201663,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000035300,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "10182019",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790240594
+    },
+    "10302018": {
+      "analysis_status": "failed",
+      "day": "10302018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236877
+    },
+    "10302019": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 3872931242,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000061711,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "10302019",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236881
+    },
+    "11282025": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 4735308661,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 61500000025812,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "11282025",
+      "status": "completed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790252108
+    },
+    "12082025": {
+      "analysis_status": "researching",
+      "coverage": {
+        "gz_bytes_fetched": 8775891119,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000022220,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "12082025",
+      "status": "researching",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790252132
+    },
+    "12092025": {
+      "analysis_status": "failed",
+      "day": "12092025",
+      "error": {
+        "message": "downloaded slices failed validation: unbounded fetch did not reach the end of the GZIP stream",
+        "type": "RuntimeError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790098096
+    },
+    "12102025": {
+      "analysis_status": "failed",
+      "day": "12102025",
+      "error": {
+        "message": "<urlopen error [Errno 11001] getaddrinfo failed>",
+        "type": "URLError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790098108
+    },
+    "12112025": {
+      "analysis_status": "researching",
+      "coverage": {
+        "gz_bytes_fetched": 10471034001,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000022051,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "12112025",
+      "status": "researching",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790099723
+    },
+    "12122025": {
+      "analysis_status": "failed",
+      "day": "12122025",
+      "error": {
+        "message": "<urlopen error [Errno 11001] getaddrinfo failed>",
+        "type": "URLError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790021127
+    },
+    "12132018": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 5244679335,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000035638,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "12132018",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236892
+    },
+    "12142018": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 5049507039,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000037728,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "12142018",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236898
+    },
+    "12282018": {
+      "analysis_status": "failed",
+      "day": "12282018",
+      "error": {
+        "message": "HTTP Error 404: Not Found",
+        "type": "HTTPError"
+      },
+      "status": "failed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236883
+    },
+    "12302019": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 3524013057,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000040070,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "12302019",
+      "status": "skipped_existing",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790236886
+    },
+    "12312018": {
+      "analysis_status": "completed",
+      "coverage": {
+        "gz_bytes_fetched": 4931688102,
+        "gzip_stream_complete": true,
+        "is_full_day": true,
+        "kind": "full_day",
+        "last_tape_ts_ns": 72300000034791,
+        "max_gz_bytes_requested": null,
+        "range_limited": false
+      },
+      "day": "12312018",
+      "status": "completed",
+      "symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "updated_at_unix": 1790240587
+    }
+  },
+  "finished_at_unix": 1790021128,
+  "kind": "nexus-lob-itch-research-batch",
+  "latest_request": {
+    "base": "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/",
+    "days": [
+      "01302018",
+      "01302019",
+      "01302020",
+      "03272019",
+      "03292018",
+      "05302018",
+      "05302019",
+      "07302018",
+      "07302019",
+      "08302018",
+      "08302019",
+      "10302018",
+      "10302019",
+      "12282018",
+      "12302019",
+      "12132018",
+      "12142018",
+      "12312018",
+      "10182019",
+      "07132021",
+      "08132021",
+      "11282025",
+      "12082025",
+      "12092025",
+      "12102025",
+      "12112025",
+      "12122025",
+      "05152026",
+      "05182026",
+      "06122026"
+    ],
+    "max_gz_bytes": null,
+    "skip_existing": true,
+    "symbols": [
+      "AAPL",
+      "QQQ"
+    ]
+  },
+  "schema_version": 1,
+  "updated_at_unix": 1790252132
+}

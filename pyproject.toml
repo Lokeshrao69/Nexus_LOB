@@ -23,6 +23,12 @@ description = "Ultra-low-latency limit-order-book matching engine, RL execution 
 readme = "CLAUDE.md"
 requires-python = ">=3.10"
 license = { text = "Proprietary — finance-placement portfolio project" }
+# F29 fix: declare runtime dependencies so pip install . in a fresh
+# environment produces a working installation.
+dependencies = [
+    "numpy>=1.24",
+    "gymnasium>=0.29",
+]
 
 [tool.scikit-build]
 # Mirror the repo's dev defaults in CMakeLists.txt.

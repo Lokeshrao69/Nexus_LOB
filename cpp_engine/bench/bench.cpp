@@ -218,20 +218,23 @@ RunStats run_ops(const Config& cfg, std::uint64_t ops,
             const std::uint64_t c0 = rdtsc();
             res = exec_op(book, op);
             const std::uint64_t c1 = rdtsc();
+            // F24 fix: report actual latency without artificial 999,999 ns ceiling.
             const double ns = c1 > c0 ? double(c1 - c0) / cyc_per_ns : 0.0;
-            (*lat_ns)[lat_idx++] = ns > 999999 ? 999999u : (std::uint32_t)ns;
+            (*lat_ns)[lat_idx++] = (std::uint32_t)(ns > 4294967295.0 ? 4294967295u : (std::uint32_t)ns);
         } else {
             res = exec_op(book, op);
         }
 
         filled_acc += res.filled;
 
-        // A rest that succeeded (or a cancel/modify that worked) frees the target
-        // from the "known live" ledger — keep the ledger alloc-free (pop/push only).
+        // F24 fix: maintain accurate active order IDs — evict the specific target on
+        // cancel/modify rather than blindly popping the back of the vector.
         if (res.status == Status::Accepted || res.status == Status::PartiallyFilledResting) {
             placed.push_back({op.id, op.price});
         } else if (op.is_cancel || op.is_modify) {
-            if (!placed.empty()) placed.pop_back();
+            for (auto it = placed.begin(); it != placed.end(); ++it) {
+                if (it->id == op.id) { placed.erase(it); break; }
+            }
         }
     }
 

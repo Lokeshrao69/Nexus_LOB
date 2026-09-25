@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -86,11 +87,15 @@ private:
 
 // Zero-copy, 1-D array over `ptr` of length `n`, keeping `owner` (the engine)
 // alive for the array's lifetime. A non-null `base` => pybind does NOT copy.
+// F14 fix: mark the array non-writeable so Python cannot accidentally mutate
+// the internal C++ book state.
 template <typename T>
 py::array_t<T> view_1d(const T* ptr, std::size_t n, py::handle owner) {
-    return py::array_t<T>({static_cast<py::ssize_t>(n)},
-                          {static_cast<py::ssize_t>(sizeof(T))},
-                          ptr, owner);
+    auto arr = py::array_t<T>({static_cast<py::ssize_t>(n)},
+                              {static_cast<py::ssize_t>(sizeof(T))},
+                              ptr, owner);
+    arr.attr("flags").attr("writeable") = false;
+    return arr;
 }
 
 // Owning (copied) 1-D array — safe to retain across engine mutations.
@@ -125,6 +130,7 @@ py::dict make_payload(py::object self, const BookStateView& s) {
     d["last_trade_px"]   = s.last_trade_px;
     d["last_trade_sz"]   = s.last_trade_sz;
     d["last_trade_side"] = s.last_trade_side;
+    d["version"]         = s.version;
     return d;
 }
 
@@ -251,6 +257,18 @@ PYBIND11_MODULE(nexus_engine, m) {
           [](double s0, double mu, double sigma, double T, int steps, int n_paths,
              double alpha, std::uint64_t seed, double lambda_jump,
              double jump_mu, double jump_sigma) {
+              // F15 fix: validate risk parameters in Python bindings to raise
+              // ValueError / invalid_argument instead of crashing the interpreter.
+              if (n_paths <= 0)
+                  throw std::invalid_argument("n_paths must be > 0");
+              if (steps <= 0)
+                  throw std::invalid_argument("steps must be > 0");
+              if (alpha <= 0.0 || alpha >= 1.0)
+                  throw std::invalid_argument("alpha must be in (0, 1)");
+              if (s0 <= 0.0)
+                  throw std::invalid_argument("s0 must be > 0");
+              if (!std::isfinite(sigma) || !std::isfinite(mu) || !std::isfinite(T))
+                  throw std::invalid_argument("sigma, mu, and T must be finite");
               nexus::risk::RiskParams p;
               p.s0 = s0;  p.mu = mu;  p.sigma = sigma;  p.T = T;
               p.steps = steps;  p.n_paths = n_paths;  p.alpha = alpha;

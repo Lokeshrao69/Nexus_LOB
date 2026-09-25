@@ -123,6 +123,14 @@ inline RiskResult quantile_from_losses(
     std::vector<double>& losses,  // mutated by std::sort
     double alpha,
     std::int64_t n_paths) {
+    // F15 fix: guard against empty paths or invalid alpha to prevent
+    // out-of-bounds access (e.g. SIGSEGV on losses[idx] when n_paths == 0).
+    if (n_paths <= 0 || losses.empty()) {
+        return RiskResult{0.0, 0.0, 0.0, 0.0};
+    }
+    if (alpha <= 0.0 || alpha >= 1.0) {
+        return RiskResult{0.0, 0.0, 0.0, static_cast<double>(n_paths)};
+    }
     std::sort(losses.begin(), losses.end());
     std::int64_t k = static_cast<std::int64_t>(std::ceil((1.0 - alpha) * n_paths));
     if (k < 1) k = 1;
