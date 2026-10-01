@@ -7,6 +7,9 @@
 // Design goals mirror the resume claims:
 //   * O(1) price-level lookup  -> prices index directly into a pre-sized level
 //     array over a fixed price band (no tree, no hashing on the hot path).
+//   * band-independent best-price / depth walks -> a hierarchical occupancy
+//     bitmap per side (level_bitmap.hpp) finds the next non-empty level with a
+//     few bit-scan instructions instead of stepping over every empty price.
 //   * zero-alloc order path     -> every resting Order comes from OrderPool's slab;
 //     matching only ever FREES nodes, so the book never heap-allocates while trading.
 //   * O(1) cancel/modify         -> an id -> Order* map locates any live order directly.
@@ -26,6 +29,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "nexus/level_bitmap.hpp"  // LevelBitmap: occupied-price-level index
 #include "nexus/order_pool.hpp"  // Order, OrderPool  (pulls in types.hpp + book_state.hpp)
 
 namespace nexus {
@@ -156,6 +160,8 @@ public:
           max_price_(max_price),
           bid_levels_(safe_band_size(min_price, max_price)),
           ask_levels_(safe_band_size(min_price, max_price)),
+          bid_occ_(bid_levels_.size()),
+          ask_occ_(ask_levels_.size()),
           id_map_(pool_capacity) {
         std::memset(&state_, 0, sizeof(state_));
         state_.last_trade_side = Side::None;
@@ -254,6 +260,9 @@ private:
     std::vector<LimitLevel>& levels_(Side s) noexcept {
         return s == Side::Bid ? bid_levels_ : ask_levels_;
     }
+    LevelBitmap& occ_(Side s) noexcept {
+        return s == Side::Bid ? bid_occ_ : ask_occ_;
+    }
 
     // ---- core execution -----------------------------------------------------
     ExecResult execute_(OrderId id, Side side, Price price, Qty qty, TimeInForce tif,
@@ -308,14 +317,20 @@ private:
                 const Price ap = idx_to_price(best_ask_idx_);
                 if (!is_market && ap > limit) break;              // no longer crosses
                 consume_level_(ask_levels_[best_ask_idx_], ap, aggressor, qty, filled, taker, fills);
-                if (ask_levels_[best_ask_idx_].empty()) refresh_best_ask_();
+                if (ask_levels_[best_ask_idx_].empty()) {
+                    ask_occ_.clear(best_ask_idx_);
+                    refresh_best_ask_();
+                }
             }
         } else {  // aggressor == Ask
             while (qty > 0 && best_bid_idx_ >= 0) {
                 const Price bp = idx_to_price(best_bid_idx_);
                 if (!is_market && bp < limit) break;
                 consume_level_(bid_levels_[best_bid_idx_], bp, aggressor, qty, filled, taker, fills);
-                if (bid_levels_[best_bid_idx_].empty()) refresh_best_bid_();
+                if (bid_levels_[best_bid_idx_].empty()) {
+                    bid_occ_.clear(best_bid_idx_);
+                    refresh_best_bid_();
+                }
             }
         }
     }
@@ -361,6 +376,7 @@ private:
         LimitLevel& lvl = levels_(side)[idx];
         if (lvl.tail == nullptr) {             // first order at this price
             lvl.head = lvl.tail = o;
+            occ_(side).set(idx);
         } else {                               // FIFO append
             o->prev = lvl.tail;
             lvl.tail->next = o;
@@ -381,7 +397,9 @@ private:
     bool unlink_by_id_(OrderId id) {
         Order* o = id_map_.find(id);
         if (o == nullptr) return false;
-        LimitLevel& lvl = levels_(o->side)[price_to_idx(o->price)];
+        const Side           side = o->side;   // read before the node goes back to the pool
+        const std::ptrdiff_t idx  = price_to_idx(o->price);
+        LimitLevel& lvl = levels_(side)[idx];
 
         if (o->prev) o->prev->next = o->next; else lvl.head = o->next;
         if (o->next) o->next->prev = o->prev; else lvl.tail = o->prev;
@@ -392,41 +410,36 @@ private:
         pool_.free(o);
 
         if (lvl.empty()) {                     // best price may have moved
-            if (o->side == Side::Bid) refresh_best_bid_();
-            else                      refresh_best_ask_();
+            occ_(side).clear(idx);
+            if (side == Side::Bid) refresh_best_bid_();
+            else                   refresh_best_ask_();
         }
         return true;
     }
 
-    // Slide the best-price cursor to the nearest still-occupied level (or -1).
-    // F23 note: these scans are O(band_width) in the worst case for very sparse
-    // books. A bitmap or radix tree can jump directly to the next occupied level;
-    // current production use stays within measured sub-microsecond bounds for
-    // typical ITCH-derived price bands (e.g. 50k ticks).
+    // Move the best-price cursor to the nearest still-occupied level (or -1).
+    // The occupancy bitmap makes this independent of how many empty prices lie
+    // between the old best and the new one.
     void refresh_best_bid_() noexcept {
-        while (best_bid_idx_ >= 0 && bid_levels_[best_bid_idx_].empty()) --best_bid_idx_;
+        if (best_bid_idx_ >= 0 && bid_levels_[best_bid_idx_].empty())
+            best_bid_idx_ = bid_occ_.prev(best_bid_idx_);
     }
     void refresh_best_ask_() noexcept {
-        const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(ask_levels_.size());
-        while (best_ask_idx_ >= 0 && best_ask_idx_ < n && ask_levels_[best_ask_idx_].empty())
-            ++best_ask_idx_;
-        if (best_ask_idx_ >= n) best_ask_idx_ = -1;
+        if (best_ask_idx_ >= 0 && ask_levels_[best_ask_idx_].empty())
+            best_ask_idx_ = ask_occ_.next(best_ask_idx_);
     }
 
     // Non-mutating check that `qty` can be fully filled now (for FOK).
     bool can_fill_(Side aggressor, Price limit, bool is_market, Qty qty) const {
         Qty need = qty;
         if (aggressor == Side::Bid) {
-            const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(ask_levels_.size());
-            for (std::ptrdiff_t i = best_ask_idx_; need > 0 && i >= 0 && i < n; ++i) {
-                if (ask_levels_[i].empty()) continue;
+            for (std::ptrdiff_t i = best_ask_idx_; need > 0 && i >= 0; i = ask_occ_.next(i + 1)) {
                 if (!is_market && idx_to_price(i) > limit) break;
                 const Qty avail = ask_levels_[i].total_qty;
                 need -= (need < avail) ? need : avail;
             }
         } else {
-            for (std::ptrdiff_t i = best_bid_idx_; need > 0 && i >= 0; --i) {
-                if (bid_levels_[i].empty()) continue;
+            for (std::ptrdiff_t i = best_bid_idx_; need > 0 && i >= 0; i = bid_occ_.prev(i - 1)) {
                 if (!is_market && idx_to_price(i) < limit) break;
                 const Qty avail = bid_levels_[i].total_qty;
                 need -= (need < avail) ? need : avail;
@@ -440,10 +453,11 @@ private:
     void publish_(std::int64_t event_ts) noexcept {
         ++state_.version;                      // odd: write in progress
 
+        // Walk only occupied levels: O(kDepth) bitmap steps, whatever the band width.
         std::ptrdiff_t k = 0;
-        for (std::ptrdiff_t bi = best_bid_idx_; k < static_cast<std::ptrdiff_t>(kDepth) && bi >= 0; --bi) {
+        for (std::ptrdiff_t bi = best_bid_idx_; k < static_cast<std::ptrdiff_t>(kDepth) && bi >= 0;
+             bi = bid_occ_.prev(bi - 1)) {
             const LimitLevel& lvl = bid_levels_[bi];
-            if (lvl.empty()) continue;
             state_.bid_px[k] = idx_to_price(bi);
             state_.bid_sz[k] = lvl.total_qty;
             state_.bid_ct[k] = lvl.count;
@@ -453,11 +467,10 @@ private:
             state_.bid_px[k] = 0; state_.bid_sz[k] = 0; state_.bid_ct[k] = 0;
         }
 
-        const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(ask_levels_.size());
         k = 0;
-        for (std::ptrdiff_t ai = best_ask_idx_; k < static_cast<std::ptrdiff_t>(kDepth) && ai >= 0 && ai < n; ++ai) {
+        for (std::ptrdiff_t ai = best_ask_idx_; k < static_cast<std::ptrdiff_t>(kDepth) && ai >= 0;
+             ai = ask_occ_.next(ai + 1)) {
             const LimitLevel& lvl = ask_levels_[ai];
-            if (lvl.empty()) continue;
             state_.ask_px[k] = idx_to_price(ai);
             state_.ask_sz[k] = lvl.total_qty;
             state_.ask_ct[k] = lvl.count;
@@ -480,6 +493,8 @@ private:
     Price                   max_price_;
     std::vector<LimitLevel> bid_levels_;       // indexed by (price - min_price_)
     std::vector<LimitLevel> ask_levels_;
+    LevelBitmap             bid_occ_;          // bit i set <=> bid_levels_[i] non-empty
+    LevelBitmap             ask_occ_;          // bit i set <=> ask_levels_[i] non-empty
     IdMap                   id_map_;           // zero-alloc id -> Order* (O(1) cancel/modify)
 
     std::ptrdiff_t best_bid_idx_ = -1;         // highest occupied bid index; -1 == none

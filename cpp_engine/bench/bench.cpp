@@ -119,55 +119,69 @@ ExecResult exec_op(LimitOrderBook& book, const Op& op) {
 struct Config {
     const char* name;
     double      aggressor_ratio;   // share of ops that cross liquidity
+    Price       min_price;         // engine price band (inclusive)
+    Price       max_price;
+    Price       max_offset;        // passive orders rest 1..max_offset ticks from mid
 };
 
-constexpr std::uint64_t kSeedOrders = 2'000;    // resting liquidity placed before timing
+constexpr std::uint64_t kSeedOrders  = 2'000;    // resting liquidity placed before timing
+constexpr std::size_t   kTargetLive  = 10'000;   // steady-state resting orders
 constexpr Price         kMid         = 50'000;
+constexpr std::size_t   kPoolCap     = std::size_t(1) << 20;
 
-// Placers we can still cancel/modify: {id, price} of orders we know are resting.
+// Placers we can still cancel/modify: {id, price} of orders we believe are resting.
+// Entries go stale when an order is filled; cancelling a stale id is a NoOp,
+// exactly as it would be for a real client racing a fill.
 struct Placed { OrderId id; Price price; };
 
 // ============================================================================
-// One run of `ops` order ops at the given aggressor ratio.
-// `lat_ns` (pre-reserved) collects per-op engine-call latency when non-null.
+// One run of `ops` order ops.
+//
+// Workload: a steady-state book. Passive limits rest 1..max_offset ticks from a
+// fixed mid; aggressive orders (market or IOC at the touch) take liquidity; 5%
+// of ops cancel and 5% modify a RANDOM known order. When more than kTargetLive
+// orders are known, the next passive op becomes a cancel instead, so the book
+// neither drains nor fills the pool. Op generation is outside the per-op rdtsc
+// window but inside the throughput wall clock.
 // ============================================================================
 struct RunStats {
     std::uint64_t allocs;
     std::uint64_t ops;
     std::uint64_t filled;
+    std::uint64_t rejected;
+    std::size_t   live_end;
     double        wall_sec;
 };
 
 RunStats run_ops(const Config& cfg, std::uint64_t ops,
                  std::vector<std::uint32_t>* lat_ns) {
-    LimitOrderBook book(1, 1'000'000, std::size_t(1) << 20);
+    LimitOrderBook book(cfg.min_price, cfg.max_price, kPoolCap);
 
-    // Seed passive liquidity at a few levels either side of mid (outside timing).
+    // Seed passive liquidity either side of mid (outside timing).
     Lcg rng{0x5EED5EEDULL};
+    std::vector<Placed> placed;
+    placed.reserve(kSeedOrders + ops + 1);           // never grows inside the timed loop
     for (OrderId id = 1; id <= kSeedOrders; ++id) {
         const bool  bid = (rng.next() & 1u) == 0;
-        const Price off = 1 + (Price)(rng.next() % 6);
-        book.submit_limit(id, bid ? Side::Bid : Side::Ask,
-                          bid ? kMid - off : kMid + off,
+        const Price off = 1 + (Price)(rng.next() % (std::uint64_t)cfg.max_offset);
+        const Price px  = bid ? kMid - off : kMid + off;
+        book.submit_limit(id, bid ? Side::Bid : Side::Ask, px,
                           10 + (Qty)(rng.next() % 90), TimeInForce::GTC);
+        placed.push_back({id, px});
     }
-
-    // Bookkeeping for cancel/modify targets (pre-reserved; alloc-free in the loop).
-    std::vector<Placed> placed;
-    placed.reserve(kSeedOrders * 4);
 
     double cyc_per_ns = 1.0;
     if (lat_ns) {                                   // latency pass needs calibration
         cyc_per_ns = cycles_per_ns();
-        lat_ns->resize(ops);                        // reserve BEFORE the counter reset
+        lat_ns->resize(ops);                        // sized BEFORE the counter reset
     }
 
     g_allocs.store(0, std::memory_order_relaxed);   // from here, only engine allocs count
 
     const auto t0 = std::chrono::steady_clock::now();
     OrderId id = kSeedOrders + 1;
-    Price   mid = kMid;
-    std::uint64_t filled_acc = 0;
+    const Price mid = kMid;
+    std::uint64_t filled_acc = 0, rejected = 0;
     std::size_t   lat_idx = 0;
 
     const double wp = 1.0 - cfg.aggressor_ratio;    // passive rest
@@ -178,38 +192,44 @@ RunStats run_ops(const Config& cfg, std::uint64_t ops,
 
     for (std::uint64_t i = 0; i < ops; ++i) {
         // ---- generate the op (outside the timed window of the call) ----------
-        const double u = double(rng.next() % 1000000u) / 1e6 * wTotal;
+        const double u   = double(rng.next() % 1000000u) / 1e6 * wTotal;
         const bool   bid = (rng.next() & 1u) == 0;
 
         Op op{};
         op.tif = TimeInForce::GTC;
+        std::size_t target = 0;                      // index into `placed` for cancel/modify
 
-        if (u < wp) {                               // rest a passive limit
-            const Price off = 1 + (Price)(rng.next() % 4);
+        const bool over_target = placed.size() > kTargetLive;
+        if (u < wp && !over_target) {               // rest a passive limit
+            const Price off = 1 + (Price)(rng.next() % (std::uint64_t)cfg.max_offset);
             op.id = id++; op.side = bid ? Side::Bid : Side::Ask;
             op.price = bid ? mid - off : mid + off;
             op.qty = 10 + (Qty)(rng.next() % 190);
-        } else if (u < wp + wa) {                   // cross into the opposite side
+        } else if (u >= wp && u < wp + wa) {        // cross into the opposite side
             op.id = id++;
             op.side = bid ? Side::Bid : Side::Ask;
-            if ((rng.next() & 1u) == 0) {           // half: sweep the whole side
+            if ((rng.next() & 1u) == 0) {           // half: market order
                 op.is_market = true;
                 op.qty = 10 + (Qty)(rng.next() % 120);
-            } else {                                // half: lift exactly the best quote
+            } else {                                // half: IOC at the best quote
                 const Price lvl = bid ? book.best_ask() : book.best_bid();
                 op.price = lvl != 0 ? lvl : mid + (bid ? 1 : -1);
                 op.qty = 10 + (Qty)(rng.next() % 120);
                 op.tif = TimeInForce::IOC;
             }
-        } else if (u < wp + wa + wc) {              // cancel a recent order
-            if (!placed.empty()) { op.is_cancel = true; op.id = placed.back().id; }
-        } else {                                    // modify: in-place size-down
-            if (!placed.empty()) {
-                op.is_modify = true;
-                const Placed p = placed.back();
-                op.id = p.id; op.price = p.price;
-                op.qty = 1;                          // shrink by one
+        } else if (!placed.empty()) {               // cancel or modify a random known order
+            target = rng.next() % placed.size();
+            const Placed p = placed[target];
+            op.id = p.id;
+            if (u >= wp + wa + wc && !over_target) {
+                op.is_modify = true;                // in-place size-down (keeps priority)
+                op.price = p.price;
+                op.qty = 1;
+            } else {
+                op.is_cancel = true;
             }
+        } else {
+            continue;
         }
 
         // ---- the timed engine call ------------------------------------------
@@ -218,7 +238,6 @@ RunStats run_ops(const Config& cfg, std::uint64_t ops,
             const std::uint64_t c0 = rdtsc();
             res = exec_op(book, op);
             const std::uint64_t c1 = rdtsc();
-            // F24 fix: report actual latency without artificial 999,999 ns ceiling.
             const double ns = c1 > c0 ? double(c1 - c0) / cyc_per_ns : 0.0;
             (*lat_ns)[lat_idx++] = (std::uint32_t)(ns > 4294967295.0 ? 4294967295u : (std::uint32_t)ns);
         } else {
@@ -226,15 +245,17 @@ RunStats run_ops(const Config& cfg, std::uint64_t ops,
         }
 
         filled_acc += res.filled;
+        if (res.status == Status::Rejected_PoolFull || res.status == Status::Rejected_BadPrice ||
+            res.status == Status::Rejected_DupId    || res.status == Status::Rejected_BadQty)
+            ++rejected;
 
-        // F24 fix: maintain accurate active order IDs — evict the specific target on
-        // cancel/modify rather than blindly popping the back of the vector.
-        if (res.status == Status::Accepted || res.status == Status::PartiallyFilledResting) {
+        // ---- bookkeeping (O(1)) ---------------------------------------------
+        if (op.is_cancel || (op.is_modify && res.status != Status::Accepted)) {
+            placed[target] = placed.back();         // swap-remove: cancelled, or already gone
+            placed.pop_back();
+        } else if (!op.is_modify &&
+                   (res.status == Status::Accepted || res.status == Status::PartiallyFilledResting)) {
             placed.push_back({op.id, op.price});
-        } else if (op.is_cancel || op.is_modify) {
-            for (auto it = placed.begin(); it != placed.end(); ++it) {
-                if (it->id == op.id) { placed.erase(it); break; }
-            }
         }
     }
 
@@ -243,7 +264,10 @@ RunStats run_ops(const Config& cfg, std::uint64_t ops,
     s.allocs   = g_allocs.load(std::memory_order_relaxed);
     s.ops      = ops;
     s.filled   = filled_acc;
+    s.rejected = rejected;
+    s.live_end = book.live_orders();
     s.wall_sec = std::chrono::duration<double>(t1 - t0).count();
+    if (lat_ns) lat_ns->resize(lat_idx);
     return s;
 }
 
@@ -251,7 +275,9 @@ RunStats run_ops(const Config& cfg, std::uint64_t ops,
 // Report one config: throughput pass (large) + latency pass (small).
 // ============================================================================
 void bench(const Config& cfg, std::uint64_t tp_ops, std::uint64_t lat_ops) {
-    std::printf("--- config: %-9s aggressor_ratio=%.2f ---\n", cfg.name, cfg.aggressor_ratio);
+    std::printf("--- config: %-14s aggressor_ratio=%.2f  band=[%lld, %lld]  offsets 1..%lld ---\n",
+                cfg.name, cfg.aggressor_ratio, (long long)cfg.min_price, (long long)cfg.max_price,
+                (long long)cfg.max_offset);
 
     const RunStats tp = run_ops(cfg, tp_ops, /*lat_ns=*/nullptr);
     const std::uint64_t per_second = (std::uint64_t)(tp.ops / tp.wall_sec);
@@ -266,20 +292,22 @@ void bench(const Config& cfg, std::uint64_t tp_ops, std::uint64_t lat_ops) {
 
     std::printf("  ops          : %12llu  in %.2f s\n",
                 (unsigned long long)tp.ops, tp.wall_sec);
-    std::printf("  throughput   : %12llu ops/s\n", (unsigned long long)per_second);
+    std::printf("  throughput   : %12llu ops/s  (wall clock, includes op generation)\n", (unsigned long long)per_second);
     std::printf("  latency      : mean %8.1f  p50 %6.0f  p90 %6.0f  p99 %6.0f  p99.9 %6.0f  max %6.0f ns\n",
                 mean, (double)q(0.50), (double)q(0.90), (double)q(0.99),
                 (double)q(0.999), (double)lat.back());
     std::printf("  heap allocs  : %12llu in the timed loop  ", (unsigned long long)tp.allocs);
-    if (tp.allocs == 0) std::printf("=> ZERO-ALLOC PROVEN\n");
-    else                std::printf("<= engine ALLOCATED on the hot path (%.3f/op)\n",
+    if (tp.allocs == 0) std::printf("=> zero heap allocations\n");
+    else                std::printf("<= allocations inside the timed loop (%.3f/op)\n",
                                     tp.ops ? (double)tp.allocs / (double)tp.ops : 0.0);
     // Latency pass re-runs the same workload at smaller n (per-op rdtsc dominant).
     std::printf("  latency-pass : %12llu ops, %12llu allocs (%.3f/op)\n",
                 (unsigned long long)lt.ops, (unsigned long long)lt.allocs,
                 lt.ops ? (double)lt.allocs / (double)lt.ops : 0.0);
-    std::printf("  fills        : %12llu (sum over all order calls)\n\n",
+    std::printf("  fills        : %12llu (sum over all order calls)\n",
                 (unsigned long long)tp.filled);
+    std::printf("  rejects      : %12llu   live orders at end: %zu\n\n",
+                (unsigned long long)tp.rejected, tp.live_end);
 }
 
 int main(int argc, char** argv) {
@@ -290,16 +318,21 @@ int main(int argc, char** argv) {
 #endif
     std::printf("\n");
 
+    // Each workload runs on a narrow band and on a 1M-tick band. Throughput
+    // should not depend on band width; before the occupancy bitmap it did.
     const Config configs[] = {
-        {"passive",  0.10},   // resting-liquidity-heavy workload
-        {"crossing", 0.55},   // heavy matching workload (fills + erases)
+        {"passive",        0.10, 49'000, 51'000,    4},     // dense book near the touch
+        {"crossing",       0.55, 49'000, 51'000,    4},     // heavy matching
+        {"passive-wide",   0.10, 1,      1'000'000, 4},     // same flow, 500x wider band
+        {"crossing-wide",  0.55, 1,      1'000'000, 4},
+        {"sparse-wide",    0.10, 1,      1'000'000, 5'000}, // orders spread over 10k ticks
     };
 
     // Optional --ops override: `bench --ops <tp_ops> <lat_ops> [config]`.
     // Omit it to use the defaults (kDefThroughput / kDefLatency):
     //   ./bench                          # both configs, default sizes
     //   ./bench --ops 100000 30000       # quick smoke, both configs
-    //   ./bench passive | crossing       # one config at default sizes
+    //   ./bench passive | crossing | passive-wide | crossing-wide | sparse-wide
     //   ./bench --ops 100000 30000 crossing
     constexpr std::uint64_t kDefThroughput = 2'000'000;
     constexpr std::uint64_t kDefLatency    =   200'000;
@@ -315,7 +348,7 @@ int main(int argc, char** argv) {
         const char* want = argv[argi];
         for (const auto& c : configs)
             if (0 == std::strcmp(c.name, want)) { bench(c, tp_ops, lat_ops); return 0; }
-        std::fprintf(stderr, "unknown config '%s' (try 'passive' or 'crossing')\n", want);
+        std::fprintf(stderr, "unknown config '%s' (try passive, crossing, passive-wide, crossing-wide, sparse-wide)\n", want);
         return 2;
     }
     for (const auto& c : configs) bench(c, tp_ops, lat_ops);

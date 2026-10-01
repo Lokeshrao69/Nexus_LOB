@@ -40,7 +40,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # ---- options ---------------------------------------------------------------
-option(NEXUS_BUILD_TESTS  "Build the C++ unit tests (abi_check, lob_test, ring_test, id_map_test)" ON)
+option(NEXUS_BUILD_TESTS  "Build the C++ unit tests (abi_check, lob_test, ring_test, id_map_test, bitmap_test, lob_diff_test)" ON)
 option(NEXUS_BUILD_DEMOS  "Build the shmem ring producer/probe demos"        ON)
 option(NEXUS_BUILD_PYBIND "Build the nexus_engine Pybind11 module"         ON)
 option(NEXUS_ENABLE_CUDA  "Build CUDA risk-engine hooks if a toolkit exists" ON)
@@ -126,6 +126,20 @@ if(NEXUS_BUILD_TESTS)
         endif()
         add_test(NAME id_map_test COMMAND id_map_test)
     endif()
+
+    # Occupancy bitmap: next()/prev() vs a std::set oracle at awkward sizes.
+    # Differential test: engine vs a naive std::map reference book on dense,
+    # sparse and huge price bands (results, fills and published ladder).
+    foreach(t bitmap_test lob_diff_test)
+        if(EXISTS "${PROJECT_SOURCE_DIR}/cpp_engine/tests/${t}.cpp")
+            add_executable(${t} cpp_engine/tests/${t}.cpp)
+            target_link_libraries(${t} PRIVATE nexus::engine)
+            if(NOT MSVC)
+                target_compile_options(${t} PRIVATE -Wall -Wextra)
+            endif()
+            add_test(NAME ${t} COMMAND ${t})
+        endif()
+    endforeach()
 
     # Subsystem 3 — Monte-Carlo VaR/CVaR CPU-reference statistical tests
     # (pure C++, no CUDA required; runs in CTest on every build machine).
