@@ -123,6 +123,30 @@ void test_drop_on_full() {
     ShmRing::destroy(kName);
 }
 
+#if !defined(_WIN32)
+// Attaching to a segment whose control block carries a different magic/layout
+// version must fail loudly instead of misreading offsets.
+void test_layout_mismatch_rejected() {
+    std::printf("test_layout_mismatch_rejected\n");
+    const char* kName = "nexus_test_layout";
+    ShmRing::destroy(kName);
+    {
+        ShmRing ring(kName, 4, ShmRing::Mode::Create);
+        // Corrupt the layout-version stamp (offset 4) in the live mapping.
+        int fd = shm_open(kName, O_RDWR, 0600);
+        CHECK(fd >= 0);
+        std::uint32_t bad = ShmRing::kLayoutVersion + 1;
+        CHECK(pwrite(fd, &bad, sizeof bad, 4) == (ssize_t)sizeof bad);
+        close(fd);
+        bool threw = false;
+        try { ShmRing viewer(kName, 4, ShmRing::Mode::Attach); }
+        catch (const std::runtime_error&) { threw = true; }
+        CHECK(threw);
+    }
+    ShmRing::destroy(kName);
+}
+#endif
+
 // The slot payload is exactly the frozen 448-byte contract state.
 void test_slot_abi() {
     std::printf("test_slot_abi\n");
@@ -137,6 +161,9 @@ int main() {
     test_slot_abi();
     test_order_and_integrity();
     test_drop_on_full();
+#if !defined(_WIN32)
+    test_layout_mismatch_rejected();
+#endif
 
     std::printf("\n%d checks, %d failed\n", g_checks, g_failed);
     if (g_failed == 0) std::printf("ALL PASS\n");

@@ -225,16 +225,32 @@ fill-or-kill liquidity check, and it is allocated once at construction.
 
 # Shared-Memory Data Path
 
-The project includes a single-producer/single-consumer shared-memory ring for transferring `BookStateView` snapshots between processes.
+A single-producer, single-consumer ring carries `BookStateView` snapshots from the
+engine to another process (the dashboard or `ring_probe`) through POSIX or Windows
+shared memory, with no serialization. When the consumer falls behind, new
+snapshots are dropped and counted instead of blocking the engine.
 
-The design is intended to:
+- **Separate cache lines.** The producer's index (`write_seq`) and the consumer's
+  index (`read_seq`) sit on different 64-byte cache lines, so neither side's
+  writes invalidate the other's line. Slots start cache-line aligned.
+- **Cached indices.** Each side keeps a private copy of the other side's index and
+  re-reads the shared one only when its copy says the ring is full (producer) or
+  empty (consumer).
+- **Acquire/release ordering** on the two indices; lock-freedom of the shared
+  atomics is checked at compile time.
+- **Layout stamp.** A magic number and layout version in the header make a reader
+  built for a different layout fail loudly instead of misreading offsets. The
+  Python dashboard mirrors the layout byte for byte.
 
-- Avoid blocking the matching engine
-- Avoid unnecessary serialization
-- Preserve the fixed ABI
-- Detect and count dropped snapshots when consumers fall behind
+| Ring capacity | Before | Padding only | Padding + cached indices |
+|---:|---:|---:|---:|
+| 64 | 2.0M frames/s | 2.9M | **6.6M** |
+| 1,024 | 2.7M | 4.2M | **29.7M** |
+| 16,384 | 3.1M | 5.1M | **35.8M** |
 
-Synchronization and cache-line ownership are treated as explicit performance concerns and are being hardened before making latency claims.
+Median of 5 runs of 3M 448-byte frames, producer and consumer threads on a 2-vCPU
+cloud VM. The ring tests and benchmark run clean under ThreadSanitizer. Details:
+[`docs/results/ring_bench.md`](docs/results/ring_bench.md).
 
 ---
 
@@ -329,7 +345,7 @@ The C++ test suite includes:
 - `lob_diff_test` — 51.9M checks against a naive `std::map` reference book (results, fills and the full published ladder) on dense, sparse and pool-exhaustion workloads
 - `bitmap_test` — 6.1M checks of the occupancy bitmap against a `std::set` oracle
 - `id_map_test` — 4.6M+ checks
-- `ring_test` — 30k+ checks
+- `ring_test` — 30k+ checks, including rejection of a mismatched ring layout
 - `abi_check` — 448-byte layout contract
 - `risk_test` — CPU/reference validation
 
@@ -449,6 +465,7 @@ The research pipeline verifies the expected file size and SHA-256 hash before pr
 # Limitations
 
 - Current benchmark numbers are not bare-metal HFT measurements.
+- The ring drops the *newest* snapshot when full. That suits a consumer that must see every event in order, but a dashboard wants the *latest* state, so when it polls slowly it shows a snapshot up to one ring-capacity of events old.
 - Adverse-selection analysis is being extended from event-time measurements to post-trade clock-time markouts.
 - The current real-tape study covers only AAPL and QQQ.
 - Both instruments are highly liquid and results may not generalize to thinner securities.
