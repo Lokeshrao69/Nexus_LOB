@@ -448,8 +448,10 @@ private:
         return need == 0;
     }
 
-    // Republish the top-`kDepth` ladder into the contract state. seqlock discipline:
-    // bump `version` to odd before writing, to even after (even == stable snapshot).
+    // Republish the top-`kDepth` ladder into the contract state. `version` goes odd
+    // before the write and even after it. This marks progress for same-thread
+    // readers only; it is not a seqlock (no atomics or fences), so other threads
+    // must receive the state through ShmRing rather than by reading state_ directly.
     void publish_(std::int64_t event_ts) noexcept {
         ++state_.version;                      // odd: write in progress
 

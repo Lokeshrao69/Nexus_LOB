@@ -11,18 +11,33 @@
 // across the process boundary with no serialization.
 //
 // Correctness core (SPSC, drop-new-on-full):
-//   * Slots are ONLY written by the producer for indices in [read_seq, write_seq);
-//     the producer never reuses a slot the consumer hasn't drained => NO torn reads.
-//   * publish(): copy the view into slot[write_seq % N], then bump write_seq with
-//     a RELEASE store. The consumer's ACQUIRE load of write_seq orders the copy.
-//   * try_read(): load write_seq (acquire), copy slot[read_seq % N], bump read_seq.
+//   * The producer only writes slots outside [read_seq, write_seq), i.e. slots the
+//     consumer has already released, so a reader never sees a slot mid-write.
+//   * publish(): copy the view into slot[write_seq % N], then advance write_seq
+//     with a RELEASE store. The consumer's ACQUIRE load of write_seq orders the copy.
+//   * try_read(): copy slot[read_seq % N], then advance read_seq with a RELEASE
+//     store, which the producer ACQUIRE-loads before reusing that slot.
 //   * While the consumer is behind, NEW events are dropped (counted in `dropped`)
-//     rather than overwriting unread slots — bounded backpressure, never blocking
+//     rather than overwriting unread slots: bounded backpressure that never blocks
 //     matching. The consumer still drains what survived, strictly in order.
+//   * Exactly ONE consumer per ring. A second reader advancing read_seq (e.g. the
+//     dashboard and ring_probe at once) breaks the SPSC protocol.
+//
+// Shared-memory layout (layout v2; mirrored in python_quant/nexus_quant/dashboard.py):
+//   offset   0  metadata line : magic, layout version, capacity, slot bytes, state
+//   offset  64  producer line : write_seq, dropped        (written only by producer)
+//   offset 128  consumer line : read_seq                  (written only by consumer)
+//   offset 192  slot array    : capacity x 448-byte BookStateView
+// Keeping the two indices on separate 64-byte cache lines stops every publish from
+// invalidating the consumer's line and vice versa (false sharing). Each side also
+// caches the other side's index in process-local memory and only re-reads the
+// shared one when its cached copy says the ring is full (producer) or empty
+// (consumer). 192 is a multiple of 64 and 448 = 7 x 64, so every slot starts on a
+// cache-line boundary.
 //
 // Cross-platform: POSIX shm_open + mmap (WSL/Linux) and Windows MapViewOfFile.
-// The BookStateView's own seqlock parity (version even == stable) is unaffected;
-// the ring guarantees whole-slot consistency itself, so consumers don't need it.
+// The ring copies whole slots under the protocol above, so readers never need
+// BookStateView::version for consistency.
 //
 // Lifecycle:
 //   Producer:  ShmRing::create(name, cap)  ... publish() ...  (own call to destroy(name))
@@ -34,6 +49,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -57,7 +73,9 @@ namespace nexus {
 
 class ShmRing {
 public:
-    static constexpr std::size_t kSlotBytes = sizeof(BookStateView);
+    static constexpr std::size_t   kSlotBytes     = sizeof(BookStateView);
+    static constexpr std::uint32_t kMagic         = 0x4E58524Eu;   // "NRXN"
+    static constexpr std::uint32_t kLayoutVersion = 2;
 
     enum class Mode : std::uint8_t { Create, Attach };
 
@@ -74,11 +92,12 @@ public:
         ctrl_        = reinterpret_cast<ControlBlock*>(base_);
 
         if (mode == Mode::Create) {
-            ctrl_->write_seq.store(0, std::memory_order_relaxed);
-            ctrl_->read_seq.store(0, std::memory_order_relaxed);
-            ctrl_->dropped.store(0, std::memory_order_relaxed);
-            ctrl_->capacity  = capacity;
-            ctrl_->slot_bytes = kSlotBytes;
+            // Construct the control block (and its atomics) in the fresh mapping.
+            ctrl_ = ::new (base_) ControlBlock{};
+            ctrl_->magic          = kMagic;
+            ctrl_->layout_version = kLayoutVersion;
+            ctrl_->capacity       = capacity;
+            ctrl_->slot_bytes     = kSlotBytes;
             ctrl_->state.store(kReady, std::memory_order_release);
         } else {
             // Wait for the producer to publish the control block.
@@ -93,10 +112,16 @@ public:
                     throw std::runtime_error(
                         "ShmRing: timed out waiting for producer initialization");
             }
+            if (ctrl_->magic != kMagic || ctrl_->layout_version != kLayoutVersion)
+                throw std::runtime_error(
+                    "ShmRing: segment was created by a different ring layout version");
             if (ctrl_->capacity != capacity || ctrl_->slot_bytes != kSlotBytes)
                 throw std::runtime_error(
                     "ShmRing: existing segment capacity/ABI mismatch");
         }
+        capacity_     = capacity;
+        cached_read_  = ctrl_->read_seq.load(std::memory_order_acquire);
+        cached_write_ = ctrl_->write_seq.load(std::memory_order_acquire);
     }
 
     ShmRing(const ShmRing&)            = delete;
@@ -111,14 +136,17 @@ public:
     // Copy `v` into the next slot and advance. Returns false (and counts a drop)
     // if the consumer hasn't drained the ring — the publisher never blocks.
     bool publish(const BookStateView& v) noexcept {
+        // Only the producer writes write_seq, so a relaxed load of our own index is enough.
         const std::uint64_t w = ctrl_->write_seq.load(std::memory_order_relaxed);
-        // F27 fix: use acquire ordering to establish a happens-before edge
-        // with the consumer's release store, ensuring safe slot reuse on
-        // weakly ordered architectures.
-        const std::uint64_t r = ctrl_->read_seq.load(std::memory_order_acquire);
-        if (w - r >= ctrl_->capacity) {           // full -> drop the NEW event
-            ctrl_->dropped.fetch_add(1, std::memory_order_relaxed);
-            return false;
+        if (w - cached_read_ >= capacity_) {
+            // Looks full from our cached copy: refresh it from the consumer's line.
+            // ACQUIRE pairs with the consumer's RELEASE store of read_seq, so the
+            // consumer has finished copying any slot we are about to reuse.
+            cached_read_ = ctrl_->read_seq.load(std::memory_order_acquire);
+            if (w - cached_read_ >= capacity_) {  // really full -> drop the NEW event
+                ctrl_->dropped.fetch_add(1, std::memory_order_relaxed);
+                return false;
+            }
         }
         std::memcpy(slot_(w), &v, kSlotBytes);
         ctrl_->write_seq.store(w + 1, std::memory_order_release);
@@ -128,9 +156,14 @@ public:
     // ---- consumer side ------------------------------------------------------
     // Copy the next available snapshot into `out`; false when the ring is empty.
     bool try_read(BookStateView& out) noexcept {
+        // Only the consumer writes read_seq, so a relaxed load of our own index is enough.
         const std::uint64_t r = ctrl_->read_seq.load(std::memory_order_relaxed);
-        const std::uint64_t w = ctrl_->write_seq.load(std::memory_order_acquire);
-        if (r == w) return false;                  // empty
+        if (r == cached_write_) {
+            // Looks empty from our cached copy: refresh it from the producer's line.
+            // ACQUIRE pairs with the producer's RELEASE store, making the slot copy visible.
+            cached_write_ = ctrl_->write_seq.load(std::memory_order_acquire);
+            if (r == cached_write_) return false;  // really empty
+        }
         std::memcpy(&out, slot_(r), kSlotBytes);
         ctrl_->read_seq.store(r + 1, std::memory_order_release);
         return true;
@@ -157,24 +190,42 @@ private:
     static constexpr std::size_t kMaxSlots    = 1u << 20;
     static constexpr std::uint32_t kReady     = 1;
 
-    // Shared control block (lives at offset 0 of the segment). Fixed size, so
-    // slot |capacity| begins exactly control_bytes() into the mapping.
+    // Shared control block (lives at offset 0 of the segment); layout described
+    // in the header comment and mirrored byte-for-byte by the Python dashboard.
+    static constexpr std::size_t kCacheLine = 64;
     struct ControlBlock {
-        std::atomic<std::uint64_t> write_seq;   // producer-advanced; release store
-        std::atomic<std::uint64_t> read_seq;    // consumer-advanced
-        std::atomic<std::uint64_t> dropped;
-        std::uint64_t              capacity;
-        std::uint64_t              slot_bytes;
-        std::atomic<std::uint32_t> state;       // 0 uninit, 1 ready
-        std::uint32_t              pad;
+        // -- metadata line: written once by the creator, read-only afterwards --
+        alignas(kCacheLine) std::uint32_t magic = 0;
+        std::uint32_t              layout_version = 0;
+        std::uint64_t              capacity = 0;
+        std::uint64_t              slot_bytes = 0;
+        std::atomic<std::uint32_t> state{0};      // 0 uninit, 1 ready (release on create)
+        // -- producer line --
+        alignas(kCacheLine) std::atomic<std::uint64_t> write_seq{0};
+        std::atomic<std::uint64_t> dropped{0};
+        // -- consumer line --
+        alignas(kCacheLine) std::atomic<std::uint64_t> read_seq{0};
     };
+    static_assert(std::atomic<std::uint64_t>::is_always_lock_free &&
+                  std::atomic<std::uint32_t>::is_always_lock_free,
+                  "shared-memory atomics must be lock-free: a lock would live in "
+                  "one process and not protect the other");
+    static_assert(offsetof(ControlBlock, magic)          ==   0, "ring layout v2");
+    static_assert(offsetof(ControlBlock, layout_version) ==   4, "ring layout v2");
+    static_assert(offsetof(ControlBlock, capacity)       ==   8, "ring layout v2");
+    static_assert(offsetof(ControlBlock, slot_bytes)     ==  16, "ring layout v2");
+    static_assert(offsetof(ControlBlock, state)          ==  24, "ring layout v2");
+    static_assert(offsetof(ControlBlock, write_seq)      ==  64, "ring layout v2");
+    static_assert(offsetof(ControlBlock, dropped)        ==  72, "ring layout v2");
+    static_assert(offsetof(ControlBlock, read_seq)       == 128, "ring layout v2");
+    static_assert(sizeof(ControlBlock)                   == 192, "ring layout v2");
     static_assert(sizeof(ControlBlock) % alignof(BookStateView) == 0,
                   "control block must not misalign the slot array");
 
     static std::size_t control_bytes() noexcept { return sizeof(ControlBlock); }
 
     BookStateView* slot_(std::uint64_t pos) noexcept {
-        std::size_t off = control_bytes() + (pos % ctrl_->capacity) * kSlotBytes;
+        std::size_t off = control_bytes() + (pos % capacity_) * kSlotBytes;
         return reinterpret_cast<BookStateView*>(reinterpret_cast<char*>(base_) + off);
     }
 
@@ -248,6 +299,12 @@ private:
     std::size_t       mapped_size_ = 0;
     ControlBlock*     ctrl_ = nullptr;
     void*             os_handle_ = nullptr;   // Windows section HANDLE (kept for name lookup)
+    // Process-local copies (not in shared memory): capacity, and each side's last
+    // view of the OTHER side's index. Only the producer uses cached_read_ and only
+    // the consumer uses cached_write_.
+    std::uint64_t     capacity_     = 0;
+    std::uint64_t     cached_read_  = 0;
+    std::uint64_t     cached_write_ = 0;
 };
 
 } // namespace nexus

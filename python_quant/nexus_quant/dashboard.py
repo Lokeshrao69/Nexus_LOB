@@ -251,66 +251,108 @@ def latest_from_file_ring(path: Path) -> dict[str, Any] | None:
     return decode_slot(raw[off : off + n])
 
 
-# Person A ShmRing control block (shm_ring.hpp). Slot array starts immediately after.
-_SHM_CTRL = struct.Struct("<QQQQQII")
-_SHM_CTRL_N = 48
+# ShmRing shared-memory layout v2 (cpp_engine/include/nexus/shm_ring.hpp).
+#   offset   0  metadata : magic u32, layout version u32, capacity u64, slot bytes u64, state u32
+#   offset  64  producer : write_seq u64, dropped u64
+#   offset 128  consumer : read_seq u64
+#   offset 192  slots    : capacity x 448-byte BookStateView
+_SHM_MAGIC = 0x4E58524E
+_SHM_LAYOUT_VERSION = 2
+_SHM_META = struct.Struct("<IIQQI")
+_SHM_U64 = struct.Struct("<Q")
+_SHM_WRITE_SEQ_OFF = 64
+_SHM_DROPPED_OFF = 72
+_SHM_READ_SEQ_OFF = 128
+_SHM_CTRL_N = 192
+
+
+def pack_shm_control(
+    buf: Any,
+    *,
+    capacity: int,
+    slot_bytes: int,
+    write_seq: int = 0,
+    read_seq: int = 0,
+    dropped: int = 0,
+    state: int = 1,
+    magic: int = _SHM_MAGIC,
+    layout_version: int = _SHM_LAYOUT_VERSION,
+) -> None:
+    """Write a ring control block into ``buf`` (tests and fixtures)."""
+    _SHM_META.pack_into(buf, 0, magic, layout_version, capacity, slot_bytes, state)
+    _SHM_U64.pack_into(buf, _SHM_WRITE_SEQ_OFF, write_seq)
+    _SHM_U64.pack_into(buf, _SHM_DROPPED_OFF, dropped)
+    _SHM_U64.pack_into(buf, _SHM_READ_SEQ_OFF, read_seq)
+
+
+def unpack_shm_control(buf: Any) -> dict[str, int]:
+    """Decode a ring control block from ``buf``."""
+    magic, layout_version, capacity, slot_bytes, state = _SHM_META.unpack_from(buf, 0)
+    return {
+        "magic": magic,
+        "layout_version": layout_version,
+        "capacity": capacity,
+        "slot_bytes": slot_bytes,
+        "state": state,
+        "write_seq": _SHM_U64.unpack_from(buf, _SHM_WRITE_SEQ_OFF)[0],
+        "dropped": _SHM_U64.unpack_from(buf, _SHM_DROPPED_OFF)[0],
+        "read_seq": _SHM_U64.unpack_from(buf, _SHM_READ_SEQ_OFF)[0],
+    }
+
+
+def _latest_slot_offset(ctrl: dict[str, int], size: int) -> int | None:
+    """Byte offset of the newest published slot, or None if the ring is unusable."""
+    if ctrl["magic"] != _SHM_MAGIC or ctrl["layout_version"] != _SHM_LAYOUT_VERSION:
+        return None
+    if ctrl["state"] != 1 or ctrl["capacity"] == 0:
+        return None
+    if ctrl["slot_bytes"] != BOOK_STATE_DTYPE.itemsize or ctrl["write_seq"] == 0:
+        return None
+    idx = (ctrl["write_seq"] - 1) % ctrl["capacity"]
+    off = _SHM_CTRL_N + idx * ctrl["slot_bytes"]
+    return off if off + ctrl["slot_bytes"] <= size else None
 
 
 def read_shm_ring_latest(name: str) -> dict[str, Any] | None:
     """Newest published 448-byte slot from a live C++ ShmRing, or None.
 
-    F16 fix: advances ``read_seq`` in the shared-memory control block after
-    reading so the C++ producer can free ring slots for future snapshots.
-    Without this, the ring fills after ``capacity`` writes and drops all
-    subsequent events permanently.
+    The dashboard acts as the ring's single consumer: after copying the newest
+    slot it advances ``read_seq`` to the ``write_seq`` it observed, releasing
+    every older slot back to the producer. Only the 8-byte ``read_seq`` field is
+    written. The producer owns ``write_seq`` and ``dropped``; writing them back
+    from a stale copy would rewind the producer and corrupt the ring.
+
+    Do not run a second consumer (e.g. ``ring_probe``) on the same ring.
     """
     path = Path("/dev/shm") / name.lstrip("/")
     if not path.is_file():
         return None
     try:
         import mmap as _mmap
-        with open(path, "r+b") as fh:
-            mm = _mmap.mmap(fh.fileno(), 0)
-            data = bytes(mm[:])
-            if len(data) < _SHM_CTRL_N + BOOK_STATE_DTYPE.itemsize:
-                mm.close()
+
+        with open(path, "r+b") as fh, _mmap.mmap(fh.fileno(), 0) as mm:
+            if len(mm) < _SHM_CTRL_N + BOOK_STATE_DTYPE.itemsize:
                 return None
-            write_seq, _read, _drop, cap, slot_bytes, state, _pad = (
-                _SHM_CTRL.unpack_from(data, 0)
-            )
-            if state != 1 or cap == 0 or int(slot_bytes) != BOOK_STATE_DTYPE.itemsize:
-                mm.close()
+            ctrl = unpack_shm_control(mm)
+            off = _latest_slot_offset(ctrl, len(mm))
+            if off is None:
                 return None
-            if write_seq == 0:
-                mm.close()
-                return None
-            idx = (int(write_seq) - 1) % int(cap)
-            off = _SHM_CTRL_N + idx * int(slot_bytes)
-            if off + int(slot_bytes) > len(data):
-                mm.close()
-                return None
-            result = decode_slot(data[off : off + int(slot_bytes)])
-            _SHM_CTRL.pack_into(
-                mm, 0, write_seq, write_seq, _drop, cap, slot_bytes, state, _pad
-            )
-            mm.close()
+            # Copy the slot first, then release it: the producer may reuse the slot
+            # as soon as read_seq passes it.
+            result = decode_slot(bytes(mm[off : off + ctrl["slot_bytes"]]))
+            if ctrl["read_seq"] < ctrl["write_seq"]:
+                _SHM_U64.pack_into(mm, _SHM_READ_SEQ_OFF, ctrl["write_seq"])
             return result
     except (OSError, ValueError):
+        # Read-only fallback (e.g. no write permission): decode without releasing slots.
         data = path.read_bytes()
         if len(data) < _SHM_CTRL_N + BOOK_STATE_DTYPE.itemsize:
             return None
-        write_seq, _read, _drop, cap, slot_bytes, state, _pad = (
-            _SHM_CTRL.unpack_from(data, 0)
-        )
-        if state != 1 or cap == 0 or int(slot_bytes) != BOOK_STATE_DTYPE.itemsize:
+        ctrl = unpack_shm_control(data)
+        off = _latest_slot_offset(ctrl, len(data))
+        if off is None:
             return None
-        if write_seq == 0:
-            return None
-        idx = (int(write_seq) - 1) % int(cap)
-        off = _SHM_CTRL_N + idx * int(slot_bytes)
-        if off + int(slot_bytes) > len(data):
-            return None
-        return decode_slot(data[off : off + int(slot_bytes)])
+        return decode_slot(data[off : off + ctrl["slot_bytes"]])
 
 
 _PAGE = """<!doctype html>

@@ -12,7 +12,12 @@ Covers:
 from __future__ import annotations
 
 import pytest
-from nexus_quant.dashboard import _SHM_CTRL, _SHM_CTRL_N, read_shm_ring_latest
+from nexus_quant.dashboard import (
+    _SHM_CTRL_N,
+    pack_shm_control,
+    read_shm_ring_latest,
+    unpack_shm_control,
+)
 from nexus_quant.envs.regimes import regime_factories
 
 
@@ -22,7 +27,7 @@ def test_f16_dashboard_advances_read_seq(tmp_path, monkeypatch):
     slot_bytes = 448  # BOOK_STATE_DTYPE.itemsize
     total_size = _SHM_CTRL_N + cap * slot_bytes
     buf = bytearray(total_size)
-    _SHM_CTRL.pack_into(buf, 0, 3, 0, 0, cap, slot_bytes, 1, 0)
+    pack_shm_control(buf, capacity=cap, slot_bytes=slot_bytes, write_seq=3, dropped=7)
 
     dev_shm = tmp_path / "dev" / "shm"
     dev_shm.mkdir(parents=True, exist_ok=True)
@@ -37,9 +42,47 @@ def test_f16_dashboard_advances_read_seq(tmp_path, monkeypatch):
 
     # Verify read_seq was updated to write_seq in the file
     updated_data = shm_file.read_bytes()
-    w_seq, r_seq, _drop, _c, _sb, _state, _pad = _SHM_CTRL.unpack_from(updated_data, 0)
-    assert w_seq == 3
-    assert r_seq == 3, f"Expected read_seq to advance to 3, got {r_seq}"
+    ctrl = unpack_shm_control(updated_data)
+    assert ctrl["write_seq"] == 3
+    assert ctrl["read_seq"] == 3, f"Expected read_seq to advance to 3, got {ctrl['read_seq']}"
+    # Producer-owned fields must be left exactly as they were.
+    assert ctrl["dropped"] == 7
+
+
+def test_dashboard_never_rewrites_producer_fields(tmp_path, monkeypatch):
+    """The reader may only write read_seq; write_seq/dropped belong to the producer.
+
+    Simulates the race: the producer advances write_seq after the dashboard has
+    read the control block. The old reader rewrote the whole block from its stale
+    copy, rewinding write_seq. Now only the read_seq bytes may change.
+    """
+    cap, slot_bytes = 8, 448
+    buf = bytearray(_SHM_CTRL_N + cap * slot_bytes)
+    pack_shm_control(buf, capacity=cap, slot_bytes=slot_bytes, write_seq=5, read_seq=2, dropped=1)
+    dev_shm = tmp_path / "dev" / "shm"
+    dev_shm.mkdir(parents=True, exist_ok=True)
+    shm_file = dev_shm / "nexus_race_ring"
+    shm_file.write_bytes(buf)
+    monkeypatch.setattr("nexus_quant.dashboard.Path", lambda p: tmp_path / p.lstrip("/\\"))
+
+    before = shm_file.read_bytes()
+    assert read_shm_ring_latest("nexus_race_ring") is not None
+    after = shm_file.read_bytes()
+    changed = [i for i in range(len(before)) if before[i] != after[i]]
+    assert changed, "read_seq should have advanced"
+    assert all(128 <= i < 136 for i in changed), f"bytes outside read_seq changed: {changed[:8]}"
+
+
+def test_dashboard_rejects_old_ring_layout(tmp_path, monkeypatch):
+    """A segment from a different ring layout version must be ignored, not misread."""
+    cap, slot_bytes = 4, 448
+    buf = bytearray(_SHM_CTRL_N + cap * slot_bytes)
+    pack_shm_control(buf, capacity=cap, slot_bytes=slot_bytes, write_seq=1, layout_version=1)
+    dev_shm = tmp_path / "dev" / "shm"
+    dev_shm.mkdir(parents=True, exist_ok=True)
+    (dev_shm / "nexus_old_ring").write_bytes(buf)
+    monkeypatch.setattr("nexus_quant.dashboard.Path", lambda p: tmp_path / p.lstrip("/\\"))
+    assert read_shm_ring_latest("nexus_old_ring") is None
 
 
 def test_m04_highvol_null_control_arm():

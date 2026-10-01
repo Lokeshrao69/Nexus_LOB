@@ -107,17 +107,17 @@ def test_shm_ring_decoder_roundtrip():
     # so skip rather than fail where the POSIX segment can't exist.
     if not Path("/dev/shm").is_dir():
         pytest.skip("POSIX /dev/shm unavailable (live ring attach is POSIX-only)")
-    import struct
 
-    from nexus_quant.dashboard import _SHM_CTRL_N
+    from nexus_quant.dashboard import _SHM_CTRL_N, pack_shm_control
 
     book = StubOrderBook()
     book.add(Side.Bid, 49990, 11)
     book.add(Side.Ask, 50010, 9)
     slot = record_from_view(book.view()).tobytes()
     cap, slot_n, state = 4, BOOK_STATE_DTYPE.itemsize, 1
-    ctrl = struct.pack("<QQQQQII", 1, 0, 0, cap, slot_n, state, 0)
-    assert len(ctrl) == _SHM_CTRL_N
+    ctrl = bytearray(_SHM_CTRL_N)
+    pack_shm_control(ctrl, capacity=cap, slot_bytes=slot_n, write_seq=1, state=state)
+    ctrl = bytes(ctrl)
     blob = ctrl + slot + b"\x00" * (slot_n * (cap - 1))
     shm = Path("/dev/shm") / "nex_test_slot"
     shm.write_bytes(blob)

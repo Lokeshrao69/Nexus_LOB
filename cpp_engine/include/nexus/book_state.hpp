@@ -51,7 +51,10 @@ struct BookStateView {
     std::uint64_t ask_sz[kDepth];  // aggregate resting size per ask level (shares)
 
     // -- 4-byte members --
-    std::uint32_t version;         // seqlock publish counter; even == stable snapshot
+    std::uint32_t version;         // publish counter: odd while publish_() is writing, even after.
+                                   // A same-thread consistency marker, NOT a cross-thread seqlock:
+                                   // fields are plain (non-atomic) memory. Share the state across
+                                   // threads/processes through ShmRing, which copies whole slots.
     std::uint32_t bid_ct[kDepth];  // resting order count per bid level
     std::uint32_t ask_ct[kDepth];  // resting order count per ask level
 
