@@ -1,0 +1,137 @@
+[1mdiff --git a/README.md b/README.md[m
+[1mindex 08b5a92..bef94a0 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -24,7 +24,7 @@[m [mThe project emphasizes reproducibility and statistical honesty: results are tied[m
+ | L1 order-book imbalance | Positive short-horizon predictive relationship; rank IC 0.11–0.19 at h=1 for AAPL and 0.15–0.24 for QQQ | 15 full-day NASDAQ ITCH sessions, 2018–2025 |[m
+ | Passive fills | Negative average post-fill markouts | Same 15 sessions |[m
+ | RL execution | Initial +50.4% vs VWAP result retracted after identifying an unfair comparison. Under the corrected evaluation, PPO has no general edge and shows an advantage primarily during liquidity shocks | Synthetic regimes, 5 seeds × 6 regimes |[m
+[31m-| Matching engine | 86 functional checks, 4.6M ID-map checks, zero engine heap allocations per order on the tested hot path | C++ engine |[m
+[32m+[m[32m| Matching engine | 4–7M orders/s, p50 170–260 ns, p99 420–540 ns, zero heap allocations; matches a naive reference book on 51.9M differential checks | 2-vCPU cloud VM, GCC 13.3 |[m
+ | Risk engine | CPU and NumPy implementations agree bit-for-bit | CUDA kernel implemented but not yet compiled/run |[m
+ [m
+ > **Statistical is not tradable.** A predictive relationship is not executable alpha. Real profitability depends on spread, fees, latency, queue position, market impact, and other execution costs that are not fully captured by these experiments.[m
+[36m@@ -183,6 +183,7 @@[m [mThe matching engine is implemented as a header-oriented C++20 system.[m
+ - Cancel and modify operations[m
+ - Intrusive doubly linked FIFO queues per price level[m
+ - Fixed-size slab allocator with a free list[m
+[32m+[m[32m- Hierarchical occupancy bitmap for best-price and depth lookup[m
+ - Open-addressing order-ID map[m
+ - Backward-shift deletion[m
+ - No dynamic allocation after engine construction[m
+[36m@@ -205,11 +206,20 @@[m [mprice - min_price[m
+ [m
+ This provides direct level addressing.[m
+ [m
+[31m-A sparse-book scaling issue was identified during benchmarking: publishing the top levels and refreshing the best price originally required scanning the configured price band. Consequently, runtime could grow with the width of the price range rather than the number of active levels.[m
+[31m-[m
+[31m-The planned fix is a hierarchical occupancy bitmap that allows the engine to jump directly to the next occupied price level using bit-scan operations.[m
+[31m-[m
+[31m-This is being benchmarked separately from the matching logic so that price-space scaling can be measured explicitly.[m
+[32m+[m[32mThis provides direct level addressing, but finding the *next occupied* level is a[m
+[32m+[m[32mseparate problem. The first version stepped through the array one level at a time.[m
+[32m+[m[32mWhen a side had fewer than 10 occupied levels, publishing the top 10 walked to the[m
+[32m+[m[32medge of the price band on every order, so runtime grew with the width of the price[m
+[32m+[m[32mrange rather than the number of active levels: about 700 orders per second on a[m
+[32m+[m[32m1,000,000-tick band.[m
+[32m+[m
+[32m+[m[32mThe engine now keeps a hierarchical occupancy bitmap per side[m
+[32m+[m[32m(`cpp_engine/include/nexus/level_bitmap.hpp`). Level 0 has one bit per price; each[m
+[32m+[m[32mlevel above has one bit per 64-bit word below it, until the top fits in one word.[m
+[32m+[m[32mFinding the next or previous occupied level takes a few count-leading/trailing-zero[m
+[32m+[m[32minstructions per level (four levels for a 1M-tick band), however many empty prices[m
+[32m+[m[32mlie in between. It is used for best-price refresh, the top-10 publish walk and the[m
+[32m+[m[32mfill-or-kill liquidity check, and it is allocated once at construction.[m
+ [m
+ ---[m
+ [m
+[36m@@ -270,34 +280,44 @@[m [mThe CUDA implementation is present but **has not yet been compiled or benchmarke[m
+ [m
+ # Performance[m
+ [m
+[31m-Current measured results use:[m
+[32m+[m[32mMeasured on a 2-vCPU cloud VM, GCC 13.3, `-O3 -march=native`, with[m
+[32m+[m[32m`cpp_engine/bench/bench.cpp`: 2M orders per run on a steady-state book of about[m
+[32m+[m[32m10,000 live orders. These are not tuned bare-metal HFT benchmarks.[m
+ [m
+[31m-- GCC 13.3[m
+[31m-- `-O3 -march=native`[m
+[31m-- 2-vCPU cloud VM[m
+[31m-- The repository benchmark harness[m
+[31m-- Price-band width of 2,000 ticks[m
+[32m+[m[32m| Workload | Throughput | p50 | p99 | p99.9 |[m
+[32m+[m[32m|---|---:|---:|---:|---:|[m
+[32m+[m[32m| Passive-heavy, 2k-tick band | 5.60M ops/s | 167 ns | 419 ns | 520 ns |[m
+[32m+[m[32m| Matching-heavy, 2k-tick band | 6.98M ops/s | 168 ns | 433 ns | 568 ns |[m
+[32m+[m[32m| Passive-heavy, 1M-tick band | 6.48M ops/s | 174 ns | 441 ns | 623 ns |[m
+[32m+[m[32m| Orders spread over 10k ticks, 1M-tick band | 3.98M ops/s | 264 ns | 541 ns | 882 ns |[m
+ [m
+[31m-These are not tuned bare-metal HFT benchmarks.[m
+[32m+[m[32mZero heap allocations inside the timed loop in every run.[m
+ [m
+[31m-| Configuration | Throughput | p50 | p99 | p99.9 |[m
+[31m-|---|---:|---:|---:|---:|[m
+[31m-| 2,000-tick band, 10% aggressive | ~507k ops/s | 1.75 µs | 4.1 µs | 26 µs |[m
+[31m-| 2,000-tick band, 55% aggressive | ~513k ops/s | 1.84 µs | 4.5 µs | 37 µs |[m
+[32m+[m[32m**Before and after the occupancy bitmap**, same harness and workload:[m
+ [m
+[31m-The sparse-book benchmark exposed the price-band scanning bottleneck described above. A production-quality benchmark therefore needs to report performance across multiple price-band widths rather than a single throughput number.[m
+[32m+[m[32m| Workload | Before | After |[m
+[32m+[m[32m|---|---|---|[m
+[32m+[m[32m| Passive-heavy, 2k-tick band | 0.85M ops/s, p50 1,122 ns | 5.60M ops/s, p50 167 ns |[m
+[32m+[m[32m| Passive-heavy, 1M-tick band | 694 ops/s, p50 1.46 ms | 6.48M ops/s, p50 174 ns |[m
+ [m
+[31m-### Benchmarking principles[m
+[32m+[m[32mA differential test against a naive reference book passes on both the old and new[m
+[32m+[m[32mengine, so the change affects speed, not matching behaviour.[m
+ [m
+[31m-The benchmark separates:[m
+[32m+[m[32m### How the benchmark measures[m
+ [m
+[31m-- Workload generation[m
+[31m-- Warm-up[m
+[31m-- Timed engine execution[m
+[31m-- Latency measurement[m
+[31m-- Allocation measurement[m
+[32m+[m[32m- Liquidity is seeded before timing starts, and the book is held at a steady state[m
+[32m+[m[32m  (cancels take over when it grows past ~10,000 orders), so the pool never fills[m
+[32m+[m[32m  and no run produces rejected orders.[m
+[32m+[m[32m- Cancels and modifies target a random known order.[m
+[32m+[m[32m- Latency is measured per engine call with `rdtsc` (including ~20–40 ns of timer[m
+[32m+[m[32m  overhead), with order generation outside the timed window. Throughput is wall[m
+[32m+[m[32m  clock and includes order generation.[m
+[32m+[m[32m- A global `operator new` counter covers only the timed loop; the harness's own[m
+[32m+[m[32m  bookkeeping is reserved beforehand.[m
+[32m+[m[32m- Each workload runs on both a narrow and a 1M-tick band, so band-width scaling is[m
+[32m+[m[32m  visible directly.[m
+ [m
+[31m-and reports p50, p99 and p99.9 latency alongside throughput.[m
+[32m+[m[32mFull write-up: [`docs/results/engine_bench.md`](docs/results/engine_bench.md).[m
+ [m
+ ---[m
+ [m
+[36m@@ -306,6 +326,8 @@[m [mand reports p50, p99 and p99.9 latency alongside throughput.[m
+ The C++ test suite includes:[m
+ [m
+ - `lob_test` — 86 functional checks[m
+[32m+[m[32m- `lob_diff_test` — 51.9M checks against a naive `std::map` reference book (results, fills and the full published ladder) on dense, sparse and pool-exhaustion workloads[m
+[32m+[m[32m- `bitmap_test` — 6.1M checks of the occupancy bitmap against a `std::set` oracle[m
+ - `id_map_test` — 4.6M+ checks[m
+ - `ring_test` — 30k+ checks[m
+ - `abi_check` — 448-byte layout contract[m
+[36m@@ -426,7 +448,6 @@[m [mThe research pipeline verifies the expected file size and SHA-256 hash before pr[m
+ [m
+ # Limitations[m
+ [m
+[31m-- Matching-engine performance depends on price-band width until occupancy indexing is implemented.[m
+ - Current benchmark numbers are not bare-metal HFT measurements.[m
+ - Adverse-selection analysis is being extended from event-time measurements to post-trade clock-time markouts.[m
+ - The current real-tape study covers only AAPL and QQQ.[m
+[36m@@ -472,7 +493,6 @@[m [mNexus_LOB/[m
+ │   ├── scripts/[m
+ │   └── tests/[m
+ ├── docs/[m
+[31m-│   ├── RESEARCH.md[m
+ │   └── results/[m
+ ├── CMakeLists.txt[m
+ └── pyproject.toml[m
