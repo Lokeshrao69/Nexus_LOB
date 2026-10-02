@@ -22,7 +22,7 @@ The project emphasizes reproducibility and statistical honesty: results are tied
 | Area | Result | Scope |
 |---|---|---|
 | L1 order-book imbalance | Positive short-horizon predictive relationship; rank IC 0.11–0.19 at h=1 for AAPL and 0.15–0.24 for QQQ | 15 full-day NASDAQ ITCH sessions, 2018–2025 |
-| Passive fills | Negative average post-fill markouts | Same 15 sessions |
+| Passive fills | Realized spread negative at every clock horizon: −0.22 to −0.85 (AAPL) and −0.39 to −0.66 (QQQ) half-spreads from 100 ms to 60 s, CIs excluding zero. Losses concentrate in fills hit by level-clearing orders and do not revert within 60 s | 2019-12-30 AAPL + QQQ, full session ([details](docs/results/clock_markouts_12302019.md)) |
 | RL execution | Initial +50.4% vs VWAP result retracted after identifying an unfair comparison. Under the corrected evaluation, PPO has no general edge and shows an advantage primarily during liquidity shocks | Synthetic regimes, 5 seeds × 6 regimes |
 | Matching engine | 4–7M orders/s, p50 170–260 ns, p99 420–540 ns, zero heap allocations; matches a naive reference book on 51.9M differential checks | 2-vCPU cloud VM, GCC 13.3 |
 | Risk engine | CPU and NumPy implementations agree bit-for-bit | CUDA kernel implemented but not yet compiled/run |
@@ -66,20 +66,81 @@ The logistic fill model is well calibrated on the tested real data. Synthetic-fl
 
 ### E6 — Passive-Fill Markouts
 
-Passive fills are followed by negative average markouts across the real-tape sessions.
+Two studies run side by side. The original measures markouts on the **event clock**
+(`research/adverse_selection.py`); a second measures them on the **wall clock** from
+ITCH nanosecond timestamps (`research/clock_markouts.py`). Full results:
+[`docs/results/clock_markouts_12302019.md`](docs/results/clock_markouts_12302019.md).
 
-The analysis uses matched pre-fill controls to separate post-fill drift from broader market trends.
+**Headline (clock time, 2019-12-30, full session).** Realized spread — the half-spread
+earned plus the subsequent markout, i.e. what a passive fill actually keeps — is negative
+at every horizon, with 95% confidence intervals excluding zero:
 
-An event-time analysis showed a high proportion of fills followed by adverse mid-price movement. Because the event that fills a passive order can also mechanically deplete the corresponding price level, this statistic is **not treated as a direct estimate of informed adverse selection**.
+| Horizon | AAPL | QQQ |
+|---|---|---|
+| 100 ms | −0.22 half-spreads | −0.39 half-spreads |
+| 1 s | −0.45 | −0.38 |
+| 10 s | −0.56 | −0.47 |
+| 60 s | −0.85 | −0.66 |
 
-The next research iteration measures:
+Confidence intervals are moving-block bootstraps with blocks of `max(H, 60 s)` of clock
+time (312–374 effective blocks), and Newey–West standard errors use the number of
+aggressor events inside a typical horizon window. The unit of observation is the
+**aggressor event** — all fills sharing one ITCH timestamp and resting side, since one
+incoming order can execute against many resting orders and those fills are not
+independent draws (1.55 fills per event on this day).
 
-- 100 ms markouts
-- 1 s markouts
-- 10 s markouts
-- Markouts measured from the post-trade mid
-- Markouts normalized by half-spread
-- Conditioning by order-flow imbalance, spread, queue position, volatility, and liquidity regime
+**Reconciling the earlier figure.** An earlier event-time analysis reported that 90–97%
+of passive fills were followed by an adverse mid move. That statistic is reproduced
+exactly and then decomposed, changing one thing at a time on the same fills
+(`P(adverse | mid moved)`, AAPL):
+
+| Unit | Clock | Reference mid | Result |
+|---|---|---|---|
+| per fill | 5 book events | post-fill | **0.957** (reproduces the published figure) |
+| per aggressor event | 5 book events | post-fill | 0.933 |
+| per aggressor event | 100 ms | post-fill | **0.832** |
+
+The steps sum to the total change and the report checks that they do. The largest
+correction is not in that walk, however, but in the conditioning: 0.957 is conditional on
+the mid having moved at all, and unconditionally the figure is **0.649** at 100 ms,
+because 22% of fills (30% for QQQ) see no mid move whatsoever.
+
+**Where the losses sit.** Splitting on whether the aggressive order was large enough to
+clear the displayed level (AAPL, 100 ms):
+
+| Group | n | Realized spread ($0.0001) | 95% CI |
+|---|---|---|---|
+| Cleared the level | 18,823 | −40.6 | [−44.8, −36.2] |
+| Did not clear the level | 11,038 | +6.2 | [+1.6, +11.9] |
+
+Fills that did not clear the level were profitable. The loss is concentrated in fills hit
+by orders large enough to consume the full displayed quote, and the resulting price impact
+does not revert within 60 s — markouts from the post-fill mid grow monotonically with
+horizon (AAPL −88, −113, −123, −154 in $0.0001). Size-dependent impact that persists is
+the pattern informed-trading models predict (Kyle; Glosten–Milgrom).
+
+Note that a constant gap between markouts measured from the pre-fill and post-fill mid is
+*not* evidence of a mechanical artefact: that gap equals `s · (mid_after − mid_before)`,
+which does not contain the horizon, so it is constant by construction. Reversion is the
+test that discriminates, and there is none here.
+
+**Distribution, not just the mean.** Mid prices sit on a 50-unit half-tick lattice, so
+medians are pinned to lattice points and bootstrap intervals on them degenerate; the
+report gives the sign split instead. At 100 ms, AAPL realized spread is negative on 46.2%
+of events, zero on 17.1% and positive on 36.7%. About half of events lose and about half
+win — the mean is negative because losers lose more than winners win.
+
+**Methodology notes.** Markouts are signed from the passive order's side (negative =
+adverse) and reported in $0.0001 price units; AAPL and QQQ both quote on a $0.01 tick, so
+100 units = 1 tick. Fills whose horizon runs past 16:00 are dropped and counted. A
+pre-fill control over the matching window before the fill separates post-fill drift from a
+session already trending into the fill. The report also carries break-even columns for an
+**assumed** maker rebate of 20 and 30 $0.0001 per share — assumed, not measured, since
+ITCH carries no fee data.
+
+**Scope.** One session, two symbols. The horizon profile differs between them, and why is
+an open question; this analysis does not test it. Generalising the shape over time needs
+the multi-day aggregation.
 
 ---
 
@@ -267,7 +328,8 @@ The Python side is implemented primarily with NumPy and provides:
 | `research/dataset.py` | Walk-forward datasets |
 | `research/experiments.py` | IC, bootstrap, DM and Newey-West analysis |
 | `research/queue_dynamics.py` | Queue tracking and fill models |
-| `research/adverse_selection.py` | Passive-fill markouts |
+| `research/adverse_selection.py` | Passive-fill markouts, event clock |
+| `research/clock_markouts.py` | Passive-fill markouts, wall clock; realized spread |
 | `envs/order_book_env.py` | Gymnasium execution environment |
 | `baselines.py` | TWAP, VWAP, POV and adaptive baselines |
 | `agents/` | PPO and GRPO implementations |

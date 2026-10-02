@@ -61,6 +61,11 @@ from nexus_quant.research.adverse_selection import (
     adverse_selection_report,
     fills_from_tracker,
 )
+from nexus_quant.research.clock_markouts import (
+    CLOCK_HORIZONS_NS,
+    ClockFillCollector,
+    clock_markout_report,
+)
 from nexus_quant.research.dataset import Row
 from nexus_quant.research.features import (
     deep_imbalance,
@@ -69,6 +74,7 @@ from nexus_quant.research.features import (
     mid,
     ofi,
     spread_bps,
+    spread_ticks,
 )
 from nexus_quant.research.queue_dynamics import (
     OrderLevelTracker,
@@ -161,9 +167,15 @@ def replay_symbol(
     *,
     max_events: int | None = None,
     verify_manifest: bool = True,
+    collect_clock_fills: bool = True,
     log=print,
 ) -> dict:
-    """Parse + replay one symbol file, computing per-event features inline."""
+    """Parse + replay one symbol file, computing per-event features inline.
+
+    ``collect_clock_fills`` additionally harvests the fill-time queue context E6b
+    needs (:class:`ClockFillCollector`) and a per-row half-spread series. Both are
+    returned under their own keys and change nothing about E1–E6.
+    """
     if verify_manifest:
         verify_manifest_provenance(path)
     stats = ItchParseStats()
@@ -175,7 +187,9 @@ def replay_symbol(
     tracker = OrderLevelTracker()
     feats: dict[str, list[float]] = {name: [] for name in FEATURES if name != "ofi_order_w20"}
     mids: list[float] = []
+    half_spreads: list[float] = []  # (ask − bid) / 2 AFTER each row's event (E6b)
     ts: list[int] = []
+    collector = ClockFillCollector() if collect_clock_fills else None
     tape_idx: list[int] = []  # tape event index of each regular-session row
     issues: Counter = Counter()
     prev_view = None
@@ -187,6 +201,9 @@ def replay_symbol(
         if ev.kind not in (EventType.ADD, EventType.ADD_MPID, EventType.TRADE):
             live_before = tracker.orders.get(int(ev.order_id))
         e_n = order_level_ofi(ev, live_before)
+        if collector is not None:
+            # BEFORE the tracker mutates: the fill-time queue snapshot E6b needs
+            collector.observe(i, ev, tracker)
         if rep.apply(ev):
             applied_count += 1
         else:
@@ -202,6 +219,7 @@ def replay_symbol(
         feats["ofi_l2"].append(float(ofi(prev_view, v)) if prev_view is not None else 0.0)
         feats["ofi_order"].append(e_n)
         mids.append(mid(v))
+        half_spreads.append(spread_ticks(v) / 2.0)
         ts.append(int(ev.ts_ns))
         tape_idx.append(i)
         prev_view = v
@@ -221,6 +239,7 @@ def replay_symbol(
     )
     return {
         "events": events, "stats": stats, "features": arr, "mids": np.asarray(mids), "ts": np.asarray(ts),
+        "half_spreads": np.asarray(half_spreads), "clock_fills": collector.fills if collector else [],
         "tape_idx": np.asarray(tape_idx), "tracker": tracker, "issues": dict(issues), "n_regular": n,
         "events_applied": applied_count, "events_failed": failed_count,
         "t_parse": t_parse, "t_replay": t_replay,
@@ -362,6 +381,36 @@ def adverse_study(rep: dict, *, horizons: tuple[int, ...]) -> dict:
                                  ofi=float(ofi_w[j - 1]) if j > 0 else 0.0, queue_frac=f.queue_frac))
     fills.sort(key=lambda f: f.idx)
     return adverse_selection_report(fills, rep["mids"], horizons=horizons, min_group=30)
+
+
+def clock_markout_study(
+    rep: dict,
+    *,
+    horizons_ns: tuple[int, ...] = CLOCK_HORIZONS_NS,
+    n_boot: int = 200,
+    min_group: int = 30,
+) -> dict:
+    """E6b: clock-time markouts on the same passive fills as :func:`adverse_study`.
+
+    Maps each harvested fill's tape index onto its regular-session row (the index
+    into ``mids`` / ``ts`` / ``half_spreads``); fills outside the session are
+    dropped here, the rest inside ``clock_markout_report``.
+    """
+    tape_idx: np.ndarray = rep["tape_idx"]
+    if tape_idx.size == 0:
+        return {"n_fills": 0}
+    pos = {int(t): j for j, t in enumerate(tape_idx)}
+    fills, rows = [], []
+    for f in rep.get("clock_fills", []):
+        j = pos.get(int(f.tape_idx))
+        if j is None:
+            continue
+        fills.append(f)
+        rows.append(j)
+    return clock_markout_report(
+        fills, rows, rep["mids"], rep["ts"], rep["half_spreads"],
+        horizons_ns=horizons_ns, n_boot=n_boot, min_group=min_group,
+    )
 
 
 def fmt(x, scale=1.0, w=7, d=3):
