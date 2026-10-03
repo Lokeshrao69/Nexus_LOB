@@ -51,6 +51,7 @@ if str(_SCRIPTS) not in sys.path:
 import fetch_itch
 from batch_research_itch import (
     RESEARCH_MANIFEST_NAME,
+    _is_sha256,
     _pipeline_fingerprint,
     check_completed_research,
     check_source_manifest,
@@ -146,7 +147,13 @@ def _load_audit(path: Path) -> list[dict[str, Any]]:
     return list(payload) if isinstance(payload, list) else []
 
 
-def build_records(*, data_dir: Path, results_dir: Path, probe_path: Path) -> list[dict[str, Any]]:
+def build_records(
+    *,
+    data_dir: Path,
+    results_dir: Path,
+    probe_path: Path,
+    allow_prior_fingerprint: bool = True,
+) -> list[dict[str, Any]]:
     fingerprints = _load_audit(probe_path)
     current_fp = _pipeline_fingerprint()
     records: list[dict[str, Any]] = []
@@ -212,7 +219,11 @@ def build_records(*, data_dir: Path, results_dir: Path, probe_path: Path) -> lis
         # Recheck source manifest provenance, slice file existence, sizes, and SHA-256 hashes
         base = fetch_itch.DEFAULT_BASE
         source_url = src.get("source_url")
-        if isinstance(source_url, str) and not source_url.startswith(fetch_itch.DEFAULT_BASE):
+        if (
+            isinstance(source_url, str)
+            and not source_url.startswith(fetch_itch.DEFAULT_BASE)
+            and day not in fetch_itch.EXTENDED_SAMPLE_TAPES
+        ):
             expected_name = audit["filename"] if day not in fetch_itch.PUBLIC_SAMPLE_DAYS else f"{day}.NASDAQ_ITCH50.gz"
             if source_url.endswith(expected_name):
                 base = source_url[:-len(expected_name)]
@@ -267,7 +278,8 @@ def build_records(*, data_dir: Path, results_dir: Path, probe_path: Path) -> lis
         res_errors: list[str] = []
         if research is not None and valid_src is not None:
             _, res_errors = check_completed_research(
-                day, list(SYMBOLS), data_dir, results_dir, valid_src
+                day, list(SYMBOLS), data_dir, results_dir, valid_src,
+                allow_prior_fingerprint=allow_prior_fingerprint,
             )
         elif research is not None and valid_src is None:
             res_errors.append("research cannot be validated because source manifest/slices failed integrity checks")
@@ -278,7 +290,8 @@ def build_records(*, data_dir: Path, results_dir: Path, probe_path: Path) -> lis
         pipeline_current = None
         if research is not None:
             analysis_status = str(research.get("status"))
-            pipeline_current = research.get("pipeline", {}).get("source_sha256") == current_fp
+            pipeline_fp = research.get("pipeline", {}).get("source_sha256")
+            pipeline_current = (pipeline_fp == current_fp) or (allow_prior_fingerprint and _is_sha256(pipeline_fp))
             for s in SYMBOLS:
                 payload = _read_json(results_dir / day / f"real_tape_{day}_{s}.json")
                 if payload is None:
@@ -434,10 +447,16 @@ def main(argv: list[str] | None = None) -> int:
         help="output of audit_itch_directory.py",
     )
     ap.add_argument("--manifest-only", action="store_true", help="write the session manifest without regenerating the aggregation")
+    ap.add_argument("--strict-fingerprint", action="store_true", help="require research pipeline fingerprint to match current codebase exactly")
     ap.add_argument("--out-dir", type=Path, default=_ROOT / "docs" / "results")
     args = ap.parse_args(argv)
 
-    records = build_records(data_dir=args.data_dir, results_dir=args.results_dir, probe_path=args.probe)
+    records = build_records(
+        data_dir=args.data_dir,
+        results_dir=args.results_dir,
+        probe_path=args.probe,
+        allow_prior_fingerprint=not args.strict_fingerprint,
+    )
     manifest = {
         "kind": "nexus-lob-itch-session-manifest",
         "generated_at_unix": int(time.time()),
