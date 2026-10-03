@@ -1755,5 +1755,9 @@
       "cross_day_actual": "AAPL mean IC: 0.1530 (h=1) -> 0.2541 (h=10) -> 0.2399 (h=25); QQQ mean IC: 0.1833 (h=1) -> 0.3902 (h=25). Full cross-day range across all sessions: 0.1125 to 0.4749.",
       "verdict": "Partially holds. The sign is strictly positive on 15/15 sessions (100% consistency). However, AAPL plateaus between h=10 and h=25 rather than monotonically rising, and QQQ range is 0.1461 to 0.4749."
     }
-  }
+  },
+  "drift_unit": "ITCH fixed-point price ticks ($0.0001, where 100 ticks = $0.01 standard cent)",
+  "pipeline_fingerprint_validated": "17a5ba28f5d8bdb37aecc26b1499c3d2711b26226df789d6982fd46b018a7090",
+  "pipeline_fingerprint_current_crlf": "959ac48653d79a2688e506b11aa4d214982936ca15e396a2c4396aaddd5ede49",
+  "pipeline_fingerprint_current_lf": "691bbcbaa2fe4472ab6348374d9a413eff6a1f04b118cced9c1711fd13cec43e"
 }

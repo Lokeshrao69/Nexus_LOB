@@ -21,6 +21,8 @@ lines.append("> **Statistical ≠ Tradable.** A statistically significant predic
 lines.append("")
 lines.append("> **Methodology & Independence Policy.** No event rows are pooled across calendar dates. Per-session estimates are computed independently by the single-day pipeline on chronological order-book time. All forecast horizons are indexed in **order-book update events** (h = 1, 5, 10, 25 events). All evaluation is out-of-sample on a walk-forward **60% train / 20% validation / 20% test** split with a 25-event embargo gap to prevent lookahead leakage. Cross-session confidence intervals use a date-level cluster bootstrap (2,000 resamples of trading dates).")
 lines.append("")
+lines.append("> **Pipeline Fingerprint & Line-Ending Tolerance.** All 15 sessions were processed under verified pipeline fingerprint `17a5ba28f5d8bdb37aecc26b1499c3d2711b26226df789d6982fd46b018a7090`. The current working tree fingerprint is `959ac48653d79a2688e506b11aa4d214982936ca15e396a2c4396aaddd5ede49` (or `691bbcbaa2fe4472ab6348374d9a413eff6a1f04b118cced9c1711fd13cec43e` when normalized to LF). The validation harness (`batch_research_itch.py` and `build_session_manifest.py`) accepts prior verified SHA-256 fingerprints (`allow_prior_fingerprint=True`) and tolerates CRLF/LF line-ending differences between Windows and Linux environments.")
+lines.append("")
 lines.append("## 1. Overview & Dataset Provenance")
 lines.append("")
 lines.append(f"- **Completed trading days analyzed**: 15 ({', '.join(COMPLETED_DAYS)})")
@@ -79,14 +81,16 @@ for sym in ["AAPL", "QQQ"]:
 lines.append("")
 lines.append("## 4. E6 Adverse Selection & Post-Fill Drift (15 Sessions)")
 lines.append("")
+lines.append("> **Price Tick Units**: In NASDAQ TotalView-ITCH 5.0, price values are fixed-point integers in units of $0.0001 (1/100th of a cent, or 0.01 standard 1-cent tick). For example, an adverse drift of -46.20 ITCH ticks corresponds to -0.462 cents (-$0.00462, or 0.462 of a standard 1-cent tick).")
+lines.append("")
 lines.append("| Metric | Symbol | Mean | Median | Between-Day SD | 95% Bootstrap CI | Min | Max | Hypothesised Sign Consistency | Individually Significant Sessions (|t| > 1.96) |")
 lines.append("|---|---|---:|---:|---:|---|---:|---:|:---:|:---:|")
 
 e6 = summary["e6_adverse_selection"]["all_15_days"]
 for metric, name, sign in [
     ("p_adverse_h5", "P(adverse) fraction at h=5", 0),
-    ("drift_h5", "Signed mid drift at h=5 (ticks)", -1),
-    ("post_minus_pre_h5", "Post − pre matched drift h=5 (ticks)", -1),
+    ("drift_h5", "Signed mid drift at h=5 (ITCH ticks, $0.0001 = 0.01¢)", -1),
+    ("post_minus_pre_h5", "Post − pre matched drift h=5 (ITCH ticks, $0.0001 = 0.01¢)", -1),
     ("t_nw_h5", "Newey–West t-statistic at h=5", -1),
 ]:
     for sym in ["AAPL", "QQQ"]:
@@ -155,15 +159,37 @@ lines.append("Evaluated on the exact same test partition per session (a − b):"
 lines.append("")
 lines.append("| Comparison | Description | Pooled Mean Diff | 95% Bootstrap CI | Sessions a > b | Sessions b > a | Conclusion |")
 lines.append("|---|---|---:|---|:---:|:---:|---|")
-lines.append("| **E2**: Microprice − Imbalance (h=5) | Does microprice add predictive value over simple L1 imbalance? | **-0.0058** | [-0.0108, -0.0006] | 10 | 20 | **No.** Simpler L1 imbalance beats microprice on 20 of 30 symbol-sessions (p < 0.05). On tight 1-tick spreads, microprice adds noise. |")
-lines.append("| **E3**: Order OFI − L2 OFI (h=5) | Does order-by-order tracking beat top-of-book L2 approximation? | **-0.0007** | [-0.0076, +0.0062] | 18 | 12 | **Tied.** Order-level OFI is slightly better on QQQ (+0.0123) but worse on AAPL (-0.0138). CI straddles 0. |")
-lines.append("| **E4**: Combined − Imbalance (h=5) | Does multi-feature OLS beat single L1 imbalance? | **+0.0143** | [+0.0107, +0.0182] | 28 | 2 | **Yes.** Train-fit combination yields modest, robust out-of-sample rank IC gain on 28 of 30 sessions. |")
-lines.append("| **E6**: Post-fill − Pre-fill Drift (h=5) | Is post-fill drift worse than matched pre-fill price drift? | **-37.13 ticks** | [-41.24, -33.15] | 0 | 30 | **Yes.** Adverse selection is causally driven by the fill event on 100% of sessions (all 30 sessions post < pre). |")
+
+paired = agg["session_panel"]["paired"]
+
+p_e2 = paired["microprice_minus_imbalance_h5"]
+e2_pool = p_e2["pooled"]
+e2_ci = f"[{e2_pool['ci95']['lo']:.4f}, {e2_pool['ci95']['hi']:.4f}]"
+e2_tot = e2_pool['sessions_a_greater'] + e2_pool['sessions_b_greater']
+lines.append(f"| **E2**: Microprice − Imbalance (h=5) | Does microprice add predictive value over simple L1 imbalance? | **{e2_pool['mean']:+.4f}** | {e2_ci} | {e2_pool['sessions_a_greater']} | {e2_pool['sessions_b_greater']} | **No.** Simpler L1 imbalance beats microprice on {e2_pool['sessions_b_greater']} of {e2_tot} symbol-sessions (p < 0.05). On tight 1-tick spreads, microprice adds noise. |")
+
+p_e3 = paired["ofi_order_minus_ofi_l2_h5"]
+e3_pool = p_e3["pooled"]
+e3_ci = f"[{e3_pool['ci95']['lo']:.4f}, {e3_pool['ci95']['hi']:.4f}]"
+e3_qqq_mean = p_e3["by_symbol"]["QQQ"]["mean"]
+e3_aapl_mean = p_e3["by_symbol"]["AAPL"]["mean"]
+lines.append(f"| **E3**: Order OFI − L2 OFI (h=5) | Does order-by-order tracking beat top-of-book L2 approximation? | **{e3_pool['mean']:+.4f}** | {e3_ci} | {e3_pool['sessions_a_greater']} | {e3_pool['sessions_b_greater']} | **Tied.** Order-level OFI is slightly better on QQQ ({e3_qqq_mean:+.4f}) but worse on AAPL ({e3_aapl_mean:+.4f}). CI straddles 0. |")
+
+p_e4 = paired["combined_minus_imbalance_h5"]
+e4_pool = p_e4["pooled"]
+e4_ci = f"[{e4_pool['ci95']['lo']:.4f}, {e4_pool['ci95']['hi']:.4f}]"
+e4_tot = e4_pool['sessions_a_greater'] + e4_pool['sessions_b_greater']
+lines.append(f"| **E4**: Combined − Imbalance (h=5) | Does multi-feature OLS beat single L1 imbalance? | **{e4_pool['mean']:+.4f}** | {e4_ci} | {e4_pool['sessions_a_greater']} | {e4_pool['sessions_b_greater']} | **Yes.** Train-fit combination yields modest, robust out-of-sample rank IC gain on {e4_pool['sessions_a_greater']} of {e4_tot} sessions. |")
+
+p_e6 = paired["post_minus_pre_drift_h5"]
+e6_pool = p_e6["pooled"]
+e6_ci = f"[{e6_pool['ci95']['lo']:.2f}, {e6_pool['ci95']['hi']:.2f}]"
+lines.append(f"| **E6**: Post-fill − Pre-fill Drift (h=5) | Is post-fill drift worse than matched pre-fill price drift? | **{e6_pool['mean']:.2f} ITCH ticks** | {e6_ci} | {e6_pool['sessions_a_greater']} | {e6_pool['sessions_b_greater']} | **Yes.** Adverse selection is causally driven by the fill event on 100% of sessions (all {e6_pool['sessions_b_greater']} sessions post < pre). |")
 
 lines.append("")
 lines.append("## 7. Full 15-Session Panel (All 30 Symbol Sessions)")
 lines.append("")
-lines.append("| Day | Sym | Regular Events | Orders (E5) | Passive Fills (E6) | IC h=1 | IC h=5 | IC h=10 | IC h=25 | OLS h=5 | KM P(fill 50) | Ever Filled | Calib Slope | Drift h=5 (ticks) | P(adv) h=5 | Post−Pre h=5 |")
+lines.append("| Day | Sym | Regular Events | Orders (E5) | Passive Fills (E6) | IC h=1 | IC h=5 | IC h=10 | IC h=25 | OLS h=5 | KM P(fill 50) | Ever Filled | Calib Slope | Drift h=5 ($0.0001) | P(adv) h=5 | Post−Pre h=5 |")
 lines.append("|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
 
 for r in sorted(rows_15, key=lambda x: (x["day"][4:], x["day"][:4], x["symbol"])):
@@ -179,3 +205,12 @@ lines.append("")
 out_md = Path("docs/results/multi_day/SUMMARY.md")
 out_md.write_text("\n".join(lines), encoding="utf-8")
 print(f"Wrote {out_md} successfully ({len(lines)} lines)")
+
+# Update summary.json with explicit drift unit and fingerprint metadata
+summary["drift_unit"] = "ITCH fixed-point price ticks ($0.0001, where 100 ticks = $0.01 standard cent)"
+summary["pipeline_fingerprint_validated"] = "17a5ba28f5d8bdb37aecc26b1499c3d2711b26226df789d6982fd46b018a7090"
+summary["pipeline_fingerprint_current_crlf"] = "959ac48653d79a2688e506b11aa4d214982936ca15e396a2c4396aaddd5ede49"
+summary["pipeline_fingerprint_current_lf"] = "691bbcbaa2fe4472ab6348374d9a413eff6a1f04b118cced9c1711fd13cec43e"
+summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+print(f"Updated {summary_path} successfully")
+

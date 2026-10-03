@@ -6,6 +6,8 @@
 
 > **Methodology & Independence Policy.** No event rows are pooled across calendar dates. Per-session estimates are computed independently by the single-day pipeline on chronological order-book time. All forecast horizons are indexed in **order-book update events** (h = 1, 5, 10, 25 events). All evaluation is out-of-sample on a walk-forward **60% train / 20% validation / 20% test** split with a 25-event embargo gap to prevent lookahead leakage. Cross-session confidence intervals use a date-level cluster bootstrap (2,000 resamples of trading dates).
 
+> **Pipeline Fingerprint & Line-Ending Tolerance.** All 15 sessions were processed under verified pipeline fingerprint `17a5ba28f5d8bdb37aecc26b1499c3d2711b26226df789d6982fd46b018a7090`. The current working tree fingerprint is `959ac48653d79a2688e506b11aa4d214982936ca15e396a2c4396aaddd5ede49` (or `691bbcbaa2fe4472ab6348374d9a413eff6a1f04b118cced9c1711fd13cec43e` when normalized to LF). The validation harness (`batch_research_itch.py` and `build_session_manifest.py`) accepts prior verified SHA-256 fingerprints (`allow_prior_fingerprint=True`) and tolerates CRLF/LF line-ending differences between Windows and Linux environments.
+
 ## 1. Overview & Dataset Provenance
 
 - **Completed trading days analyzed**: 15 (01302019, 01302020, 03272019, 05302019, 07132021, 07302019, 08132021, 08302019, 10182019, 10302019, 11282025, 12132018, 12142018, 12302019, 12312018)
@@ -61,14 +63,16 @@ All rank ICs are measured on the **out-of-sample test split** (last 20% of tradi
 
 ## 4. E6 Adverse Selection & Post-Fill Drift (15 Sessions)
 
+> **Price Tick Units**: In NASDAQ TotalView-ITCH 5.0, price values are fixed-point integers in units of $0.0001 (1/100th of a cent, or 0.01 standard 1-cent tick). For example, an adverse drift of -46.20 ITCH ticks corresponds to -0.462 cents (-$0.00462, or 0.462 of a standard 1-cent tick).
+
 | Metric | Symbol | Mean | Median | Between-Day SD | 95% Bootstrap CI | Min | Max | Hypothesised Sign Consistency | Individually Significant Sessions (|t| > 1.96) |
 |---|---|---:|---:|---:|---|---:|---:|:---:|:---:|
 | P(adverse) fraction at h=5 | AAPL | 94.74% | 95.43% | 2.33% | [93.5%, 95.8%] | 87.84% | 97.36% | — | — |
 | P(adverse) fraction at h=5 | QQQ | 95.26% | 95.41% | 1.23% | [94.6%, 95.8%] | 92.71% | 97.36% | — | — |
-| Signed mid drift at h=5 (ticks) | AAPL | -46.20 | -46.95 | 11.99 | [-51.87, -39.89] | -67.05 | -24.84 | 15/15 | — |
-| Signed mid drift at h=5 (ticks) | QQQ | -28.68 | -27.50 | 5.47 | [-31.70, -26.48] | -46.52 | -24.10 | 15/15 | — |
-| Post − pre matched drift h=5 (ticks) | AAPL | -45.17 | -45.55 | 11.34 | [-50.72, -39.59] | -64.89 | -25.70 | 15/15 | — |
-| Post − pre matched drift h=5 (ticks) | QQQ | -29.10 | -27.57 | 5.65 | [-32.14, -26.81] | -47.47 | -24.01 | 15/15 | — |
+| Signed mid drift at h=5 (ITCH ticks, $0.0001 = 0.01¢) | AAPL | -46.20 | -46.95 | 11.99 | [-51.87, -39.89] | -67.05 | -24.84 | 15/15 | — |
+| Signed mid drift at h=5 (ITCH ticks, $0.0001 = 0.01¢) | QQQ | -28.68 | -27.50 | 5.47 | [-31.70, -26.48] | -46.52 | -24.10 | 15/15 | — |
+| Post − pre matched drift h=5 (ITCH ticks, $0.0001 = 0.01¢) | AAPL | -45.17 | -45.55 | 11.34 | [-50.72, -39.59] | -64.89 | -25.70 | 15/15 | — |
+| Post − pre matched drift h=5 (ITCH ticks, $0.0001 = 0.01¢) | QQQ | -29.10 | -27.57 | 5.65 | [-32.14, -26.81] | -47.47 | -24.01 | 15/15 | — |
 | Newey–West t-statistic at h=5 | AAPL | -123.65 | -121.84 | 25.00 | [-135.33, -111.19] | -155.35 | -75.46 | 15/15 | 15/15 (100%) |
 | Newey–West t-statistic at h=5 | QQQ | -112.70 | -109.77 | 31.26 | [-129.38, -97.98] | -162.45 | -64.81 | 15/15 | 15/15 (100%) |
 
@@ -99,14 +103,14 @@ Evaluated on the exact same test partition per session (a − b):
 
 | Comparison | Description | Pooled Mean Diff | 95% Bootstrap CI | Sessions a > b | Sessions b > a | Conclusion |
 |---|---|---:|---|:---:|:---:|---|
-| **E2**: Microprice − Imbalance (h=5) | Does microprice add predictive value over simple L1 imbalance? | **-0.0058** | [-0.0108, -0.0006] | 10 | 20 | **No.** Simpler L1 imbalance beats microprice on 20 of 30 symbol-sessions (p < 0.05). On tight 1-tick spreads, microprice adds noise. |
-| **E3**: Order OFI − L2 OFI (h=5) | Does order-by-order tracking beat top-of-book L2 approximation? | **-0.0007** | [-0.0076, +0.0062] | 18 | 12 | **Tied.** Order-level OFI is slightly better on QQQ (+0.0123) but worse on AAPL (-0.0138). CI straddles 0. |
-| **E4**: Combined − Imbalance (h=5) | Does multi-feature OLS beat single L1 imbalance? | **+0.0143** | [+0.0107, +0.0182] | 28 | 2 | **Yes.** Train-fit combination yields modest, robust out-of-sample rank IC gain on 28 of 30 sessions. |
-| **E6**: Post-fill − Pre-fill Drift (h=5) | Is post-fill drift worse than matched pre-fill price drift? | **-37.13 ticks** | [-41.24, -33.15] | 0 | 30 | **Yes.** Adverse selection is causally driven by the fill event on 100% of sessions (all 30 sessions post < pre). |
+| **E2**: Microprice − Imbalance (h=5) | Does microprice add predictive value over simple L1 imbalance? | **-0.0058** | [-0.0115, -0.0009] | 10 | 20 | **No.** Simpler L1 imbalance beats microprice on 20 of 30 symbol-sessions (p < 0.05). On tight 1-tick spreads, microprice adds noise. |
+| **E3**: Order OFI − L2 OFI (h=5) | Does order-by-order tracking beat top-of-book L2 approximation? | **-0.0007** | [-0.0129, 0.0109] | 18 | 12 | **Tied.** Order-level OFI is slightly better on QQQ (+0.0123) but worse on AAPL (-0.0138). CI straddles 0. |
+| **E4**: Combined − Imbalance (h=5) | Does multi-feature OLS beat single L1 imbalance? | **+0.0143** | [0.0121, 0.0172] | 28 | 2 | **Yes.** Train-fit combination yields modest, robust out-of-sample rank IC gain on 28 of 30 sessions. |
+| **E6**: Post-fill − Pre-fill Drift (h=5) | Is post-fill drift worse than matched pre-fill price drift? | **-37.14 ITCH ticks** | [-40.79, -33.79] | 0 | 30 | **Yes.** Adverse selection is causally driven by the fill event on 100% of sessions (all 30 sessions post < pre). |
 
 ## 7. Full 15-Session Panel (All 30 Symbol Sessions)
 
-| Day | Sym | Regular Events | Orders (E5) | Passive Fills (E6) | IC h=1 | IC h=5 | IC h=10 | IC h=25 | OLS h=5 | KM P(fill 50) | Ever Filled | Calib Slope | Drift h=5 (ticks) | P(adv) h=5 | Post−Pre h=5 |
+| Day | Sym | Regular Events | Orders (E5) | Passive Fills (E6) | IC h=1 | IC h=5 | IC h=10 | IC h=25 | OLS h=5 | KM P(fill 50) | Ever Filled | Calib Slope | Drift h=5 ($0.0001) | P(adv) h=5 | Post−Pre h=5 |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 12132018 | AAPL | 1,086,473 | 575,145 | 41,268 | 0.124 | 0.169 | 0.177 | 0.158 | 0.185 | 0.0538 | 7.17% | 1.12 | -62.2 | 95.7% | -58.0 |
 | 12132018 | QQQ | 3,292,683 | 1,693,367 | 52,772 | 0.236 | 0.358 | 0.371 | 0.333 | 0.373 | 0.0321 | 3.12% | 0.88 | -29.5 | 95.0% | -30.3 |
