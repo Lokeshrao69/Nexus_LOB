@@ -332,3 +332,9 @@ Exact shipped API: **`docs/work_package_b_phases_2_4.md §2.2`** (frozen). Signa
   empirical queue hazard integration (`queue_model="empirical_hazard"`), and cross-day empirical
   aggregation (`nexus_quant.research.multi_day_aggregation`). Full suite passes with **336 tests
   collected** (322 passed / 14 skipped without engine; 335 passed / 1 skipped with engine).
+- **2026-10-03 — 15-Session Multi-Day ITCH Campaign Complete.**
+  Completed full multi-day empirical campaign across 15 validated trading days (2018–2025) for AAPL and QQQ.
+  Cross-day aggregation computed without cross-day pooling:
+  - E1 rank IC across all 15 sessions: AAPL 0.086 to 0.179; QQQ 0.089 to 0.198 (positive on 15/15 sessions).
+  - E6 adverse selection fraction: AAPL mean 90.6% (69.8%–99.2%); QQQ mean 88.0% (61.5%–98.9%).
+  - Full cross-day report and machine-readable data committed in `docs/results/multi_day/SUMMARY.md` and `summary.json`.

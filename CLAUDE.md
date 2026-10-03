@@ -141,8 +141,8 @@ PR #19) and the live-execution dashboard panel (PR #23) are both on `main`.
   predates this integration (it was not regenerated).
 - **Multi-day research status:** `batch_research_itch.py` supports all 15 catalogued dates, byte-limited smoke
   downloads, verified manifests, resumable per-day E1–E6, source-code fingerprints,
-  and descriptive cross-day tables. The full 15-day empirical campaign has not yet been executed
-  (roughly 3.5 GB compressed per full day, bandwidth-dependent); only single-day results (`12302019`) are committed.
+  and descriptive cross-day tables. The 15-session empirical campaign is completed
+  and validated; see `docs/results/multi_day/SUMMARY.md` for cross-day aggregation.
 - Python adapters now preserve injected stub/reset semantics and reconcile native
   fills, rejection results, partial-modify FIFO priority, order counts, and cancelled
   handles. Linux pybind and the no-engine path are both tested. C++/CUDA/bindings
@@ -326,8 +326,8 @@ This is the Person A ↔ Person B integration seam.
 
 ## 7. Next steps (ordered; low-risk foundations first)
 
-**Current Person-B next steps:** run the full 15-day tape campaign when bandwidth
-permits, then regenerate and review statistical reports under the current code.
+**Current Person-B next steps:** review statistical reports under the current code;
+15-session tape campaign completed (`docs/results/multi_day/SUMMARY.md`).
 Re-run the fair seeded evaluation before replacing its historical CIs; this
 follow-up changed the resampling unit and corrected initial drawdown accounting.
 The original implementation checklist below is retained as dated history.
@@ -390,7 +390,7 @@ All 12 original plan items are complete. Remaining work is **polish & measuremen
 | Reconcile & sanitize dashboard — retired +50.4% labeled, active fair benchmark featured | Person B | ✅ 2026-09-14 |
 | E7 `fill_rate` / `mdd_ticks`, whole-family CIs, paired metric direction | Person B | ✅ 2026-09-14; published study not rerun |
 | Empirical volume profiler and VWAP baseline conditioning | Person B | ✅ 2026-09-14; no-profile legacy actions preserved |
-| Multi-day NASDAQ ITCH: 15 dates catalogued, resumable batch harness ready | Person B | 🟡 Full statistical campaign not run; ~3.5 GB/day, bandwidth-dependent |
+| Multi-day NASDAQ ITCH: 15 dates catalogued, resumable batch harness ready | Person B | ✅ 15 sessions validated; cross-day aggregated in `docs/results/multi_day/SUMMARY.md` |
 | Part 2 quant research layer (Phases 0–5 complete — merged to `main` via PR #19) | Person B | ✅ merged; full suite 355 passed / 2 skipped (2026-09-15) |
 
 ## 8. Environment reality (IMPORTANT — read before running anything)

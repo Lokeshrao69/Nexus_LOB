@@ -383,3 +383,12 @@ See `CLAUDE.md` §8 for the full table and the exact Windows build steps.
 13. ⏳ **Remaining Project Work (Person A):**
     - Verify GPU risk engine on a CUDA machine (`nexus_risk` + `risk_bench` with `nvcc`).
     - Hardware benchmarks for zero-copy shmem ring throughput.
+
+## 5. 2026-10-03 — 15-Session Multi-Day ITCH Campaign Complete
+
+Completed full multi-day E1–E6 empirical microstructure campaign across 15 validated trading days (2018–2025) for AAPL and QQQ.
+Cross-day aggregation computed without cross-day pooling:
+- E1 rank IC across all 15 sessions: AAPL 0.086 to 0.179; QQQ 0.089 to 0.198 (positive on 15/15 sessions).
+- E6 adverse selection fraction: AAPL mean 90.6% (69.8%–99.2%); QQQ mean 88.0% (61.5%–98.9%).
+- Full cross-day report and machine-readable data committed in `docs/results/multi_day/SUMMARY.md` and `summary.json`.
+

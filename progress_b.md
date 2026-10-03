@@ -446,3 +446,12 @@ All 5 audit priorities implemented and verified:
 3. **Priority 3 (Data-Driven VWAP Volume Forecasting):** Built `VolumeProfile` and `EmpiricalVolumeForecaster` in `nexus_quant/execution/volume_profile.py`. Guaranteed strict walk-forward temporal hygiene (no look-ahead leakage), monotonicity, Laplace floor smoothing, and deterministic JSON serialization. Integrated into `baselines.py` (`volume_curve_target`, `schedule_twap`, `policy_action`, `run_episode`). 7 tests in `test_volume_profile.py`.
 4. **Priority 4 (Multi-Day Real-Tape Catalogue & Validation):** Catalogued 15 verified public NASDAQ sample dates in `PUBLIC_SAMPLE_DAYS` in `fetch_itch.py`. Verified URL construction and formatting in `test_offline_real_tape.py`. Categorized multi-day research validation honestly as partially complete / in progress due to network bandwidth constraints.
 5. **Priority 5 (Documentation Synchronization):** Synchronized all documentation files to accurately delineate COMPLETE vs PARTIALLY COMPLETE vs ROADMAP. Full test suite: **160 passed** (6 skipped on Windows; 166 collected).
+
+## Update 2026-10-03 — 15-Session Multi-Day ITCH Campaign Complete
+
+Completed full multi-day empirical campaign across 15 validated trading days (2018–2025) for AAPL and QQQ.
+Cross-day aggregation computed without cross-day pooling:
+- E1 rank IC across all 15 sessions: AAPL 0.086 to 0.179; QQQ 0.089 to 0.198 (positive on 15/15 sessions).
+- E6 adverse selection fraction: AAPL mean 90.6% (69.8%–99.2%); QQQ mean 88.0% (61.5%–98.9%).
+- Full cross-day report and machine-readable data committed in `docs/results/multi_day/SUMMARY.md` and `summary.json`.
+

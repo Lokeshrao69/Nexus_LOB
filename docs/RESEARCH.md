@@ -5,6 +5,7 @@
 > `python python_quant/scripts/run_all.py` (or individual vignettes). Ground rules: `plan_2.md` §0.
 > Both synthetic microstructure controls (Phase 3 vignette) and full empirical real-tape
 > findings (Phases 4–5 on NASDAQ TotalView-ITCH 2019-12-30) are documented below.
+> For multi-day empirical aggregation across 15 sessions, see `docs/results/multi_day/SUMMARY.md`.
 > Negative results are in §8. Nothing here was tuned to a target.
 
 ## 1. Scope
@@ -201,7 +202,7 @@ Real fills (the tracker's own executed resting orders) are the population. `post
 
 ### 6.2 Real-tape order-level results (NASDAQ ITCH 5.0, 2019-12-30)
 
-Signed post-fill drift `s·(mid[t+h] − mid[t])` in ticks (s = +1 for a filled
+Signed post-fill drift `s·(mid[t+h] − mid[t])` in ITCH ticks of $0.0001 (100 ticks = 1 cent; s = +1 for a filled
 bid, −1 for a filled ask; **negative = adverse**), Newey–West t (lag h), with a
 matched pre-fill control (the same drift over the h events *before* the fill):
 

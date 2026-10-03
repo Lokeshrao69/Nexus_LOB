@@ -21,25 +21,25 @@ validated on.
 | CUDA risk engine | CPU/reference implementation verified; CPU↔NumPy parity bit-for-bit; GPU benchmark pending a CUDA environment |
 
 > **Scope.** Real-tape results are reported across 15 validated NASDAQ ITCH
-> sessions (AAPL/QQQ, see `docs/results/multi_day/`). Each day is evaluated
-> under strict walk-forward splits with block-bootstrap CIs, without cross-day pooling.
+> sessions (AAPL/QQQ, see `docs/results/multi_day/SUMMARY.md`). The 15 dates are catalogued public sample days, not a random sample. Across days, h=5 rank IC averages 0.235 (range 0.166–0.339) on AAPL and 0.312 (range 0.262–0.358) on QQQ. Each day is evaluated
+> under strict walk-forward splits with block-bootstrap CIs, without cross-day pooling. The 15 sessions were computed under an earlier pipeline fingerprint (`17a5ba28...`); the validation harness accepts prior verified SHA-256 fingerprints and tolerates CRLF/LF line-ending differences across environments.
 
 ---
 
 ## What the research found
 
-Validated on the single real-tape session where noted, on synthetic control
+Validated across the 15 validated real-tape sessions where noted, on synthetic control
 regimes otherwise:
 
-- **L1 imbalance predicts near-term mid moves** on the validated session. Rank IC
-  rises with the forecast horizon: ≈0.14 (h=1) → ≈0.23 (h=25) on AAPL and
-  ≈0.16 → ≈0.46 on QQQ, with tight block-bootstrap CIs (~±0.01).
+- **L1 imbalance predicts near-term mid moves** across all 15 sessions (test split, event horizons). Mean rank IC:
+  0.15 (h=1) → 0.24 (h=25) on AAPL (peaks at 0.25 at h=10) and
+  0.18 → 0.39 on QQQ (cross-day range 0.11–0.47; 15/15 days positive).
 - **Microprice does not consistently add information over simpler features**
-  (E2). On 1-tick books, microprice ≈ L1 imbalance and does not beat it.
-- **Passive fills are strongly adversely selected** on the validated session:
-  96–99% of filled passive orders are run over by price shortly after fill.
-- **Fill models** are well-calibrated on the real tape (calibration slope
-  1.03–1.09), but on the *synthetic trending* tape a logistic fill model ties the
+  (E2). On 1-tick books, microprice ≈ L1 imbalance and does not beat it (imbalance wins on 20 of 30 sessions).
+- **Passive fills are strongly adversely selected** across all 15 sessions:
+  88–97% of filled passive orders (mean 95.0%) are run over by price shortly after fill (all Newey–West t < -64; post-fill drift averages -46.2 ITCH ticks / -0.46¢ on AAPL, -28.7 ITCH ticks / -0.29¢ on QQQ).
+- **Fill models** are well-calibrated on the real tape (mean slope 1.035, range
+  0.67–1.49), but on the *synthetic trending* tape a logistic fill model ties the
   base-rate baseline — limited explanatory power on synthetic flow. Queue-position
   signal is degenerate on synthetic flow (the generator always fills at the queue
   front); real order-level data is the right substrate.
@@ -73,7 +73,7 @@ Header-only C++20, zero-allocation on the hot path, prices as integer ticks.
 
 **Verified:** `lob_test` **86/86** · `id_map_test` **4,676,294** checks ·
 `ring_test` **30,011** checks · `abi_check` 448-B ABI lock · `risk_test` 9 checks
-(CTest **5/5** across the C++ suites).
+(CTest **5/5** test suites).
 
 > **Performance targets are not yet measured.** The benchmark design targets
 > >500k orders/sec and sub-microsecond latency; these have **not been re-measured
@@ -97,10 +97,10 @@ Pure-NumPy research and execution stack (no torch), byte-reproducible.
 | Execution realism | `nexus_quant/execution/{cost_model,metrics,backtest,volume_profile}.py` | fees/rebates/impact, IS vs market VWAP, fill rate / MDD, empirical volume profiler |
 | Order-level queue + fill models (E5) | `nexus_quant/research/queue_dynamics.py` | `OrderLevelTracker`, Kaplan–Meier P(fill), logistic fill model, `EmpiricalQueueHazard` + RL seam |
 | Adverse selection (E6) | `nexus_quant/research/adverse_selection.py` | post-fill drift, Newey–West t, pre-fill matched control |
-| Multi-day aggregation tooling | `nexus_quant/research/multi_day_aggregation.py` | cross-day means, between-day variance, bootstrap CIs (one validated day so far) |
+| Multi-day aggregation tooling | `nexus_quant/research/multi_day_aggregation.py` | cross-day means, between-day variance, bootstrap CIs (15 validated sessions) |
 
-**Test coverage:** **355 passed / 2 skipped** with the compiled engine (347 in
-`python_quant/`, 8 in `bindings/`); **335 passed / 14 skipped** without it.
+**Test coverage:** **379 passed / 17 skipped** pytest cases repo-wide
+(379 passed / 15 skipped in `python_quant/`; 2 skipped in `bindings/` when engine unbuilt; CTest 5/5).
 Covers the parser, replay, env and queue models, baselines, PPO/GRPO agents, risk
 parity (3× bit-for-bit), dashboard, research spine, execution realism, adverse
 selection, and the real-tape slicer (which runs when the local ITCH dataset is
@@ -125,7 +125,7 @@ kernel, and a NumPy oracle draw *identical* paths — **bit-for-bit parity**
 
 > **The ~40× figure is a target, not a result.** GPU performance has **not been
 > measured** — there is no CUDA toolkit/GPU environment available. The CUDA kernel
-> is authored but uncompiled.
+> is authored, not compiled/benchmarked.
 
 ---
 
@@ -279,24 +279,24 @@ out of the synced tree.
 
 ## Status
 
-**Core research layer complete; single-session real-data validation complete;
-multi-day robustness campaign pending.**
+**Core research layer complete; 15-session multi-day real-data validation complete;
+hardware benchmarks pending.**
 
 - ✅ C++ matching engine — built, self-tested (0 allocs/op), pybind seam green
 - ✅ ITCH parser + replay + execution environment + baselines
 - ✅ Quant research layer — leak-locked feature spine, execution realism, queue/fill + adverse-selection studies, fair RL study
 - ✅ Dashboard — replay/synthetic/SHM execution desk with live execution timeline
 - ✅ CPU risk engine + exact NumPy parity
-- ⏳ CUDA GPU benchmark — pending a CUDA/GPU environment
+- ⏳ CUDA GPU benchmark — kernel authored, not compiled/benchmarked
 - ⏳ Real-hardware latency/throughput — pending measurement
-- ⏳ Multi-day real-tape campaign — one session (12/30/2019) validated; catalogued days not yet run
+- ✅ Multi-day real-tape campaign — 15 sessions validated (2018–2025, AAPL/QQQ); see `docs/results/multi_day/SUMMARY.md`
 
 ---
 
 ## Known limitations
 
-- **Real-data scope:** validation currently demonstrated on one session
-  (12/30/2019, AAPL/QQQ). Multi-day robustness is not yet run.
+- **Real-data scope:** validation covers 15 catalogued public sample sessions
+  (2018–2025, AAPL/QQQ; not a random sample; 7 catalogued dates were 404).
 - **Hardware benchmarks:** the C++ throughput/latency targets and the CUDA
   speedup are **not yet measured** — the targets are benchmark design goals.
 - **Synthetic environments are controls, not evidence:** null/negative synthetic
