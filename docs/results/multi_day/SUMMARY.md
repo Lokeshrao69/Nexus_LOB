@@ -6,7 +6,7 @@
 
 > **Methodology & Independence Policy.** No event rows are pooled across calendar dates. Per-session estimates are computed independently by the single-day pipeline on chronological order-book time. All forecast horizons are indexed in **order-book update events** (h = 1, 5, 10, 25 events). All evaluation is out-of-sample on a walk-forward **60% train / 20% validation / 20% test** split with a 25-event embargo gap to prevent lookahead leakage. Cross-session confidence intervals use a date-level cluster bootstrap (2,000 resamples of trading dates).
 
-> **Pipeline Fingerprint & Line-Ending Tolerance.** All 15 sessions were processed under verified pipeline fingerprint `17a5ba28f5d8bdb37aecc26b1499c3d2711b26226df789d6982fd46b018a7090`. The current working tree fingerprint is `959ac48653d79a2688e506b11aa4d214982936ca15e396a2c4396aaddd5ede49` (or `691bbcbaa2fe4472ab6348374d9a413eff6a1f04b118cced9c1711fd13cec43e` when normalized to LF). The validation harness (`batch_research_itch.py` and `build_session_manifest.py`) accepts prior verified SHA-256 fingerprints (`allow_prior_fingerprint=True`) and tolerates CRLF/LF line-ending differences between Windows and Linux environments.
+> **Pipeline Fingerprint & Provenance.** All 15 sessions were generated at commit `69534ab` (pipeline fingerprint `17a5ba28f5d8bdb37aecc26b1499c3d2711b26226df789d6982fd46b018a7090`, computed on raw file bytes, so it depends on line endings). `python_quant/` has changed since (run_research.py gained a clock-time collector (`collect_clock_fills`) that its own docstring says does not change E1–E6; clock-time markouts, dashboard, RL regime fix, validation-harness tolerances). The E1–E6 code paths (itch_parser, replay, features, labels, dataset, experiments, queue_dynamics, adverse_selection) are unchanged, so the current-tree fingerprint differs (`959ac48653d79a2688e506b11aa4d214982936ca15e396a2c4396aaddd5ede49` with CRLF, `691bbcbaa2fe4472ab6348374d9a413eff6a1f04b118cced9c1711fd13cec43e` LF-normalized).
 
 ## 1. Overview & Dataset Provenance
 
@@ -25,7 +25,7 @@ The earlier repository writeups (based solely on the 12/30/2019 tape) made three
 
 | Headline Claim | Single-Session Writeup (12/30/2019) | 15-Day Multi-Session Reality | Holds Across Days? | Empirical Commentary |
 |---|---|---|:---:|---|
-| **E6 Passive Adverse Selection** | *"96–99% of filled passive orders are run over by price shortly after fill"* | **87.84% – 97.36%** (mean: **95.00%**, AAPL: 94.74%, QQQ: 95.26%) | **NO** | The single-session writeup overstated the lower bound and upper bound. Adverse selection is real and statistically overwhelming (15/15 sessions t_NW < -64, p < 1e-6), but the fraction dips into the high-80s on calm sessions and never reaches 99%. |
+| **E6 Passive Adverse Selection** | *"96–99% of filled passive orders are run over by price shortly after fill"* | **44.42% – 74.67%** unconditional against (mean: AAPL 61.88%, QQQ 50.55%); conditional: 87.84% – 97.36% (mean: 95.00%) | **NO** | The single-session writeup reported the conditional rate as if it applied to all fills: 22.01%–53.98% of fills experience zero mid move at h=5. Unconditionally, the mid moves against the passive fill 50.55% (QQQ) to 61.88% (AAPL) of the time. Conditional on the mid moving, adverse selection is 94.74% (AAPL) and 95.26% (QQQ), ranging from 87.84% to 97.36% across sessions, never reaching the claimed 99%. |
 | **E5 Fill Model Calibration** | *"calibration slope 1.03–1.09"* | **0.669 – 1.492** (mean: **1.035**, median: **1.047**, std: 0.160) | **NO** | The 1.03–1.09 range was an artifact of 12/30/2019 (AAPL 1.034, QQQ 1.088). Cross-day dispersion is much wider: QQQ slopes drop as low as 0.669 (08/13/2021) and AAPL reaches 1.492 (12/14/2018). While the pooled mean (1.035) is near 1.0, individual day calibration varies significantly. |
 | **E1 Rank IC by Horizon** | *"Rank IC rises with horizon: ≈0.14 (h=1) → ≈0.23 (h=25) on AAPL, ≈0.16 → ≈0.46 on QQQ"* | **0.113 – 0.475** (AAPL: 0.153 → 0.240, QQQ: 0.183 → 0.390) | **PARTIALLY** | The direction is 100% consistent (15/15 sessions positive for both symbols across all horizons). However, on AAPL the IC peaks at h=10 (mean 0.254) and plateaus/softens at h=25 (mean 0.240), rather than monotonically increasing through h=25. |
 
@@ -61,18 +61,33 @@ All rank ICs are measured on the **out-of-sample test split** (last 20% of tradi
 | QQQ | 10 | 14 | 0.3648 | +0.0042 | 0.0189 | [0.3547, 0.3739] | 0.3190 | 0.3893 | 14/14 (100%) |
 | QQQ | 25 | 14 | 0.3968 | +0.0066 | 0.0633 | [0.3662, 0.4284] | 0.2935 | 0.4749 | 14/14 (100%) |
 
-## 4. E6 Adverse Selection & Post-Fill Drift (15 Sessions)
+## 4. E6 Adverse Selection — Three-Way Outcome Split & Post-Fill Drift (15 Sessions)
 
-> **Price Tick Units**: In NASDAQ TotalView-ITCH 5.0, price values are fixed-point integers in units of $0.0001 (1/100th of a cent, or 0.01 standard 1-cent tick). For example, an adverse drift of -46.20 ITCH ticks corresponds to -0.462 cents (-$0.00462, or 0.462 of a standard 1-cent tick).
+> **Definition of P(adverse)**: In this research, conditional P(adverse) is defined as the fraction of fills where the mid moved against the passive order (s · Δmid < 0), conditional on the mid moving (Δmid ≠ 0), with zero-move fills strictly excluded from the denominator. Unconditional P(adverse) retains all fills in the denominator, counting zero-move fills as non-adverse.
+
+> **Price Units**: In NASDAQ TotalView-ITCH 5.0, price values are fixed-point integers in units of $0.0001 (1/100th of a cent, or 0.01 standard 1-cent tick). For example, an adverse drift of -46.20 price units ($0.0001) corresponds to -0.462 cents (-$0.00462, or 0.462 of a standard 1-cent tick).
+
+### Three-Way Outcome Split of Passive Fills (h = 1, 5, 25 events)
+
+| Symbol | Horizon (events) | Moved Against (Unconditional P(adv)) [Main] | Did Not Move (Zero Drift Fraction) | Moved In Favor | Conditional P(adv) [Secondary] |
+|---|---:|---:|---:|---:|---:|
+| AAPL | 1 | **32.70%** (18.14%–44.78%) | 66.08% (53.79%–81.63%) | 1.21% (0.23%–3.74%) | 96.51% (88.93%–98.77%) |
+| AAPL | 5 | **61.88%** (46.02%–74.67%) | 34.67% (22.01%–51.77%) | 3.44% (1.69%–7.68%) | 94.74% (87.84%–97.36%) |
+| AAPL | 25 | **71.90%** (65.55%–77.49%) | 18.63% (14.49%–26.09%) | 9.46% (4.68%–15.50%) | 88.42% (80.88%–93.76%) |
+| QQQ | 1 | **26.04%** (21.64%–41.12%) | 73.36% (57.71%–77.94%) | 0.60% (0.28%–1.24%) | 97.82% (95.47%–98.79%) |
+| QQQ | 5 | **50.55%** (44.42%–65.95%) | 46.91% (30.89%–53.98%) | 2.54% (1.24%–3.73%) | 95.26% (92.71%–97.36%) |
+| QQQ | 25 | **66.61%** (63.10%–70.40%) | 26.25% (21.14%–32.28%) | 7.13% (4.42%–10.65%) | 90.40% (86.17%–93.71%) |
+
+> *Footnote on Three-Way Counts: Each session JSON stores total valid fills N, unconditional rate P(adv), and conditional rate P(adv | Δmid ≠ 0). Category counts are derived as N_against = round(N · P_uncond), N_zero = round(N · (1 - P_uncond / P_cond)), and N_favor = N - N_against - N_zero.*
+
+### Signed Post-Fill Drift & Newey–West Statistics (15 Sessions)
 
 | Metric | Symbol | Mean | Median | Between-Day SD | 95% Bootstrap CI | Min | Max | Hypothesised Sign Consistency | Individually Significant Sessions (|t| > 1.96) |
 |---|---|---:|---:|---:|---|---:|---:|:---:|:---:|
-| P(adverse) fraction at h=5 | AAPL | 94.74% | 95.43% | 2.33% | [93.5%, 95.8%] | 87.84% | 97.36% | — | — |
-| P(adverse) fraction at h=5 | QQQ | 95.26% | 95.41% | 1.23% | [94.6%, 95.8%] | 92.71% | 97.36% | — | — |
-| Signed mid drift at h=5 (ITCH ticks, $0.0001 = 0.01¢) | AAPL | -46.20 | -46.95 | 11.99 | [-51.87, -39.89] | -67.05 | -24.84 | 15/15 | — |
-| Signed mid drift at h=5 (ITCH ticks, $0.0001 = 0.01¢) | QQQ | -28.68 | -27.50 | 5.47 | [-31.70, -26.48] | -46.52 | -24.10 | 15/15 | — |
-| Post − pre matched drift h=5 (ITCH ticks, $0.0001 = 0.01¢) | AAPL | -45.17 | -45.55 | 11.34 | [-50.72, -39.59] | -64.89 | -25.70 | 15/15 | — |
-| Post − pre matched drift h=5 (ITCH ticks, $0.0001 = 0.01¢) | QQQ | -29.10 | -27.57 | 5.65 | [-32.14, -26.81] | -47.47 | -24.01 | 15/15 | — |
+| Signed mid drift at h=5 (price units ($0.0001)) | AAPL | -46.20 | -46.95 | 11.99 | [-51.87, -39.89] | -67.05 | -24.84 | 15/15 | — |
+| Signed mid drift at h=5 (price units ($0.0001)) | QQQ | -28.68 | -27.50 | 5.47 | [-31.70, -26.48] | -46.52 | -24.10 | 15/15 | — |
+| Post − pre matched drift h=5 (price units ($0.0001)) | AAPL | -45.17 | -45.55 | 11.34 | [-50.72, -39.59] | -64.89 | -25.70 | 15/15 | — |
+| Post − pre matched drift h=5 (price units ($0.0001)) | QQQ | -29.10 | -27.57 | 5.65 | [-32.14, -26.81] | -47.47 | -24.01 | 15/15 | — |
 | Newey–West t-statistic at h=5 | AAPL | -123.65 | -121.84 | 25.00 | [-135.33, -111.19] | -155.35 | -75.46 | 15/15 | 15/15 (100%) |
 | Newey–West t-statistic at h=5 | QQQ | -112.70 | -109.77 | 31.26 | [-129.38, -97.98] | -162.45 | -64.81 | 15/15 | 15/15 (100%) |
 
@@ -106,7 +121,7 @@ Evaluated on the exact same test partition per session (a − b):
 | **E2**: Microprice − Imbalance (h=5) | Does microprice add predictive value over simple L1 imbalance? | **-0.0058** | [-0.0115, -0.0009] | 10 | 20 | **No.** Simpler L1 imbalance beats microprice on 20 of 30 symbol-sessions (p < 0.05). On tight 1-tick spreads, microprice adds noise. |
 | **E3**: Order OFI − L2 OFI (h=5) | Does order-by-order tracking beat top-of-book L2 approximation? | **-0.0007** | [-0.0129, 0.0109] | 18 | 12 | **Tied.** Order-level OFI is slightly better on QQQ (+0.0123) but worse on AAPL (-0.0138). CI straddles 0. |
 | **E4**: Combined − Imbalance (h=5) | Does multi-feature OLS beat single L1 imbalance? | **+0.0143** | [0.0121, 0.0172] | 28 | 2 | **Yes.** Train-fit combination yields modest, robust out-of-sample rank IC gain on 28 of 30 sessions. |
-| **E6**: Post-fill − Pre-fill Drift (h=5) | Is post-fill drift worse than matched pre-fill price drift? | **-37.14 ITCH ticks** | [-40.79, -33.79] | 0 | 30 | **Yes.** Adverse selection is causally driven by the fill event on 100% of sessions (all 30 sessions post < pre). |
+| **E6**: Post-fill − Pre-fill Drift (h=5) | Is post-fill drift worse than matched pre-fill price drift? | **-37.14 price units ($0.0001)** | [-40.79, -33.79] | 0 | 30 | **Yes.** Post-fill drift is worse than matched pre-fill drift on 100% of sessions (all 30 sessions post < pre). |
 
 ## 7. Full 15-Session Panel (All 30 Symbol Sessions)
 
