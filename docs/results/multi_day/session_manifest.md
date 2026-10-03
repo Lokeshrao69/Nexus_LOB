@@ -10,27 +10,27 @@ Every candidate object in the public NASDAQ ITCH directory tree, with download, 
 | 2018-07-30 | yes | `07302018.NASDAQ_ITCH50.gz` | 404 | — | http_404 | — | — | — | not_run | no | 404/RETIRED | tape retired from emi.nasdaq.com (HTTP 404); only the .md5sum sidecar remains in the directory |
 | 2018-08-30 | yes | `08302018.NASDAQ_ITCH50.gz` | 404 | — | http_404 | — | — | — | not_run | no | 404/RETIRED | tape retired from emi.nasdaq.com (HTTP 404); only the .md5sum sidecar remains in the directory |
 | 2018-10-30 | yes | `10302018.NASDAQ_ITCH50.gz` | 404 | — | http_404 | — | — | — | not_run | no | 404/RETIRED | tape retired from emi.nasdaq.com (HTTP 404); only the .md5sum sidecar remains in the directory |
-| 2018-12-13 | no | `GIS/Nov 18, Dec 18, Jan 19/S121318-v50.txt.gz` | 200 | 5244679335 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2018-12-14 | no | `GIS/Nov 18, Dec 18, Jan 19/S121418-v50.txt.gz` | 200 | 5049507039 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
+| 2018-12-13 | no | `GIS/Nov 18, Dec 18, Jan 19/S121318-v50.txt.gz` | 200 | 5244679335 | complete | AAPL: yes, QQQ: yes | 1086473 | 3292683 | completed | yes | FULL | — |
+| 2018-12-14 | no | `GIS/Nov 18, Dec 18, Jan 19/S121418-v50.txt.gz` | 200 | 5049507039 | complete | AAPL: yes, QQQ: yes | 1300873 | 2343498 | completed | yes | FULL | — |
 | 2018-12-28 | yes | `12282018.NASDAQ_ITCH50.gz` | 404 | — | http_404 | — | — | — | not_run | no | 404/RETIRED | tape retired from emi.nasdaq.com (HTTP 404); only the .md5sum sidecar remains in the directory |
-| 2018-12-31 | no | `GIS/Nov 18, Dec 18, Jan 19/S123118-v50.txt.gz` | 200 | 4931688102 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2019-01-30 | yes | `01302019.NASDAQ_ITCH50.gz` | 200 | 4764426091 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2019-03-27 | yes | `03272019.NASDAQ_ITCH50.gz` | 200 | 5510131732 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2019-05-30 | yes | `05302019.NASDAQ_ITCH50.gz` | 200 | 4246501580 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2019-07-30 | yes | `07302019.NASDAQ_ITCH50.gz` | 200 | 3662140094 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2019-08-30 | yes | `08302019.NASDAQ_ITCH50.gz` | 200 | 4075649457 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2019-10-18 | no | `S101819-v50.txt.gz` | 200 | 3951201663 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2019-10-30 | yes | `10302019.NASDAQ_ITCH50.gz` | 200 | 3872931242 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2019-12-30 | yes | `12302019.NASDAQ_ITCH50.gz` | 200 | 3524013057 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2020-01-30 | yes | `01302020.NASDAQ_ITCH50.gz` | 200 | 5597158940 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2021-07-13 | no | `S071321-v50.txt.gz` | 200 | 5996745270 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2021-08-13 | no | `S081321-v50.txt.gz` | 200 | 4889328604 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2025-11-28 | no | `S112825-v50.txt.gz` | 200 | 4735308661 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
+| 2018-12-31 | no | `GIS/Nov 18, Dec 18, Jan 19/S123118-v50.txt.gz` | 200 | 4931688102 | complete | AAPL: yes, QQQ: yes | 1267696 | 2859411 | completed | yes | FULL | — |
+| 2019-01-30 | yes | `01302019.NASDAQ_ITCH50.gz` | 200 | 4764426091 | complete | AAPL: yes, QQQ: yes | 1596503 | 3291294 | completed | yes | FULL | — |
+| 2019-03-27 | yes | `03272019.NASDAQ_ITCH50.gz` | 200 | 5510131732 | complete | AAPL: yes, QQQ: yes | 1960770 | 4040376 | completed | yes | FULL | — |
+| 2019-05-30 | yes | `05302019.NASDAQ_ITCH50.gz` | 200 | 4246501580 | complete | AAPL: yes, QQQ: yes | 1165209 | 2608902 | completed | yes | FULL | — |
+| 2019-07-30 | yes | `07302019.NASDAQ_ITCH50.gz` | 200 | 3662140094 | complete | AAPL: yes, QQQ: yes | 1214806 | 1674517 | completed | yes | FULL | — |
+| 2019-08-30 | yes | `08302019.NASDAQ_ITCH50.gz` | 200 | 4075649457 | complete | AAPL: yes, QQQ: yes | 1151383 | 2276617 | completed | yes | FULL | — |
+| 2019-10-18 | no | `S101819-v50.txt.gz` | 200 | 3951201663 | complete | AAPL: yes, QQQ: yes | 1636764 | 2448505 | completed | yes | FULL | — |
+| 2019-10-30 | yes | `10302019.NASDAQ_ITCH50.gz` | 200 | 3872931242 | complete | AAPL: yes, QQQ: yes | 739800 | 1864809 | completed | yes | FULL | — |
+| 2019-12-30 | yes | `12302019.NASDAQ_ITCH50.gz` | 200 | 3524013057 | complete | AAPL: yes, QQQ: yes | 1484259 | 2209131 | completed | yes | FULL | — |
+| 2020-01-30 | yes | `01302020.NASDAQ_ITCH50.gz` | 200 | 5597158940 | complete | AAPL: yes, QQQ: yes | 1956673 | 4211652 | completed | yes | FULL | — |
+| 2021-07-13 | no | `S071321-v50.txt.gz` | 200 | 5996745270 | complete | AAPL: yes, QQQ: yes | 2307107 | 4798141 | completed | yes | FULL | — |
+| 2021-08-13 | no | `S081321-v50.txt.gz` | 200 | 4889328604 | complete | AAPL: yes, QQQ: yes | 1546590 | 2297971 | completed | yes | FULL | — |
+| 2025-11-28 | no | `S112825-v50.txt.gz` | 200 | 4735308661 | complete | AAPL: yes, QQQ: yes | 1212991 | 4102651 | completed | yes | FULL | — |
 | 2025-12-08 | no | `S120825-v50.txt.gz` | 200 | 8775891119 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2025-12-09 | no | `S120925-v50.txt.gz` | 200 | 7929915419 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
+| 2025-12-09 | no | `S120925-v50.txt.gz` | 200 | 7929915419 | not_downloaded | — | — | — | not_run | no | OTHER | not downloaded in this campaign |
 | 2025-12-10 | no | `S121025-v50.txt.gz` | 200 | 11557662295 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
 | 2025-12-11 | no | `S121125-v50.txt.gz` | 200 | 10471034001 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
-| 2025-12-12 | no | `S121225-v50.txt.gz` | 200 | 12551644054 | complete | — | — | — | not_run | no | OTHER | E1–E6 analysis not completed |
+| 2025-12-12 | no | `S121225-v50.txt.gz` | 200 | 12551644054 | not_downloaded | — | — | — | not_run | no | OTHER | not downloaded in this campaign |
 | 2026-05-15 | no | `itch50_05_15.gz` | 200 | 13047496628 | not_downloaded | — | — | — | not_run | no | OTHER | not downloaded in this campaign |
 | 2026-05-18 | no | `itch50_05_18.gz` | 200 | 16150095810 | not_downloaded | — | — | — | not_run | no | OTHER | not downloaded in this campaign |
 | 2026-06-12 | no | `S061226-v50.txt.gz` | 200 | 17894268560 | not_downloaded | — | — | — | not_run | no | OTHER | not downloaded in this campaign |

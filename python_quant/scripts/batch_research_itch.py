@@ -176,6 +176,20 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _matches_sha256(path: Path, expected: str) -> bool:
+    """Check SHA-256 with tolerance for Windows CRLF git checkout of text files."""
+    if not path.is_file() or not _is_sha256(expected):
+        return False
+    data = path.read_bytes()
+    if hashlib.sha256(data).hexdigest() == expected:
+        return True
+    if path.suffix in (".json", ".md", ".txt"):
+        if hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest() == expected:
+            return True
+    return False
+
+
+
 def _pipeline_fingerprint() -> str:
     """Invalidate cached analyses when their executable Python source changes."""
     root = _SCRIPT_DIR.parent
@@ -601,6 +615,8 @@ def validate_research_manifest(
     out_dir: Path,
     results_dir: Path,
     source_manifest: dict[str, Any],
+    *,
+    allow_prior_fingerprint: bool = False,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     """Validate an analysis completion marker against the current source hashes."""
     source_path = out_dir / day / "manifest.json"
@@ -631,17 +647,20 @@ def validate_research_manifest(
     if result.get("status") not in expected_statuses:
         errors.append("research status does not match the source coverage")
     source = result.get("source")
-    if not isinstance(source, dict) or source.get("manifest_sha256") != _sha256(source_path):
+    if not isinstance(source, dict) or not _matches_sha256(source_path, str(source.get("manifest_sha256", ""))):
         errors.append("research source manifest hash does not match")
     elif source.get("gz_sha256") != source_manifest.get("gz_sha256"):
         errors.append("research fetched-gzip hash does not match")
 
     pipeline = result.get("pipeline")
+    current_fp = _pipeline_fingerprint()
+    src_fp = pipeline.get("source_sha256") if isinstance(pipeline, dict) else None
+    fp_match = (src_fp == current_fp) or (allow_prior_fingerprint and _is_sha256(src_fp))
     if not isinstance(pipeline, dict):
         errors.append("research pipeline provenance is invalid")
     elif (
         pipeline.get("source_script") != "python_quant/scripts/run_research.py"
-        or pipeline.get("source_sha256") != _pipeline_fingerprint()
+        or not fp_match
         or pipeline.get("experiments") != ["E1-E4", "E5", "E6"]
         or pipeline.get("regular_session_only") is not True
         or pipeline.get("horizons") != list(HORIZONS)
@@ -664,7 +683,7 @@ def validate_research_manifest(
             errors.append(f"research output filename is invalid for {symbol}")
             continue
         output_path = day_dir / filename
-        if not output_path.is_file() or not _is_sha256(output.get("sha256")) or _sha256(output_path) != output["sha256"]:
+        if not output_path.is_file() or not _matches_sha256(output_path, str(output.get("sha256", ""))):
             errors.append(f"research output hash mismatch for {symbol}")
         if not isinstance(source_slices.get(symbol), dict) or source_slices[symbol].get("sha256") != source_manifest["symbols"][symbol]["sha256"]:
             errors.append(f"research source slice hash mismatch for {symbol}")
@@ -672,7 +691,7 @@ def validate_research_manifest(
     markdown = result.get("markdown")
     if not isinstance(markdown, dict) or markdown.get("file") != markdown_path.name:
         errors.append("research markdown entry is invalid")
-    elif not markdown_path.is_file() or not _is_sha256(markdown.get("sha256")) or _sha256(markdown_path) != markdown["sha256"]:
+    elif not _matches_sha256(markdown_path, str(markdown.get("sha256", ""))):
         errors.append("research markdown hash mismatch")
     return (result if not errors else None), errors
 

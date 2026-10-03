@@ -1,45 +1,173 @@
 # Multi-Day ITCH Empirical Aggregation Report
 
-> **Policy**: Aggregated 1 calendar sessions across 2 symbol(s). Between-day dispersion reflects genuine session variation; cross-day sample size is small (< 5 days); metrics remain descriptive rather than asymptotic.
+> **Policy**: Aggregated 15 calendar sessions across 2 symbol(s). Between-day dispersion reflects genuine session variation; cross-day sample supports preliminary multi-day inference.
 
 ## Summary Overview
 
-- **Days analyzed**: 1 (12302019)
+- **Days analyzed**: 15 (01302019, 01302020, 03272019, 05302019, 07132021, 07302019, 08132021, 08302019, 10182019, 10302019, 11282025, 12132018, 12142018, 12302019, 12312018)
 - **Symbols**: AAPL, QQQ
-- **Total regular-session events**: 3,693,390
-- **Total standing orders tracked (E5)**: 1,932,619
-- **Total passive fills analyzed (E6)**: 64,019
+- **Total regular-session events**: 65,948,055
+- **Total standing orders tracked (E5)**: 35,282,368
+- **Total passive fills analyzed (E6)**: 1,295,257
 
 ## Per-Day Session Breakdown
 
 | Day | Symbol | Coverage | Regular Events | Rank IC (h=5) | Rank IC (h=10) | Orders | KM P(fill 50) | Adverse Drift (h=5) |
 |---|---|---|---:|---:|---:|---:|---:|---:|
+| 01302019 | AAPL | full_day | 1,596,503 | 0.2405 | 0.2427 | 862,485 | 0.0542 | -44.90 |
+| 01302019 | QQQ | full_day | 3,291,294 | 0.3257 | 0.3856 | 1,734,462 | 0.0264 | -27.50 |
+| 03272019 | AAPL | full_day | 1,960,770 | 0.2729 | 0.3019 | 1,056,435 | 0.0327 | -47.58 |
+| 03272019 | QQQ | full_day | 4,040,376 | 0.3134 | 0.3893 | 2,127,129 | 0.0187 | -25.97 |
+| 05302019 | AAPL | full_day | 1,165,209 | 0.2966 | 0.3270 | 640,451 | 0.0439 | -43.27 |
+| 05302019 | QQQ | full_day | 2,608,902 | 0.3015 | 0.3756 | 1,356,558 | 0.0190 | -24.10 |
+| 07302019 | AAPL | full_day | 1,214,806 | 0.2831 | 0.3058 | 640,274 | 0.0461 | -30.93 |
+| 07302019 | QQQ | full_day | 1,674,517 | 0.2901 | 0.3686 | 871,970 | 0.0133 | -25.43 |
+| 08302019 | AAPL | full_day | 1,151,383 | 0.2281 | 0.2307 | 626,231 | 0.0479 | -45.56 |
+| 08302019 | QQQ | full_day | 2,276,617 | 0.3168 | 0.3804 | 1,195,082 | 0.0156 | -27.67 |
+| 10302019 | AAPL | full_day | 739,800 | 0.1928 | 0.2035 | 400,031 | 0.0655 | -46.95 |
+| 10302019 | QQQ | full_day | 1,864,809 | 0.3112 | 0.3645 | 978,084 | 0.0157 | -26.32 |
 | 12302019 | AAPL | full_day | 1,484,259 | 0.2201 | 0.2381 | 791,477 | 0.0335 | -50.04 |
 | 12302019 | QQQ | full_day | 2,209,131 | 0.2961 | 0.3751 | 1,141,142 | 0.0120 | -25.72 |
+| 01302020 | AAPL | full_day | 1,956,673 | 0.1662 | 0.1545 | 1,048,496 | 0.0269 | -67.05 |
+| 01302020 | QQQ | full_day | 4,211,652 | 0.3158 | 0.3399 | 2,207,984 | 0.0133 | -29.32 |
+| 12132018 | AAPL | full_day | 1,086,473 | 0.1695 | 0.1772 | 575,145 | 0.0538 | -62.22 |
+| 12132018 | QQQ | full_day | 3,292,683 | 0.3575 | 0.3708 | 1,693,367 | 0.0321 | -29.49 |
+| 12142018 | AAPL | full_day | 1,300,873 | 0.2390 | 0.2561 | 678,515 | 0.0625 | -49.41 |
+| 12142018 | QQQ | full_day | 2,343,498 | 0.3024 | 0.3190 | 1,211,734 | 0.0477 | -32.01 |
+| 12312018 | AAPL | full_day | 1,267,696 | 0.1937 | 0.1955 | 660,596 | 0.0453 | -51.30 |
+| 12312018 | QQQ | full_day | 2,859,411 | 0.3409 | 0.3600 | 1,480,119 | 0.0377 | -31.03 |
+| 10182019 | AAPL | full_day | 1,636,764 | 0.2485 | 0.2545 | 868,512 | 0.0463 | -44.73 |
+| 10182019 | QQQ | full_day | 2,448,505 | 0.2978 | 0.3698 | 1,262,644 | 0.0138 | -24.46 |
+| 07132021 | AAPL | full_day | 2,307,107 | 0.3390 | 0.3985 | 1,218,116 | 0.0543 | -24.84 |
+| 07132021 | QQQ | full_day | 4,798,141 | 0.3412 | 0.3618 | 2,473,392 | 0.0178 | -25.59 |
+| 08132021 | AAPL | full_day | 1,546,590 | 0.2632 | 0.3271 | 857,767 | 0.0370 | -25.81 |
+| 08132021 | QQQ | full_day | 2,297,971 | 0.3056 | 0.3470 | 1,274,130 | 0.0151 | -28.99 |
+| 11282025 | AAPL | full_day | 1,212,991 | 0.1766 | 0.1986 | 793,829 | 0.0432 | -58.41 |
+| 11282025 | QQQ | full_day | 4,102,651 | 0.2615 | 0.3023 | 2,556,211 | 0.0225 | -46.52 |
 
 ## Cross-Day Signal Metrics (LOB Imbalance Rank IC)
 
 | Horizon (h) | Sessions | Unweighted Mean | Weighted Mean | Between-Day Std | 95% Bootstrap CI |
 |---:|---:|---:|---:|---:|---|
-| 1 | 2 | 0.1472 | 0.1487 | 0.0109 | [0.1395, 0.1549] |
-| 5 | 2 | 0.2581 | 0.2656 | 0.0537 | [0.2201, 0.2961] |
-| 10 | 2 | 0.3066 | 0.3201 | 0.0969 | [0.2381, 0.3751] |
-| 25 | 2 | 0.3457 | 0.3686 | 0.1651 | [0.2289, 0.4624] |
+| 1 | 15 | 0.1682 | 0.1764 | 0.0210 | [0.1639, 0.1897] |
+| 5 | 15 | 0.2736 | 0.2898 | 0.0224 | [0.2757, 0.3044] |
+| 10 | 15 | 0.3074 | 0.3273 | 0.0278 | [0.3094, 0.3440] |
+| 25 | 15 | 0.3150 | 0.3386 | 0.0522 | [0.3099, 0.3657] |
 
 ## Missing / Incomplete Sessions
 
 | Day | Reason / Status |
 |---|---|
-| 02282019 | HTTP 404: Tape permanently retired on emi.nasdaq.com |
-| 04302019 | HTTP 404: Tape permanently retired on emi.nasdaq.com |
-| 05312019 | HTTP 404: Tape permanently retired on emi.nasdaq.com |
-| 06282019 | HTTP 404: Tape permanently retired on emi.nasdaq.com |
-| 09302019 | HTTP 404: Tape permanently retired on emi.nasdaq.com |
-| 11292019 | HTTP 404: Tape permanently retired on emi.nasdaq.com |
-| 12312019 | HTTP 404: Tape permanently retired on emi.nasdaq.com |
-| 01302019 | Bandwidth-bound: 3.8 GB raw tape requires ~4.5h download at current 238 KB/s |
-| 01302020 | Bandwidth-bound: 3.5 GB raw tape requires ~4.2h download at current 238 KB/s |
-| 03272019 | Bandwidth-bound: 3.6 GB raw tape requires ~4.3h download at current 238 KB/s |
-| 07302019 | Bandwidth-bound: 3.7 GB raw tape requires ~4.4h download at current 238 KB/s |
-| 08302019 | Bandwidth-bound: 3.5 GB raw tape requires ~4.2h download at current 238 KB/s |
-| 10302019 | Bandwidth-bound: 3.9 GB raw tape requires ~4.6h download at current 238 KB/s |
+| 01302018 | tape retired from emi.nasdaq.com (HTTP 404); only the .md5sum sidecar remains in the directory |
+| 03292018 | tape retired from emi.nasdaq.com (HTTP 404); only the .md5sum sidecar remains in the directory |
+| 05302018 | tape retired from emi.nasdaq.com (HTTP 404); only the .md5sum sidecar remains in the directory |
+| 07302018 | tape retired from emi.nasdaq.com (HTTP 404); only the .md5sum sidecar remains in the directory |
+| 08302018 | tape retired from emi.nasdaq.com (HTTP 404); only the .md5sum sidecar remains in the directory |
+| 10302018 | tape retired from emi.nasdaq.com (HTTP 404); only the .md5sum sidecar remains in the directory |
+| 12282018 | tape retired from emi.nasdaq.com (HTTP 404); only the .md5sum sidecar remains in the directory |
+| 12082025 | E1–E6 analysis not completed |
+| 12092025 | not downloaded in this campaign |
+| 12102025 | E1–E6 analysis not completed |
+| 12112025 | E1–E6 analysis not completed |
+| 12122025 | not downloaded in this campaign |
+| 05152026 | not downloaded in this campaign |
+| 05182026 | not downloaded in this campaign |
+| 06122026 | not downloaded in this campaign |
+
+## Session panel (one row per trading day × symbol)
+
+30 sessions over 15 trading days (01302019, 01302020, 03272019, 05302019, 07132021, 07302019, 08132021, 08302019, 10182019, 10302019, 11282025, 12132018, 12142018, 12302019, 12312018); symbols AAPL, QQQ.
+
+| Day | Sym | Regular rows | Orders (E5) | Passive fills (E6) | IC h=1 | IC h=5 | IC h=10 | IC h=25 | OLS h=5 | KM P(fill 50) | Ever filled | Calib. slope | Drift h=5 (ticks) | P(adv) h=5 | Post−pre h=5 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 12132018 | AAPL | 1,086,473 | 575,145 | 41,268 | 0.124 | 0.169 | 0.177 | 0.158 | 0.185 | 0.0538 | 0.0717 | 1.12 | -62.2 | 0.957 | -58.0 |
+| 12132018 | QQQ | 3,292,683 | 1,693,367 | 52,772 | 0.236 | 0.358 | 0.371 | 0.333 | 0.373 | 0.0321 | 0.0312 | 0.88 | -29.5 | 0.950 | -30.3 |
+| 12142018 | AAPL | 1,300,873 | 678,515 | 58,748 | 0.155 | 0.239 | 0.256 | 0.241 | 0.246 | 0.0625 | 0.0865 | 1.15 | -49.4 | 0.944 | -47.5 |
+| 12142018 | QQQ | 2,343,498 | 1,211,734 | 61,346 | 0.200 | 0.302 | 0.319 | 0.294 | 0.319 | 0.0477 | 0.0506 | 0.87 | -32.0 | 0.945 | -32.5 |
+| 12312018 | AAPL | 1,267,696 | 660,596 | 39,456 | 0.139 | 0.194 | 0.196 | 0.160 | 0.192 | 0.0453 | 0.0597 | 0.97 | -51.3 | 0.956 | -49.8 |
+| 12312018 | QQQ | 2,859,411 | 1,480,119 | 57,285 | 0.218 | 0.341 | 0.360 | 0.317 | 0.365 | 0.0377 | 0.0387 | 1.02 | -31.0 | 0.954 | -31.2 |
+| 01302019 | AAPL | 1,596,503 | 862,485 | 70,104 | 0.171 | 0.240 | 0.243 | 0.214 | 0.260 | 0.0542 | 0.0811 | 0.94 | -44.9 | 0.928 | -45.5 |
+| 01302019 | QQQ | 3,291,294 | 1,734,462 | 49,171 | 0.177 | 0.326 | 0.386 | 0.426 | 0.330 | 0.0264 | 0.0283 | 0.67 | -27.5 | 0.933 | -28.3 |
+| 03272019 | AAPL | 1,960,770 | 1,056,435 | 46,715 | 0.163 | 0.273 | 0.302 | 0.287 | 0.285 | 0.0327 | 0.0442 | 1.27 | -47.6 | 0.967 | -47.4 |
+| 03272019 | QQQ | 4,040,376 | 2,127,129 | 47,507 | 0.165 | 0.313 | 0.389 | 0.469 | 0.329 | 0.0187 | 0.0223 | 0.98 | -26.0 | 0.963 | -26.7 |
+| 05302019 | AAPL | 1,165,209 | 640,451 | 41,538 | 0.181 | 0.297 | 0.327 | 0.305 | 0.316 | 0.0439 | 0.0648 | 0.95 | -43.3 | 0.974 | -42.6 |
+| 05302019 | QQQ | 2,608,902 | 1,356,558 | 34,242 | 0.157 | 0.302 | 0.376 | 0.455 | 0.313 | 0.0190 | 0.0252 | 0.84 | -24.1 | 0.960 | -24.7 |
+| 07302019 | AAPL | 1,214,806 | 640,274 | 39,607 | 0.177 | 0.283 | 0.306 | 0.286 | 0.303 | 0.0461 | 0.0618 | 1.09 | -30.9 | 0.951 | -30.4 |
+| 07302019 | QQQ | 1,674,517 | 871,970 | 15,602 | 0.148 | 0.290 | 0.369 | 0.475 | 0.302 | 0.0133 | 0.0179 | 1.13 | -25.4 | 0.974 | -26.6 |
+| 08302019 | AAPL | 1,151,383 | 626,231 | 37,342 | 0.162 | 0.228 | 0.231 | 0.180 | 0.263 | 0.0479 | 0.0596 | 1.07 | -45.6 | 0.929 | -43.7 |
+| 08302019 | QQQ | 2,276,617 | 1,195,082 | 25,044 | 0.176 | 0.317 | 0.380 | 0.426 | 0.342 | 0.0156 | 0.0209 | 1.02 | -27.7 | 0.961 | -27.6 |
+| 10182019 | AAPL | 1,636,764 | 868,512 | 44,114 | 0.182 | 0.249 | 0.254 | 0.209 | 0.269 | 0.0463 | 0.0508 | 1.49 | -44.7 | 0.953 | -44.5 |
+| 10182019 | QQQ | 2,448,505 | 1,262,644 | 23,370 | 0.161 | 0.298 | 0.370 | 0.446 | 0.304 | 0.0138 | 0.0185 | 1.10 | -24.5 | 0.965 | -24.0 |
+| 10302019 | AAPL | 739,800 | 400,031 | 35,576 | 0.135 | 0.193 | 0.203 | 0.179 | 0.214 | 0.0655 | 0.0888 | 1.30 | -47.0 | 0.878 | -44.0 |
+| 10302019 | QQQ | 1,864,809 | 978,084 | 20,384 | 0.185 | 0.311 | 0.365 | 0.400 | 0.310 | 0.0157 | 0.0208 | 0.84 | -26.3 | 0.941 | -24.6 |
+| 12302019 | AAPL | 1,484,259 | 791,477 | 46,357 | 0.140 | 0.220 | 0.238 | 0.229 | 0.255 | 0.0335 | 0.0584 | 1.12 | -50.0 | 0.957 | -45.8 |
+| 12302019 | QQQ | 2,209,131 | 1,141,142 | 17,662 | 0.155 | 0.296 | 0.375 | 0.462 | 0.298 | 0.0120 | 0.0154 | 1.03 | -25.7 | 0.958 | -26.4 |
+| 01302020 | AAPL | 1,956,673 | 1,048,496 | 39,131 | 0.131 | 0.166 | 0.155 | 0.127 | 0.185 | 0.0269 | 0.0372 | 1.01 | -67.1 | 0.935 | -64.9 |
+| 01302020 | QQQ | 4,211,652 | 2,207,984 | 36,004 | 0.206 | 0.316 | 0.340 | 0.332 | 0.331 | 0.0133 | 0.0163 | 0.84 | -29.3 | 0.951 | -28.3 |
+| 07132021 | AAPL | 2,307,107 | 1,218,116 | 93,502 | 0.189 | 0.339 | 0.398 | 0.431 | 0.350 | 0.0543 | 0.0762 | 1.10 | -24.8 | 0.954 | -25.7 |
+| 07132021 | QQQ | 4,798,141 | 2,473,392 | 41,609 | 0.234 | 0.341 | 0.362 | 0.338 | 0.350 | 0.0178 | 0.0168 | 0.92 | -25.6 | 0.927 | -27.6 |
+| 08132021 | AAPL | 1,546,590 | 857,767 | 50,834 | 0.134 | 0.263 | 0.327 | 0.394 | 0.273 | 0.0370 | 0.0591 | 1.31 | -25.8 | 0.962 | -26.6 |
+| 08132021 | QQQ | 2,297,971 | 1,274,130 | 17,950 | 0.185 | 0.306 | 0.347 | 0.381 | 0.317 | 0.0151 | 0.0140 | 1.05 | -29.0 | 0.952 | -30.3 |
+| 11282025 | AAPL | 1,212,991 | 793,829 | 39,867 | 0.112 | 0.177 | 0.199 | 0.199 | 0.186 | 0.0432 | 0.0501 | 0.97 | -58.4 | 0.965 | -61.3 |
+| 11282025 | QQQ | 4,102,651 | 2,556,211 | 71,150 | 0.146 | 0.261 | 0.302 | 0.298 | 0.270 | 0.0225 | 0.0278 | 1.04 | -46.5 | 0.954 | -47.5 |
+
+## Cross-session statistics
+
+Bootstrap CIs resample trading days (date-level cluster bootstrap); symbols from the same date are clustered; `sign` = share of trading days whose estimate has the hypothesised sign; `LOO range` = range of the pooled mean when each trading day (all symbols) is left out.
+
+| Metric | Group | N | Mean | Weighted mean | Median | Between-session SD | 95% bootstrap CI | t (mean=0) | Sign consistency | Per-session significant | LOO mean range | Most influential day |
+|---|---|---:|---:|---:|---:|---:|---|---:|---|---|---|---|
+| test rank IC, L1 imbalance, h=1 | E1 | 30 | 0.1682 | 0.1764 | 0.1643 | 0.0210 | [0.1638, 0.1888] | 26.43 | 15/15 | 30/30 | [0.1651, 0.1709] | 07132021 |
+| test rank IC, L1 imbalance, h=5 | E1 | 30 | 0.2736 | 0.2898 | 0.2931 | 0.0224 | [0.2759, 0.3044] | 38.24 | 15/15 | 30/30 | [0.2688, 0.2775] | 07132021 |
+| test rank IC, L1 imbalance, h=10 | E1 | 30 | 0.3074 | 0.3273 | 0.3271 | 0.0278 | [0.3103, 0.3440] | 35.71 | 15/15 | 30/30 | [0.3022, 0.3117] | 07132021 |
+| test rank IC, L1 imbalance, h=25 | E1 | 30 | 0.3150 | 0.3386 | 0.3112 | 0.0522 | [0.3104, 0.3653] | 22.51 | 15/15 | 30/30 | [0.3099, 0.3211] | 01302020 |
+| test rank IC, microprice − mid, h=5 | E2 | 30 | 0.2678 | 0.2851 | 0.2907 | 0.0278 | [0.2690, 0.3009] | 31.53 | 15/15 | 30/30 | [0.2624, 0.2740] | 11282025 |
+| test rank IC, order-level OFI (20-event), h=5 | E3 | 30 | 0.1375 | 0.1354 | 0.1351 | 0.0139 | [0.1284, 0.1430] | 37.51 | 15/15 | 30/30 | [0.1351, 0.1396] | 05302019 |
+| test rank IC, L2-ladder OFI approximation, h=5 | E3 | 30 | 0.1382 | 0.1319 | 0.1478 | 0.0219 | [0.1218, 0.1419] | 26.91 | 15/15 | 30/30 | [0.1360, 0.1411] | 10302019 |
+| test rank IC, deep imbalance (k=5), h=5 | E1 | 30 | 0.2056 | 0.2214 | 0.2183 | 0.0317 | [0.2051, 0.2362] | 25.58 | 15/15 | 30/30 | [0.2020, 0.2099] | 12312018 |
+| test rank IC, spread (bps), h=5 | E1 | 30 | 0.0063 | 0.0055 | 0.0059 | 0.0097 | [0.0014, 0.0100] | 2.90 | — | — | [0.0049, 0.0072] | 10302019 |
+| test rank IC, train-fit OLS combination, h=5 | E4 | 30 | 0.2879 | 0.3033 | 0.3029 | 0.0231 | [0.2895, 0.3174] | 39.81 | 15/15 | 30/30 | [0.2835, 0.2922] | 07132021 |
+| KM P(first fill within 50 events) | E5 | 30 | 0.0338 | 0.0292 | 0.0331 | 0.0088 | [0.0256, 0.0337] | 16.07 | — | — | [0.0323, 0.0348] | 12142018 |
+| KM P(first fill within 500 events) | E5 | 30 | 0.0820 | 0.0727 | 0.0779 | 0.0157 | [0.0654, 0.0813] | 20.01 | — | — | [0.0793, 0.0840] | 12142018 |
+| share of regular-session orders ever filled | E5 | 30 | 0.0438 | 0.0367 | 0.0414 | 0.0093 | [0.0325, 0.0415] | 19.21 | — | — | [0.0421, 0.0450] | 12142018 |
+| logistic fill model calibration slope (hold-out) | E5 | 30 | 1.0354 | 0.9985 | 1.0264 | 0.1212 | [0.9384, 1.0585] | 34.32 | — | — | [1.0167, 1.0519] | 10182019 |
+| logistic fill model Brier skill vs base rate | E5 | 30 | 0.0507 | 0.0429 | 0.0393 | 0.0207 | [0.0323, 0.0552] | 8.39 | 15/15 | — | [0.0466, 0.0529] | 11282025 |
+| signed post-fill mid drift, h=1 (ticks; negative = adverse) | E6 | 30 | -15.5719 | -15.8079 | -13.8360 | 3.1661 | [-17.4229, -14.0508] | -17.99 | 15/15 | 30/30 | [-15.9299, -15.2746] | 07132021 |
+| signed post-fill mid drift, h=5 (ticks) | E6 | 30 | -37.4381 | -38.1785 | -30.9817 | 7.2717 | [-41.9095, -34.1745] | -18.87 | 15/15 | 30/30 | [-38.3109, -36.3648] | 11282025 |
+| signed post-fill mid drift, h=25 (ticks) | E6 | 30 | -61.7633 | -62.5707 | -52.6524 | 9.1988 | [-67.0828, -58.5418] | -27.71 | 15/15 | 30/30 | [-62.7090, -60.3386] | 01302020 |
+| P(adverse) after a passive fill, h=5 | E6 | 30 | 0.9500 | 0.9492 | 0.9542 | 0.0165 | [0.9417, 0.9558] | 268.40 | — | — | [0.9488, 0.9528] | 10302019 |
+| post-fill minus matched pre-fill drift, h=5 (ticks) | E6 | 30 | -37.1355 | -37.9476 | -30.8051 | 6.8806 | [-41.8724, -34.1217] | -18.83 | 15/15 | — | [-37.8855, -35.9049] | 11282025 |
+
+### Per-symbol means
+
+| Metric | AAPL mean [95% CI] (N) | QQQ mean [95% CI] (N) |
+|---|---|---|
+| test rank IC, L1 imbalance, h=1 | 0.1530 [0.1422, 0.1673] (15) | 0.1833 [0.1698, 0.2035] (15) |
+| test rank IC, L1 imbalance, h=5 | 0.2353 [0.2123, 0.2700] (15) | 0.3118 [0.2987, 0.3269] (15) |
+| test rank IC, L1 imbalance, h=10 | 0.2541 [0.2232, 0.3012] (15) | 0.3606 [0.3447, 0.3727] (15) |
+| test rank IC, L1 imbalance, h=25 | 0.2399 [0.1991, 0.3025] (15) | 0.3902 [0.3506, 0.4174] (15) |
+| test rank IC, microprice − mid, h=5 | 0.2257 [0.2007, 0.2664] (15) | 0.3098 [0.2926, 0.3234] (15) |
+| test rank IC, order-level OFI (20-event), h=5 | 0.1421 [0.1289, 0.1602] (15) | 0.1329 [0.1234, 0.1385] (15) |
+| test rank IC, L2-ladder OFI approximation, h=5 | 0.1559 [0.1446, 0.1653] (15) | 0.1205 [0.1068, 0.1344] (15) |
+| test rank IC, deep imbalance (k=5), h=5 | 0.1659 [0.1488, 0.1961] (15) | 0.2454 [0.2266, 0.2590] (15) |
+| test rank IC, spread (bps), h=5 | 0.0055 [-0.0002, 0.0112] (15) | 0.0070 [0.0000, 0.0114] (15) |
+| test rank IC, train-fit OLS combination, h=5 | 0.2522 [0.2291, 0.2849] (15) | 0.3236 [0.3103, 0.3395] (15) |
+| KM P(first fill within 50 events) | 0.0462 [0.0394, 0.0504] (15) | 0.0214 [0.0174, 0.0265] (15) |
+| KM P(first fill within 500 events) | 0.1068 [0.0929, 0.1139] (15) | 0.0572 [0.0491, 0.0663] (15) |
+| share of regular-session orders ever filled | 0.0633 [0.0540, 0.0697] (15) | 0.0243 [0.0201, 0.0289] (15) |
+| logistic fill model calibration slope (hold-out) | 1.1221 [1.0450, 1.2148] (15) | 0.9487 [0.8797, 0.9955] (15) |
+| logistic fill model Brier skill vs base rate | 0.0718 [0.0549, 0.0851] (15) | 0.0297 [0.0192, 0.0444] (15) |
+| signed post-fill mid drift, h=1 (ticks; negative = adverse) | -18.2120 [-20.3474, -14.6433] (15) | -12.9318 [-15.8401, -12.0971] (15) |
+| signed post-fill mid drift, h=5 (ticks) | -46.2002 [-51.1973, -37.6904] (15) | -28.6760 [-34.5704, -26.9636] (15) |
+| signed post-fill mid drift, h=25 (ticks) | -77.6441 [-84.8485, -66.7570] (15) | -45.8825 [-49.0988, -44.1341] (15) |
+| P(adverse) after a passive fill, h=5 | 0.9474 [0.9369, 0.9571] (15) | 0.9526 [0.9449, 0.9565] (15) |
+| post-fill minus matched pre-fill drift, h=5 (ticks) | -45.1705 [-49.7188, -37.6868] (15) | -29.1005 [-35.2507, -27.3563] (15) |
+
+## Paired per-session comparisons (a − b on the same session)
+
+| Comparison | N | Mean diff | Median | Between-session SD | 95% bootstrap CI | Sessions a>b | Sessions b>a |
+|---|---:|---:|---:|---:|---|---:|---:|
+| E2: microprice − L1 imbalance rank IC, h=5 | 30 | -0.0058 | -0.0049 | 0.0112 | [-0.0115, -0.0009] | 10 | 20 |
+| E3: order-level OFI − L2 approximation rank IC, h=5 | 30 | -0.0007 | 0.0069 | 0.0245 | [-0.0129, 0.0109] | 18 | 12 |
+| E4: OLS combination − L1 imbalance rank IC, h=5 | 30 | 0.0143 | 0.0135 | 0.0052 | [0.0121, 0.0172] | 28 | 2 |
+| E6: post-fill − pre-fill signed drift, h=5 (ticks) | 30 | -37.1351 | -30.8051 | 7.3103 | [-40.7898, -33.7910] | 0 | 30 |
