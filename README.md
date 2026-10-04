@@ -21,7 +21,7 @@ The project emphasizes reproducibility and statistical honesty: results are tied
 
 | Area | Result | Scope |
 |---|---|---|
-| L1 order-book imbalance | Positive short-horizon predictive relationship; rank IC 0.11–0.19 at h=1 for AAPL and 0.15–0.24 for QQQ | 15 full-day NASDAQ ITCH sessions, 2018–2025 |
+| L1 order-book imbalance | Positive short-horizon predictive relationship; per-day rank IC 0.11–0.19 at h=1 for AAPL and 0.15–0.24 for QQQ | 15 full-day NASDAQ ITCH sessions, 2018–2025 |
 | Passive fills | Realized spread negative at every clock horizon: −0.22 to −0.85 (AAPL) and −0.39 to −0.66 (QQQ) half-spreads from 100 ms to 60 s, CIs excluding zero. Losses concentrate in fills hit by level-clearing orders and do not revert within 60 s | 2019-12-30 AAPL + QQQ, full session ([details](docs/results/clock_markouts_12302019.md)) |
 | RL execution | Initial +50.4% vs VWAP result retracted after identifying an unfair comparison. Under the corrected evaluation, PPO has no general edge and shows an advantage primarily during liquidity shocks | Synthetic regimes, 5 seeds × 6 regimes |
 | Matching engine | 4–7M orders/s, p50 170–260 ns, p99 420–540 ns, zero heap allocations; matches a naive reference book on 51.9M differential checks | 2-vCPU cloud VM, GCC 13.3 |
@@ -33,7 +33,7 @@ The project emphasizes reproducibility and statistical honesty: results are tied
 
 # Research Findings
 
-All real-tape results use 15 full trading days of NASDAQ TotalView-ITCH for AAPL and QQQ.
+Unless noted otherwise, real-tape results use 15 full trading days of NASDAQ TotalView-ITCH for AAPL and QQQ. These are the public NASDAQ sample days, not a random sample of trading days.
 
 Each trading day is analysed independently using a time-ordered walk-forward split and block-bootstrap confidence intervals. Days are not pooled into a single fitted model.
 
@@ -46,7 +46,7 @@ Test-split rank IC across the 15 sessions:
 | Symbol | h=1 | h=5 | h=10 | h=25 |
 |---|---:|---:|---:|---:|
 | AAPL | 0.11 / 0.16 / 0.19 | 0.17 / 0.24 / 0.34 | 0.15 / 0.24 / 0.40 | 0.13 / 0.21 / 0.43 |
-| QQQ | 0.15 / 0.18 / 0.24 | 0.26 / 0.31 / 0.36 | 0.30 / 0.37 / 0.39 | 0.29 / 0.40 / 0.48 |
+| QQQ | 0.15 / 0.18 / 0.24 | 0.26 / 0.31 / 0.36 | 0.30 / 0.37 / 0.39 | 0.29 / 0.40 / 0.47 |
 
 Values are `min / median / max` across individual trading days.
 
@@ -62,7 +62,7 @@ On one-tick books, microprice is close to a linear transformation of L1 imbalanc
 
 Kaplan–Meier estimates indicate that the probability of a passive order filling within 50 book events is approximately 1–7%, depending on day and symbol.
 
-The logistic fill model is well calibrated on the tested real data. Synthetic-flow results are treated as controls rather than empirical evidence because the synthetic generator places fills at the front of the queue.
+The logistic fill model is calibrated on average on the tested real data (calibration slope mean 1.035, range 0.67–1.49 across the 30 symbol-sessions). Synthetic-flow results are treated as controls rather than empirical evidence because the synthetic generator places fills at the front of the queue.
 
 ### E6 — Passive-Fill Markouts
 
@@ -138,9 +138,12 @@ session already trending into the fill. The report also carries break-even colum
 **assumed** maker rebate of 20 and 30 $0.0001 per share — assumed, not measured, since
 ITCH carries no fee data.
 
-**Scope.** One session, two symbols. The horizon profile differs between them, and why is
-an open question; this analysis does not test it. Generalising the shape over time needs
-the multi-day aggregation.
+**Scope.** The clock-time analysis covers one session, two symbols. The horizon profile
+differs between them, and why is an open question; this analysis does not test it.
+Generalising the clock-time shape over time needs a multi-day run. The event-clock figures
+have been computed on all 15 sessions: at h=5 events, P(adverse | mid moved) is 87.8–97.4%
+per session (mean 95%) and the unconditional rate is 44–75% (mean 62% AAPL, 51% QQQ); see
+`docs/results/multi_day/SUMMARY.md`.
 
 ---
 
@@ -264,8 +267,6 @@ The engine uses a flat price-level representation indexed by:
 ```text
 price - min_price
 ```
-
-This provides direct level addressing.
 
 This provides direct level addressing, but finding the *next occupied* level is a
 separate problem. The first version stepped through the array one level at a time.
@@ -528,7 +529,7 @@ The research pipeline verifies the expected file size and SHA-256 hash before pr
 
 - Current benchmark numbers are not bare-metal HFT measurements.
 - The ring drops the *newest* snapshot when full. That suits a consumer that must see every event in order, but a dashboard wants the *latest* state, so when it polls slowly it shows a snapshot up to one ring-capacity of events old.
-- Adverse-selection analysis is being extended from event-time measurements to post-trade clock-time markouts.
+- Clock-time markouts have been run on one session (2019-12-30); event-time markouts cover all 15 sessions.
 - The current real-tape study covers only AAPL and QQQ.
 - Both instruments are highly liquid and results may not generalize to thinner securities.
 - RL results are from controlled synthetic regimes rather than live trading.
