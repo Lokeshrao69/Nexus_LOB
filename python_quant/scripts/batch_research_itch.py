@@ -58,6 +58,12 @@ FILL_HORIZONS = (10, 50, 100, 500, 1000, 5000)
 ADVERSE_HORIZONS = (1, 5, 25)
 N_BOOT = 200  # Matches run_research.py's default; this is not tuned per day.
 
+# Pipeline fingerprint the 15 published sessions were generated with (commit 69534ab).
+# E1-E6 code is unchanged since; see docs/results/multi_day/SUMMARY.md.
+VALIDATED_PRIOR_FINGERPRINTS = frozenset({
+    "17a5ba28f5d8bdb37aecc26b1499c3d2711b26226df789d6982fd46b018a7090",
+})
+
 
 def parse_days(value: str) -> list[str]:
     """Validate an explicit public sample-day list, or expand ``all`` / ``extended``.
@@ -655,7 +661,7 @@ def validate_research_manifest(
     pipeline = result.get("pipeline")
     current_fp = _pipeline_fingerprint()
     src_fp = pipeline.get("source_sha256") if isinstance(pipeline, dict) else None
-    fp_match = (src_fp == current_fp) or (allow_prior_fingerprint and _is_sha256(src_fp))
+    fp_match = (src_fp == current_fp) or (allow_prior_fingerprint and src_fp in VALIDATED_PRIOR_FINGERPRINTS)
     if not isinstance(pipeline, dict):
         errors.append("research pipeline provenance is invalid")
     elif (

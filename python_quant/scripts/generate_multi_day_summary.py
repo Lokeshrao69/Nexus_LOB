@@ -1,8 +1,26 @@
 #!/usr/bin/env python3
 """Generate reconciled SUMMARY.md and summary.json for 15 completed ITCH sessions."""
 import json
+import os
 from pathlib import Path
 import numpy as np
+
+os.chdir(Path(__file__).resolve().parents[2])
+
+
+def pct(frac: str) -> str:
+    a, b = (int(x) for x in frac.split("/"))
+    return f"{frac} ({100 * a / b:.0f}%)"
+
+
+def ci_verdict(pool: dict) -> str:
+    lo, hi = pool["ci95"]["lo"], pool["ci95"]["hi"]
+    if hi < 0:
+        return "negative (95% CI excludes 0)"
+    if lo > 0:
+        return "positive (95% CI excludes 0)"
+    return "no clear difference (95% CI includes 0)"
+
 
 agg_path = Path("docs/results/multi_day_aggregation.json")
 agg = json.loads(agg_path.read_text(encoding="utf-8"))
@@ -116,6 +134,8 @@ lines.append("> **Methodology & Independence Policy.** No event rows are pooled 
 lines.append("")
 lines.append("> **Pipeline Fingerprint & Provenance.** All 15 sessions were generated at commit `69534ab` (pipeline fingerprint `17a5ba28f5d8bdb37aecc26b1499c3d2711b26226df789d6982fd46b018a7090`, computed on raw file bytes, so it depends on line endings). `python_quant/` has changed since (run_research.py gained a clock-time collector (`collect_clock_fills`) that its own docstring says does not change E1–E6; clock-time markouts, dashboard, RL regime fix, validation-harness tolerances). The E1–E6 code paths (itch_parser, replay, features, labels, dataset, experiments, queue_dynamics, adverse_selection) are unchanged, so the current-tree fingerprint differs (`959ac48653d79a2688e506b11aa4d214982936ca15e396a2c4396aaddd5ede49` with CRLF, `691bbcbaa2fe4472ab6348374d9a413eff6a1f04b118cced9c1711fd13cec43e` LF-normalized). Re-run check: re-running E1-E6 for 12302019 AAPL at the current commit reproduced the stored ic, fill and adverse sections exactly (one session, one symbol).")
 lines.append("")
+lines.append("> **Summary Statistics Provenance.** Cross-day summary tables in Sections 3 (all 15 sessions and 14-session comparison), 4 (signed drift and Newey–West statistics), and 5 (E2–E5 cross-day distributions) are sourced from `docs/results/multi_day/summary.json`; full standalone regeneration directly from raw session files will be unified into this script in the next PR.")
+lines.append("")
 lines.append("## 1. Overview & Dataset Provenance")
 lines.append("")
 lines.append(f"- **Completed trading days analyzed**: {len(COMPLETED_DAYS)} ({', '.join(COMPLETED_DAYS)})")
@@ -164,12 +184,12 @@ for sym in ["AAPL", "QQQ"]:
     for h in [1, 5, 10, 25]:
         st = e1_all[sym][f"h{h}"]
         ci_str = f"[{st['ci95'][0]:.4f}, {st['ci95'][1]:.4f}]"
-        lines.append(f"| {sym} | {h} | {st['n_days']} | {st['mean']:.4f} | {st['median']:.4f} | {st['std_between_days']:.4f} | {ci_str} | {st['min']:.4f} | {st['max']:.4f} | {st['sign_consistency']} (100%) |")
+        lines.append(f"| {sym} | {h} | {st['n_days']} | {st['mean']:.4f} | {st['median']:.4f} | {st['std_between_days']:.4f} | {ci_str} | {st['min']:.4f} | {st['max']:.4f} | {pct(st['sign_consistency'])} |")
 
 lines.append("")
 lines.append("### 14 Sessions (Excluding 11/28/2025 Early-Close Session)")
 lines.append("")
-lines.append("> **Note on 11/28/2025**: The day after US Thanksgiving has a 13:00 ET early close (3.5h regular session vs standard 6.5h). As expected, removing this shorter, thinner session slightly increases mean rank IC and narrows cross-day standard deviation:")
+lines.append("> **Note on 11/28/2025**: The day after US Thanksgiving has a 13:00 ET early close (3.5h regular session vs standard 6.5h). As expected, removing this shorter, thinner session slightly increases mean rank IC at every horizon; cross-day standard deviation narrows at most horizons but widens slightly for AAPL at h=10 and h=25:")
 lines.append("")
 lines.append("| Symbol | Horizon (events) | N Sessions | Mean IC (14-day) | Diff vs 15-day | Between-Day SD | 95% Bootstrap CI | Min | Max | Positive Days |")
 lines.append("|---|---:|---:|---:|---:|---:|---|---:|---:|:---:|")
@@ -182,7 +202,7 @@ for sym in ["AAPL", "QQQ"]:
         diff = st14["mean"] - st15["mean"]
         ci_str = f"[{st14['ci95'][0]:.4f}, {st14['ci95'][1]:.4f}]"
         diff_str = f"+{diff:.4f}" if diff >= 0 else f"{diff:.4f}"
-        lines.append(f"| {sym} | {h} | {st14['n_days']} | {st14['mean']:.4f} | {diff_str} | {st14['std_between_days']:.4f} | {ci_str} | {st14['min']:.4f} | {st14['max']:.4f} | {st14['sign_consistency']} (100%) |")
+        lines.append(f"| {sym} | {h} | {st14['n_days']} | {st14['mean']:.4f} | {diff_str} | {st14['std_between_days']:.4f} | {ci_str} | {st14['min']:.4f} | {st14['max']:.4f} | {pct(st14['sign_consistency'])} |")
 
 lines.append("")
 lines.append("## 4. E6 Adverse Selection — Three-Way Outcome Split & Post-Fill Drift (15 Sessions)")
@@ -232,7 +252,11 @@ for metric, name, sign in [
         min_str = f"{st['min']:.2f}"
         max_str = f"{st['max']:.2f}"
         sd_str = f"{st['std_between_days']:.2f}"
-        sig_str = "15/15 (100%)" if metric == "t_nw_h5" else "—"
+        if metric == "t_nw_h5":
+            n_days = st.get("n_days", len(COMPLETED_DAYS))
+            sig_str = f"{n_days}/{n_days} (100%)" if st["max"] < -1.96 else "not all; see per-session table"
+        else:
+            sig_str = "—"
         sign_str = st["sign_consistency"] if sign != 0 else "—"
         lines.append(f"| {name} | {sym} | {m_str} | {med_str} | {sd_str} | {ci_str} | {min_str} | {max_str} | {sign_str} | {sig_str} |")
 
@@ -296,7 +320,7 @@ p_e2 = paired["microprice_minus_imbalance_h5"]
 e2_pool = p_e2["pooled"]
 e2_ci = f"[{e2_pool['ci95']['lo']:.4f}, {e2_pool['ci95']['hi']:.4f}]"
 e2_tot = e2_pool['sessions_a_greater'] + e2_pool['sessions_b_greater']
-lines.append(f"| **E2**: Microprice − Imbalance (h=5) | Does microprice add predictive value over simple L1 imbalance? | **{e2_pool['mean']:+.4f}** | {e2_ci} | {e2_pool['sessions_a_greater']} | {e2_pool['sessions_b_greater']} | **No.** Simpler L1 imbalance beats microprice on {e2_pool['sessions_b_greater']} of {e2_tot} symbol-sessions (p < 0.05). On tight 1-tick spreads, microprice adds noise. |")
+lines.append(f"| **E2**: Microprice − Imbalance (h=5) | Does microprice add predictive value over simple L1 imbalance? | **{e2_pool['mean']:+.4f}** | {e2_ci} | {e2_pool['sessions_a_greater']} | {e2_pool['sessions_b_greater']} | **No.** Simpler L1 imbalance beats microprice on {e2_pool['sessions_b_greater']} of {e2_tot} symbol-sessions ({ci_verdict(e2_pool)}). On tight 1-tick spreads, microprice adds noise. |")
 
 p_e3 = paired["ofi_order_minus_ofi_l2_h5"]
 e3_pool = p_e3["pooled"]

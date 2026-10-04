@@ -51,7 +51,7 @@ if str(_SCRIPTS) not in sys.path:
 import fetch_itch
 from batch_research_itch import (
     RESEARCH_MANIFEST_NAME,
-    _is_sha256,
+    VALIDATED_PRIOR_FINGERPRINTS,
     _pipeline_fingerprint,
     check_completed_research,
     check_source_manifest,
@@ -291,7 +291,7 @@ def build_records(
         if research is not None:
             analysis_status = str(research.get("status"))
             pipeline_fp = research.get("pipeline", {}).get("source_sha256")
-            pipeline_current = (pipeline_fp == current_fp) or (allow_prior_fingerprint and _is_sha256(pipeline_fp))
+            pipeline_current = (pipeline_fp == current_fp) or (allow_prior_fingerprint and pipeline_fp in VALIDATED_PRIOR_FINGERPRINTS)
             for s in SYMBOLS:
                 payload = _read_json(results_dir / day / f"real_tape_{day}_{s}.json")
                 if payload is None:

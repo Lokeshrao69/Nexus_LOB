@@ -8,6 +8,8 @@
 
 > **Pipeline Fingerprint & Provenance.** All 15 sessions were generated at commit `69534ab` (pipeline fingerprint `17a5ba28f5d8bdb37aecc26b1499c3d2711b26226df789d6982fd46b018a7090`, computed on raw file bytes, so it depends on line endings). `python_quant/` has changed since (run_research.py gained a clock-time collector (`collect_clock_fills`) that its own docstring says does not change E1–E6; clock-time markouts, dashboard, RL regime fix, validation-harness tolerances). The E1–E6 code paths (itch_parser, replay, features, labels, dataset, experiments, queue_dynamics, adverse_selection) are unchanged, so the current-tree fingerprint differs (`959ac48653d79a2688e506b11aa4d214982936ca15e396a2c4396aaddd5ede49` with CRLF, `691bbcbaa2fe4472ab6348374d9a413eff6a1f04b118cced9c1711fd13cec43e` LF-normalized). Re-run check: re-running E1-E6 for 12302019 AAPL at the current commit reproduced the stored ic, fill and adverse sections exactly (one session, one symbol).
 
+> **Summary Statistics Provenance.** Cross-day summary tables in Sections 3 (all 15 sessions and 14-session comparison), 4 (signed drift and Newey–West statistics), and 5 (E2–E5 cross-day distributions) are sourced from `docs/results/multi_day/summary.json`; full standalone regeneration directly from raw session files will be unified into this script in the next PR.
+
 ## 1. Overview & Dataset Provenance
 
 - **Completed trading days analyzed**: 15 (01302019, 01302020, 03272019, 05302019, 07132021, 07302019, 08132021, 08302019, 10182019, 10302019, 11282025, 12132018, 12142018, 12302019, 12312018)
@@ -48,7 +50,7 @@ All rank ICs are measured on the **out-of-sample test split** (last 20% of tradi
 
 ### 14 Sessions (Excluding 11/28/2025 Early-Close Session)
 
-> **Note on 11/28/2025**: The day after US Thanksgiving has a 13:00 ET early close (3.5h regular session vs standard 6.5h). As expected, removing this shorter, thinner session slightly increases mean rank IC and narrows cross-day standard deviation:
+> **Note on 11/28/2025**: The day after US Thanksgiving has a 13:00 ET early close (3.5h regular session vs standard 6.5h). As expected, removing this shorter, thinner session slightly increases mean rank IC at every horizon; cross-day standard deviation narrows at most horizons but widens slightly for AAPL at h=10 and h=25:
 
 | Symbol | Horizon (events) | N Sessions | Mean IC (14-day) | Diff vs 15-day | Between-Day SD | 95% Bootstrap CI | Min | Max | Positive Days |
 |---|---:|---:|---:|---:|---:|---|---:|---:|:---:|
@@ -118,7 +120,7 @@ Evaluated on the exact same test partition per session (a − b):
 
 | Comparison | Description | Pooled Mean Diff | 95% Bootstrap CI | Sessions a > b | Sessions b > a | Conclusion |
 |---|---|---:|---|:---:|:---:|---|
-| **E2**: Microprice − Imbalance (h=5) | Does microprice add predictive value over simple L1 imbalance? | **-0.0058** | [-0.0115, -0.0009] | 10 | 20 | **No.** Simpler L1 imbalance beats microprice on 20 of 30 symbol-sessions (p < 0.05). On tight 1-tick spreads, microprice adds noise. |
+| **E2**: Microprice − Imbalance (h=5) | Does microprice add predictive value over simple L1 imbalance? | **-0.0058** | [-0.0115, -0.0009] | 10 | 20 | **No.** Simpler L1 imbalance beats microprice on 20 of 30 symbol-sessions (negative (95% CI excludes 0)). On tight 1-tick spreads, microprice adds noise. |
 | **E3**: Order OFI − L2 OFI (h=5) | Does order-by-order tracking beat top-of-book L2 approximation? | **-0.0007** | [-0.0129, 0.0109] | 18 | 12 | **Tied.** Order-level OFI is slightly better on QQQ (+0.0123) but worse on AAPL (-0.0138). CI straddles 0. |
 | **E4**: Combined − Imbalance (h=5) | Does multi-feature OLS beat single L1 imbalance? | **+0.0143** | [0.0121, 0.0172] | 28 | 2 | **Yes.** Train-fit combination yields modest, robust out-of-sample rank IC gain on 28 of 30 sessions. |
 | **E6**: Post-fill − Pre-fill Drift (h=5) | Is post-fill drift worse than matched pre-fill price drift? | **-37.14 price units ($0.0001)** | [-40.79, -33.79] | 0 | 30 | **Yes.** Post-fill drift is worse than matched pre-fill drift on 100% of sessions (all 30 sessions post < pre). |
