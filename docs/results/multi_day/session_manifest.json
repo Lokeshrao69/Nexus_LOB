@@ -1,17 +1,18 @@
 {
   "kind": "nexus-lob-itch-session-manifest",
-  "generated_at_unix": 1789475132,
+  "generated_at_unix": 1791021189,
   "directory_root": "https://emi.nasdaq.com/ITCH/",
   "symbols": [
     "AAPL",
     "QQQ"
   ],
-  "pipeline_fingerprint": "36f69b89a11f989217cf9bbdef0f73bb7d48b464fcf411957bb4f210ae8273c5",
+  "pipeline_fingerprint": "959ac48653d79a2688e506b11aa4d214982936ca15e396a2c4396aaddd5ede49",
   "n_candidates": 30,
-  "n_included": 0,
+  "n_included": 15,
   "status_counts": {
     "404/RETIRED": 7,
-    "OTHER": 23
+    "FULL": 15,
+    "OTHER": 8
   },
   "sessions": [
     {
@@ -261,15 +262,42 @@
       "AAPL_slice_sha256": "e24bf36f50526cc8c63893283666495070232dfb969d7021a4cf6f09d9dbbd16",
       "QQQ_slice_messages": 3452818,
       "QQQ_slice_sha256": "5b5bc3f207d34a87df4b6a5b85d7f6ce5b4a789f83db034d8c00f392ffec05b1",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1596503,
+      "QQQ_events": 3291294,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:03:59",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:03:59",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "03272019",
@@ -301,15 +329,42 @@
       "AAPL_slice_sha256": "8a844c11ac7633d3a421d2b2634504f9853ec9aa8bbaee7513a4590c67d2da4a",
       "QQQ_slice_messages": 4166294,
       "QQQ_slice_sha256": "780a2784b63882aec199afdc0ef67d9f10fdc685cea5a12bcf180d7104573a36",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1960770,
+      "QQQ_events": 4040376,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:31",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:31",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "05302019",
@@ -341,15 +396,42 @@
       "AAPL_slice_sha256": "5b07d71815e88b3667eb818bd328690080a9619e13163ceb517e1c732ef4295d",
       "QQQ_slice_messages": 2738172,
       "QQQ_slice_sha256": "ad2930a1cd4e5165032b141b0ecc438dddfa7d2b03691d2f72e40dbb6da7d2b3",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1165209,
+      "QQQ_events": 2608902,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:23",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:23",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "07302019",
@@ -381,15 +463,42 @@
       "AAPL_slice_sha256": "6223af70d46dab5d8e047318a6fc3db7c6e154e1f6ea57cc7a06bbd2a8e38dfa",
       "QQQ_slice_messages": 1840054,
       "QQQ_slice_sha256": "53c244f96a9ffc103f68d142af195ea3e34ed6c38ee4ca5273b4414fb7391bd3",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1214806,
+      "QQQ_events": 1674517,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:50",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:50",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "08302019",
@@ -421,15 +530,42 @@
       "AAPL_slice_sha256": "c1d715037216fd5f9fad8b84ebc0f56ed366b7155ba005cf865ae51acbdd49c9",
       "QQQ_slice_messages": 2376619,
       "QQQ_slice_sha256": "c6a4720b81564d448434c611d03cbc679d0cd0b3d46b2af2730e3c45f037f69b",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1151383,
+      "QQQ_events": 2276617,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:04:06",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:04:06",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "10302019",
@@ -461,15 +597,42 @@
       "AAPL_slice_sha256": "9d462cd34190cd9ca5b10982f0e86dde997812615f95a4ce1336ffd26cb4cec0",
       "QQQ_slice_messages": 1982861,
       "QQQ_slice_sha256": "138213cf9e5ea2a10a560bd9244a8636305039bbf6f4bf264c0a265b46a4d466",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 739800,
+      "QQQ_events": 1864809,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:31",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:31",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "12302019",
@@ -501,15 +664,42 @@
       "AAPL_slice_sha256": "50326efafe6d57529047e2687b25336f59c2714e4f7811e310dd914f2d34186a",
       "QQQ_slice_messages": 2376242,
       "QQQ_slice_sha256": "df0122722850c516994112cc6327addaac384976242c619235393c40aaf75bca",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1484259,
+      "QQQ_events": 2209131,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:04:32",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:04:32",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "01302020",
@@ -541,15 +731,42 @@
       "AAPL_slice_sha256": "b0d76cb2dbd05ddc4f957978477d89af4026d2da029be5bc96d196d50b0cad04",
       "QQQ_slice_messages": 4754517,
       "QQQ_slice_sha256": "4f5e58018977f4b1ffb13fd43f56b51486fbe9203fa1a177e9627dcc972ccb91",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1956673,
+      "QQQ_events": 4211652,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:33",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:33",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "12132018",
@@ -581,15 +798,42 @@
       "AAPL_slice_sha256": "fc5f76674deae4b209c0ed352234ecc664dda7ac8766c96af8843d643e1d429c",
       "QQQ_slice_messages": 3499243,
       "QQQ_slice_sha256": "9cdfaaec71cb00ac0337bfa5701b1779954969222b58043d9eb1e9591920d9a8",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1086473,
+      "QQQ_events": 3292683,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:29",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:29",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "12142018",
@@ -621,15 +865,42 @@
       "AAPL_slice_sha256": "f97761a3dcbf046bbdbdc17bb93c0171e5aa315e7ec919f949a786ee3bfba5f9",
       "QQQ_slice_messages": 2470917,
       "QQQ_slice_sha256": "57666e1684198837f30577c55690f3573b2e9eb7e1c1931205a88a524bc76627",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1300873,
+      "QQQ_events": 2343498,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:30",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:02:30",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "12312018",
@@ -661,15 +932,42 @@
       "AAPL_slice_sha256": "9f9864f30961ac732ecd83417789ec64a3629cb72405a91d165b99c72a86bd7b",
       "QQQ_slice_messages": 2976481,
       "QQQ_slice_sha256": "94fdf2c229ad88c7a4857efca78f9c6cda273b84c95831a28046ca914d7aade0",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1267696,
+      "QQQ_events": 2859411,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:03:48",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:03:48",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "10182019",
@@ -701,15 +999,42 @@
       "AAPL_slice_sha256": "8ec4c60feb3dd7296609244428fe19ce435e91198ef75224e7156f8434dd63e1",
       "QQQ_slice_messages": 2566773,
       "QQQ_slice_sha256": "b5d61912dfdcb71c2e4f1494ea03aea5a7756e7868fa3a69cdb63122719edab6",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1636764,
+      "QQQ_events": 2448505,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:03:42",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:03:42",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "07132021",
@@ -741,15 +1066,42 @@
       "AAPL_slice_sha256": "d33e55cfa6c391b4d2bfc3ec88545157813d5b2a2ef077400c3d85a1bfd1aa63",
       "QQQ_slice_messages": 5308725,
       "QQQ_slice_sha256": "b8cc72b0f5fae2e2a8768af4aa9b84624d241224255110d6dfceb864b24b137c",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 2307107,
+      "QQQ_events": 4798141,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:01:51",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:01:51",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "08132021",
@@ -781,15 +1133,42 @@
       "AAPL_slice_sha256": "74af173820bb36764d4a2992003ab10b2c3071376ada3c41df5a31d2b3d05623",
       "QQQ_slice_messages": 2512083,
       "QQQ_slice_sha256": "5c15602524a93ec52ae6ca17294cb679474f2cfcecf03012648936f99362fc3f",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1546590,
+      "QQQ_events": 2297971,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:01:47",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "20:05:00",
+            "E": "20:00:00",
+            "M": "16:00:00",
+            "O": "03:01:47",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "11282025",
@@ -821,15 +1200,42 @@
       "AAPL_slice_sha256": "3ccfadba5468458cd64a061b9227204a0b9fce37cf9e00195beca77d09b2f69c",
       "QQQ_slice_messages": 4156431,
       "QQQ_slice_sha256": "ebc4e434123325c0786acadafde4c987dfce02005fd33f872615d48bfe763d08",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
-      "AAPL_events": null,
-      "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
-      "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
-      "status_class": "OTHER"
+      "analysis_status": "completed",
+      "pipeline_fingerprint_current": true,
+      "AAPL_events": 1212991,
+      "QQQ_events": 4102651,
+      "regular_session_coverage": {
+        "AAPL": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:58",
+          "system_events_et": {
+            "C": "17:05:00",
+            "E": "17:00:00",
+            "M": "13:00:00",
+            "O": "03:01:29",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        },
+        "QQQ": {
+          "complete": true,
+          "first_row_et": "09:30:00",
+          "last_row_et": "15:59:59",
+          "system_events_et": {
+            "C": "17:05:00",
+            "E": "17:00:00",
+            "M": "13:00:00",
+            "O": "03:01:29",
+            "Q": "09:30:00",
+            "S": "04:00:00"
+          }
+        }
+      },
+      "complete_session": true,
+      "included_in_aggregation": true,
+      "exclusion_reason": null,
+      "status_class": "FULL"
     },
     {
       "date": "12082025",
@@ -891,24 +1297,15 @@
         "date_fingerprint": "exact_match",
         "date_fingerprint_matching_pairs": "12110/12110"
       },
-      "size_bytes": 7929915419,
-      "gz_sha256": "b6bf2f5dbd87445e37a58951c6119908ef0ea559ca373be80a0346ab73e14d66",
-      "messages_framed": 589560010,
-      "last_tape_clock_hours": 20.0833,
-      "download_status": "complete",
-      "symbols_not_found": [],
-      "AAPL_slice_messages": 2130032,
-      "AAPL_slice_sha256": "e1d82e6de6ebb18e1e1d04652d18338e7d44ddd3c52d58af57e9464f98fb703a",
-      "QQQ_slice_messages": 11691756,
-      "QQQ_slice_sha256": "ea2444b97a41c118faa2ac83941de1d6d208bfb16afe7b32e4b3c0505744a50c",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
+      "size_bytes": null,
+      "download_status": "not_downloaded",
+      "complete_session": null,
+      "regular_session_coverage": null,
       "AAPL_events": null,
       "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
+      "analysis_status": "not_run",
       "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
+      "exclusion_reason": "not downloaded in this campaign",
       "status_class": "OTHER"
     },
     {
@@ -1011,24 +1408,15 @@
         "date_fingerprint": "exact_match",
         "date_fingerprint_matching_pairs": "12137/12137"
       },
-      "size_bytes": 12551644054,
-      "gz_sha256": "46f42fb12f0e659814416713c4e22985dba1b062b0c13097ea9b5b003d612798",
-      "messages_framed": 923744247,
-      "last_tape_clock_hours": 20.0833,
-      "download_status": "complete",
-      "symbols_not_found": [],
-      "AAPL_slice_messages": 3541868,
-      "AAPL_slice_sha256": "978e5f6611935ccce4d30cecccc84167c8eeccdbefde82a3c1472aa9152bec04",
-      "QQQ_slice_messages": 20938437,
-      "QQQ_slice_sha256": "265217e9f5d9a923591d9f2054dabeb61ab58e28fe3c528e6238584546987e63",
-      "analysis_status": "not_run",
-      "pipeline_fingerprint_current": null,
+      "size_bytes": null,
+      "download_status": "not_downloaded",
+      "complete_session": null,
+      "regular_session_coverage": null,
       "AAPL_events": null,
       "QQQ_events": null,
-      "regular_session_coverage": null,
-      "complete_session": null,
+      "analysis_status": "not_run",
       "included_in_aggregation": false,
-      "exclusion_reason": "E1\u2013E6 analysis not completed",
+      "exclusion_reason": "not downloaded in this campaign",
       "status_class": "OTHER"
     },
     {
